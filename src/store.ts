@@ -116,16 +116,22 @@ export class CardStore {
 
         const folder = this.app.vault.getAbstractFileByPath(this.cardsFolder);
         if (!(folder instanceof TFolder)) return [];
-        const cards: CardRecord[] = [];
-        for (const child of folder.children) {
-            if (!(child instanceof TFile) || !child.name.endsWith('.json')) continue;
+        const files = folder.children.filter(
+            (child): child is TFile => child instanceof TFile && child.name.endsWith('.json'),
+        );
+        // Hundreds of small files on a cold vault: read them together, not one
+        // after another, or the first page after a restart crawls.
+        const loaded = await Promise.all(files.map(async (file) => {
             try {
-                const text = await this.app.vault.cachedRead(child);
-                cards.push(JSON.parse(text) as CardRecord);
+                const text = await this.app.vault.cachedRead(file);
+                return JSON.parse(text) as CardRecord;
             } catch {
                 // A hand-edited file with a syntax error must not break the list.
+                return null;
             }
-        }
+        }));
+        const cards = loaded.filter((card): card is CardRecord => card !== null);
+
         this.cached = cards;
         this.index.clear();
         for (const card of cards) this.indexCard(card);

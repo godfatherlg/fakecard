@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { State } from 'ts-fsrs';
 import type { CardRecord } from './card';
+import { dayStreak, lastDays } from './reviews';
 import type { ReviewLog } from './reviews';
 import { tt, ttf } from './i18n';
 import { renderViewNav } from './viewNav';
@@ -45,12 +46,17 @@ export class StatsView extends ItemView {
 
     async reload(): Promise<void> {
         this.loading = true;
-        this.cards = await this.plugin.store.list();
-        // The ratings / retention sections use the last 30 days; the heatmap
-        // shows the whole history.
-        this.recent = await this.plugin.reviews.recent(90);
-        this.history = await this.plugin.reviews.all();
-        this.streak = await this.plugin.reviews.streak();
+        // Card files and review days are independent: fetch them together and
+        // derive the window and the streak from the one history map, so the
+        // first open after a restart reads the vault once instead of four times.
+        const [cards, history] = await Promise.all([
+            this.plugin.store.list(),
+            this.plugin.reviews.all(),
+        ]);
+        this.cards = cards;
+        this.history = history;
+        this.recent = lastDays(history, 90);
+        this.streak = dayStreak(history);
         this.loading = false;
         this.render();
     }

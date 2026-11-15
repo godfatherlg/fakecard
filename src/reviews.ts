@@ -12,6 +12,14 @@ export interface ReviewLog {
     durationMs?: number;
 }
 
+/** YYYY-MM-DD in local time, the name of the day file. */
+export function dayKey(date: Date): string {
+    const y = date.getFullYear();
+    const m = date.getMonth() + 1;
+    const d = date.getDate();
+    return `${y}-${m < 10 ? '0' : ''}${m}-${d < 10 ? '0' : ''}${d}`;
+}
+
 /**
  * One JSON file per day: Fake Cards/reviews/YYYY-MM-DD.json.
  *
@@ -30,12 +38,6 @@ export class ReviewStore {
         return normalizePath(`${this.reviewsFolder}/${day}.json`);
     }
 
-    private static dayKey(date: Date): string {
-        const y = date.getFullYear();
-        const m = date.getMonth() + 1;
-        const d = date.getDate();
-        return `${y}-${m < 10 ? '0' : ''}${m}-${d < 10 ? '0' : ''}${d}`;
-    }
 
     async ensure(): Promise<void> {
         if (!this.app.vault.getAbstractFileByPath(normalizePath(this.libraryFolder))) {
@@ -48,7 +50,7 @@ export class ReviewStore {
 
     async append(log: ReviewLog): Promise<void> {
         await this.ensure();
-        const day = ReviewStore.dayKey(new Date(log.at));
+        const day = dayKey(new Date(log.at));
         const path = this.dayPath(day);
         const file = this.app.vault.getAbstractFileByPath(path);
         let logs: ReviewLog[] = [];
@@ -79,7 +81,7 @@ export class ReviewStore {
 
         const byDay = new Map<string, ReviewLog[]>();
         for (const log of entries) {
-            const day = ReviewStore.dayKey(new Date(log.at));
+            const day = dayKey(new Date(log.at));
             const list = byDay.get(day) ?? [];
             list.push(log);
             byDay.set(day, list);
@@ -125,7 +127,7 @@ export class ReviewStore {
      * the daily limits or the stats, so the log entry is removed again.
      */
     async remove(cardId: string, at: string): Promise<void> {
-        const day = ReviewStore.dayKey(new Date(at));
+        const day = dayKey(new Date(at));
         const path = this.dayPath(day);
         const file = this.app.vault.getAbstractFileByPath(path);
         if (!(file instanceof TFile)) return;
@@ -150,7 +152,7 @@ export class ReviewStore {
     }
 
     async forDay(date: Date): Promise<ReviewLog[]> {
-        const path = this.dayPath(ReviewStore.dayKey(date));
+        const path = this.dayPath(dayKey(date));
         const file = this.app.vault.getAbstractFileByPath(path);
         if (!(file instanceof TFile)) return [];
         try {
@@ -161,16 +163,23 @@ export class ReviewStore {
         }
     }
 
-    /** Last `days` days, oldest first, grouped by day key. */
+    /**
+     * Last `days` days, oldest first, grouped by day key.
+     *
+     * The days are read in parallel: on a cold vault every miss costs a round
+     * trip to the disk, and a page that waits for them one by one feels stuck.
+     */
     async recent(days: number): Promise<Map<string, ReviewLog[]>> {
-        const out = new Map<string, ReviewLog[]>();
+        const dates: Date[] = [];
         const today = new Date();
         for (let offset = days - 1; offset >= 0; offset--) {
             const date = new Date(today);
             date.setDate(today.getDate() - offset);
-            const key = ReviewStore.dayKey(date);
-            out.set(key, await this.forDay(date));
+            dates.push(date);
         }
+        const logs = await Promise.all(dates.map((date) => this.forDay(date)));
+        const out = new Map<string, ReviewLog[]>();
+        dates.forEach((date, index) => out.set(dayKey(date), logs[index]));
         return out;
     }
 
@@ -191,16 +200,21 @@ export class ReviewStore {
             .map((child) => child.name.slice(0, 10))
             .sort();
 
-        const out = new Map<string, ReviewLog[]>();
-        for (const day of days) {
+        const loaded = await Promise.all(days.map(async (day): Promise<[string, ReviewLog[]] | null> => {
             const file = this.app.vault.getAbstractFileByPath(this.dayPath(day));
-            if (!(file instanceof TFile)) continue;
+            if (!(file instanceof TFile)) return null;
             try {
                 const parsed = JSON.parse(await this.app.vault.cachedRead(file)) as ReviewLog[];
-                if (Array.isArray(parsed)) out.set(day, parsed);
+                return Array.isArray(parsed) ? [day, parsed] : null;
             } catch {
                 // An unreadable day is skipped rather than failing the page.
+                return null;
             }
+        }));
+
+        const out = new Map<string, ReviewLog[]>();
+        for (const entry of loaded) {
+            if (entry) out.set(entry[0], entry[1]);
         }
         return out;
     }
@@ -226,16 +240,38 @@ export class ReviewStore {
         return logs;
     }
 
-    /** Consecutive days with at least one review, counting back from today. */
-    async streak(): Promise<number> {
-        const recent = await this.recent(365);
-        const keys = Array.from(recent.keys()).reverse();
-        let streak = 0;
-        for (const key of keys) {
-            const logs = recent.get(key) ?? [];
-            if (logs.length === 0) break;
-            streak++;
-        }
-        return streak;
+}
+
+/**
+ * The last `days` day keys, oldest first, filled from a history map.
+ *
+ * Derived from a map that is already in memory: the statistics page needs the
+ * whole history anyway, so nothing is read a second time to build its window.
+ */
+export function lastDays(
+    history: Map<string, ReviewLog[]>,
+    days: number,
+): Map<string, ReviewLog[]> {
+    const out = new Map<string, ReviewLog[]>();
+    const today = new Date();
+    for (let offset = days - 1; offset >= 0; offset--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - offset);
+        const key = dayKey(date);
+        out.set(key, history.get(key) ?? []);
     }
+    return out;
+}
+
+/** Consecutive days with at least one review, counting back from today. */
+export function dayStreak(history: Map<string, ReviewLog[]>): number {
+    let streak = 0;
+    const today = new Date();
+    for (let offset = 0; offset < 3650; offset++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - offset);
+        if ((history.get(dayKey(date)) ?? []).length === 0) break;
+        streak++;
+    }
+    return streak;
 }
