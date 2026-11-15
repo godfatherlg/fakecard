@@ -23,7 +23,7 @@ Features:
 
 Install:
 
-1. Community plugins: Settings -> Community plugins -> Browse -> search `fakecard` (submission pending)
+1. Community plugins: Settings -> Community plugins -> Browse -> search `fakecard`, or open its [community directory page](https://community.obsidian.md/plugins/fakecard)
 2. Manual: download `main.js`, `manifest.json` and `styles.css` from [Releases](https://github.com/godfatherlg/fakecard/releases) into `<vault>/.obsidian/plugins/fakecard/`, then enable the plugin
 
 Quick start:
@@ -55,11 +55,11 @@ The rest of this document is in Chinese.
 
 ## 安装
 
-### 社区插件（提交审核中）
+### 社区插件
 
-上架后：设置 → 第三方插件 → 浏览 → 搜索 `fakecard`。
+设置 → 第三方插件 → 浏览 → 搜索 `fakecard`，或直接打开[社区目录页](https://community.obsidian.md/plugins/fakecard)。
 
-提交方式是 Obsidian 的社区目录（<https://community.obsidian.md>），不再是 GitHub PR。
+列表里暂时搜不到时重启一次 Obsidian：客户端会缓存插件清单，新上架的条目需要重新拉取后才会出现。
 
 ### 手动安装
 
