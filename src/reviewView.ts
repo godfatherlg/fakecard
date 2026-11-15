@@ -77,7 +77,26 @@ export class ReviewView extends ItemView {
         // pointer produces no mouse event, so the dwell has to watch keys too.
         this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => this.onHoverModifierKey(event));
         this.registerDomEvent(activeDocument, 'keyup', (event: KeyboardEvent) => this.onHoverModifierKey(event));
-        await this.reload();
+        // A leaf restored with the workspace opens while the layout is still
+        // being assembled. Painting a card then renders it into a leaf that is
+        // not attached yet, and its wiki links come out without the classes and
+        // click handling Obsidian adds once the layout is up: the text is there
+        // but every link in it is dead until something paints it again. A card
+        // is therefore painted only after the layout is ready - a view opened
+        // later has nothing to wait for and paints straight away.
+        //
+        // `onOpen` itself must not wait: the workspace waits for the view it is
+        // restoring, so blocking here stalls the whole restore until the
+        // deferred-view timeout gives up, which is worse than the bug.
+        if (this.app.workspace.layoutReady) {
+            await this.reload();
+            return;
+        }
+        this.loading = true;
+        this.render();
+        this.app.workspace.onLayoutReady(() => {
+            void this.reload();
+        });
     }
 
     async reload(): Promise<void> {
