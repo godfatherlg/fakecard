@@ -244,9 +244,9 @@ export class StatsView extends ItemView {
 
     private dayKey(date: Date): string {
         const y = date.getFullYear();
-        const m = `${date.getMonth() + 1}`.padStart(2, '0');
-        const d = `${date.getDate()}`.padStart(2, '0');
-        return `${y}-${m}-${d}`;
+        const m = date.getMonth() + 1;
+        const d = date.getDate();
+        return `${y}-${m < 10 ? '0' : ''}${m}-${d < 10 ? '0' : ''}${d}`;
     }
 
     private statCard(parent: HTMLElement, label: string, value: string): void {

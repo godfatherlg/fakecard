@@ -10,8 +10,7 @@ let pending: Promise<SqlJsStatic> | null = null;
  */
 export function loadSqlJs(): Promise<SqlJsStatic> {
     if (pending !== null) return pending;
-    // esbuild hands back the bytes as a Uint8Array; sql.js wants an ArrayBuffer.
-    const created = initSqlJs({ wasmBinary: wasmBinary.buffer as ArrayBuffer });
+    const created = initSqlJs({ wasmBinary });
     pending = created;
     return created;
 }

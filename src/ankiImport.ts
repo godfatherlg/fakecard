@@ -194,8 +194,7 @@ export async function importApkg(
         const json = rows[0]?.values[0]?.[0];
         if (typeof json === 'string') {
             const parsed = JSON.parse(json) as Record<string, AnkiModel>;
-            const entries = Object.entries(parsed) as Array<[string, AnkiModel]>;
-            for (const [id, model] of entries) models.set(id, model);
+            for (const id of Object.keys(parsed)) models.set(id, parsed[id]);
         }
     } catch {
         // fall through to the newer schema
@@ -249,8 +248,8 @@ export async function importApkg(
             if (!plugin.app.vault.getAbstractFileByPath(dir)) {
                 await plugin.app.vault.createFolder(dir);
             }
-            const mediaNames = Object.entries(json) as Array<[string, string]>;
-            for (const [index, name] of mediaNames) {
+            for (const index of Object.keys(json)) {
+                const name = json[index];
                 const data = files[index];
                 if (!(data instanceof Uint8Array)) continue;
                 const path = normalizePath(`${dir}/${name}`);

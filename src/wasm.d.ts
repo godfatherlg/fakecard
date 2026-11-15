@@ -1,6 +1,11 @@
-/** esbuild's binary loader inlines the file and exports it as a Uint8Array. */
+/**
+ * esbuild's binary loader inlines the file and exports the bytes as a
+ * Uint8Array, which is a valid WebAssembly `BufferSource`. Declaring it as an
+ * ArrayBuffer keeps the sql.js config typed without a cast; sql.js accepts both
+ * forms at runtime.
+ */
 declare module '*.wasm' {
-    const data: Uint8Array;
+    const data: ArrayBuffer;
     export default data;
 }
 
