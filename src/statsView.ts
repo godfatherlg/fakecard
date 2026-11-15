@@ -66,7 +66,8 @@ export class StatsView extends ItemView {
         const todayLogs = this.recent.get(todayKey) ?? [];
         // Ratings / retention are windowed to the last 30 days.
         const last30Keys = Array.from(this.recent.keys()).slice(-30);
-        const allLogs = last30Keys.flatMap((key) => this.recent.get(key) ?? []);
+        const allLogs: ReviewLog[] = [];
+        for (const key of last30Keys) allLogs.push(...(this.recent.get(key) ?? []));
 
         // --- Today ---
         const todayReviews = todayLogs.length;
@@ -243,8 +244,8 @@ export class StatsView extends ItemView {
 
     private dayKey(date: Date): string {
         const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
+        const m = `${date.getMonth() + 1}`.padStart(2, '0');
+        const d = `${date.getDate()}`.padStart(2, '0');
         return `${y}-${m}-${d}`;
     }
 

@@ -190,8 +190,9 @@ export class ReviewView extends ItemView {
         // Child card that keeps getting Hard: suggest simplifying it.
         if (card.childOf) {
             const streak = Math.max(1, this.plugin.settings.childHardStreak);
+            const hardGrade: number = Rating.Hard;
             void this.plugin.reviews.recentForCard(card.id, streak).then((logs) => {
-                if (logs.length < streak || !logs.every((log) => log.rating === Rating.Hard)) return;
+                if (logs.length < streak || !logs.every((log) => log.rating === hardGrade)) return;
                 const hint = container.createEl('div', {
                     cls: 'fakecard-review-hint',
                     text: `⚠️ ${streak} Hard ratings in a row - consider simplifying this child card.`,

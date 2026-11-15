@@ -34,7 +34,7 @@ export async function importFromClipboard(plugin: FakeCardPlugin): Promise<void>
 
 /** Pick an .apkg file and import its notes as cards. */
 export function importApkgFile(plugin: FakeCardPlugin): void {
-    const input = activeDocument.createElement('input');
+    const input = createEl('input');
     input.type = 'file';
     input.accept = '.apkg';
     input.onchange = () => {
