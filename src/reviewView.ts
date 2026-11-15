@@ -27,6 +27,8 @@ export const REVIEW_VIEW_TYPE = 'fakecard-review';
  */
 export class ReviewView extends ItemView {
     private cards: CardRecord[] = [];
+    /** Queue read while a restored view waits for the layout, see `onOpen`. */
+    private prefetched: Promise<{ decks: string[]; cards: CardRecord[]; expired: number }> | null = null;
     private index = 0;
     private revealed = false;
     private loading = true;
@@ -88,12 +90,21 @@ export class ReviewView extends ItemView {
         // `onOpen` itself must not wait: the workspace waits for the view it is
         // restoring, so blocking here stalls the whole restore until the
         // deferred-view timeout gives up, which is worse than the bug.
+        //
+        // Nothing is painted in that window either. The pane is still being
+        // assembled around it, so a "Loading..." placeholder has no reader
+        // until the leaf is attached - and by then the card is a moment away,
+        // which makes the placeholder a flash of its own. The pane stays empty
+        // until the card is painted, like any other deferred view.
         if (this.app.workspace.layoutReady) {
             await this.reload();
             return;
         }
         this.loading = true;
-        this.render();
+        // Reading the queue does not depend on the layout, so it runs during the
+        // wait: the card is then painted in the same frame the layout becomes
+        // ready instead of popping in a moment after the rest of the workspace.
+        this.prefetched = this.loadQueue();
         this.app.workspace.onLayoutReady(() => {
             void this.reload();
         });
@@ -102,16 +113,33 @@ export class ReviewView extends ItemView {
     async reload(): Promise<void> {
         this.loading = true;
 
+        // A restored view starts this while it waits for the layout, so the
+        // queue is already in memory by the time the card can be painted.
+        let queue = this.prefetched ? await this.prefetched.catch(() => null) : null;
+        this.prefetched = null;
+        if (!queue) queue = await this.loadQueue();
+
+        if (queue.expired > 0) {
+            new Notice(queue.expired === 1
+                ? tt('The exam day has passed - that plan was removed and its cards are back on the long-term schedule.')
+                : ttf('{count} exam plans have passed and were removed. Their cards are back on the long-term schedule.', { count: queue.expired }));
+        }
+
+        this.decks = queue.decks;
+        this.cards = queue.cards;
+        this.index = 0;
+        this.revealed = false;
+        this.loading = false;
+        this.cardShownAt = Date.now();
+        this.render();
+    }
+
+    /** Reads and orders the queue; touches no view state, so it can run early. */
+    private async loadQueue(): Promise<{ decks: string[]; cards: CardRecord[]; expired: number }> {
         // Plans whose exam day is over are dropped; card data (stability,
         // difficulty, history) is never touched, cards just go back to FSRS.
         const expired = await pruneExpiredExamPlans(this.plugin);
-        if (expired > 0) {
-            new Notice(expired === 1
-                ? tt('The exam day has passed - that plan was removed and its cards are back on the long-term schedule.')
-                : ttf('{count} exam plans have passed and were removed. Their cards are back on the long-term schedule.', { count: expired }));
-        }
-
-        this.decks = await this.plugin.store.loadDecks();
+        const decks = await this.plugin.store.loadDecks();
         const everyCard = await this.plugin.store.list();
         const scoped = this.deckFilter === 'all'
             ? everyCard
@@ -140,15 +168,14 @@ export class ReviewView extends ItemView {
             .filter((card) => !card.fsrs || card.fsrs.state === State.New)
             .sort((a, b) => a.created.localeCompare(b.created));
 
-        this.cards = [
-            ...due.slice(0, remainingReviews),
-            ...fresh.slice(0, remainingNew),
-        ];
-        this.index = 0;
-        this.revealed = false;
-        this.loading = false;
-        this.cardShownAt = Date.now();
-        this.render();
+        return {
+            decks,
+            cards: [
+                ...due.slice(0, remainingReviews),
+                ...fresh.slice(0, remainingNew),
+            ],
+            expired,
+        };
     }
 
     private render(): void {
