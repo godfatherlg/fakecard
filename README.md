@@ -21,9 +21,11 @@ Spaced-repetition flashcards for Obsidian, built from your notes and stored as p
 
 ## 安装
 
-### 社区插件（审核中）
+### 社区插件（提交审核中）
 
-设置 → 第三方插件 → 浏览 → 搜索 `fakecard`。
+上架后：设置 → 第三方插件 → 浏览 → 搜索 `fakecard`。
+
+提交方式是 Obsidian 的社区目录（<https://community.obsidian.md>），不再是 GitHub PR。
 
 ### 手动安装
 
