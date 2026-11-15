@@ -1,0 +1,25 @@
+# vscode
+.vscode
+
+# Intellij
+*.iml
+.idea
+
+# npm
+node_modules
+
+# The compiled bundle is attached to GitHub releases instead of being
+# committed (it includes a ~8 MB SQLite build for the Anki importer).
+main.js
+
+# Sourcemaps
+*.map
+
+# Plugin settings written by Obsidian
+data.json
+
+# macOS Finder
+.DS_Store
+
+# Build logs
+build.log

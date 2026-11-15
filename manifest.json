@@ -1,0 +1,10 @@
+{
+	"id": "fakecard",
+	"name": "fakecard",
+	"version": "1.0.0",
+	"minAppVersion": "1.13.0",
+	"description": "Spaced-repetition flashcards built from your notes, stored in their own folder - your notes stay untouched.",
+	"author": "godfatherlg",
+	"authorUrl": "https://github.com/godfatherlg",
+	"isDesktopOnly": false
+}

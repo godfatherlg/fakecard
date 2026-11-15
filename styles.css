@@ -1,0 +1,638 @@
+/* Card preview modal */
+.fakecards-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+
+.fakecards-preview-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+}
+
+.fakecards-preview-row input[type="checkbox"] {
+  margin-top: 3px;
+}
+
+.fakecards-preview-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.fakecards-preview-type {
+  font-size: 0.75em;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fakecards-preview-front {
+  font-weight: var(--font-semibold);
+  margin-top: 2px;
+  white-space: pre-wrap;
+}
+
+.fakecards-preview-back {
+  opacity: 0.75;
+  margin-top: 2px;
+  white-space: pre-wrap;
+}
+
+/* Manual cloze panel */
+.fakecard-help {
+  font-size: 0.85em;
+  opacity: 0.7;
+  margin: 2px 0 6px;
+}
+
+.fakecard-cloze-editor {
+  width: 100%;
+  min-height: 0;
+  font-family: var(--font-monospace);
+  resize: none;
+  overflow: hidden;
+}
+
+.fakecard-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+
+.fakecard-field-label {
+  display: block;
+  font-size: 0.8em;
+  opacity: 0.7;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.fakecard-preview {
+  margin-top: 8px;
+}
+
+.fakecard-preview-label {
+  font-size: 0.75em;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 10px;
+}
+
+.fakecard-preview-body {
+  white-space: pre-wrap;
+  background: var(--background-secondary);
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 4px 0;
+  font-family: var(--font-text);
+}
+
+.fakecards-clickable {
+  cursor: pointer;
+}
+
+.fakecards-clickable:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* Review view: the card is the main content, centred and readable. */
+.fakecard-review {
+  padding: 10px 20px;
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.fakecard-review .fakecard-review-front {
+  font-size: 1.35em;
+}
+
+.fakecard-qa-front {
+  text-align: center;
+}
+
+.fakecard-review-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.fakecard-review-progress {
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.fakecard-review-hint {
+  font-size: 0.9em;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-orange) 18%, transparent);
+}
+
+.fakecard-review-time {
+  font-size: 0.8em;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+.fakecard-review-edit {
+  padding: 4px 10px;
+  font-size: 0.85em;
+}
+
+.fakecard-review-front {
+  font-size: 1.2em;
+  line-height: 1.7;
+}
+
+.fakecard-review-back {
+  font-size: 1em;
+  line-height: 1.7;
+  margin-top: 8px;
+}
+
+.fakecard-review-show {
+  margin-top: 16px;
+}
+
+.fakecard-review-ratings {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.fakecard-review-ratings button {
+  flex: 1;
+  padding: 8px;
+}
+
+.fakecard-again {
+  background: var(--color-red);
+  color: var(--text-on-accent);
+}
+
+.fakecard-hard {
+  background: var(--color-orange);
+  color: var(--text-on-accent);
+}
+
+.fakecard-good {
+  background: var(--color-green);
+  color: var(--text-on-accent);
+}
+
+.fakecard-easy {
+  background: var(--color-blue);
+  color: var(--text-on-accent);
+}
+
+/* Cloze highlighting: the asked part vs the revealed answer */
+.fakecard-cloze-mask {
+  background: color-mix(in srgb, var(--color-blue) 25%, transparent);
+  color: var(--text-normal);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+/* Other groups are hidden as well but stay neutral - only the asked group
+   gets the accent colour, so it is clear what this card wants. */
+.fakecard-cloze-other {
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.fakecard-cloze-answer {
+  background: color-mix(in srgb, var(--color-green) 22%, transparent);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+/* Image occlusion */
+.fakecard-image-scroll {
+  overflow: auto;
+  max-height: 60vh;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+
+/* Review / Browse / Preview: natural size, never stretched. */
+.fakecard-image-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.fakecard-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+/* Editor: the wrapper width is the zoom level, so the image fills it. */
+.fakecard-image-scroll .fakecard-image-wrap {
+  display: block;
+  width: 100%;
+  max-width: none;
+}
+
+.fakecard-image-scroll .fakecard-image {
+  width: 100%;
+  max-width: none;
+}
+
+.fakecard-image-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+
+.fakecard-image-overlay.is-static {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Review / preview masks: opaque, so the answer is really hidden. Fixed
+   colours per light/dark mode so the mask never turns pure white. */
+.fakecard-image-mask {
+  position: absolute;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+body.theme-light .fakecard-image-mask {
+  background: #4a4a4a;
+  border-color: #2a2a2a;
+}
+
+body.theme-dark .fakecard-image-mask {
+  background: #cfcfcf;
+  border-color: #9a9a9a;
+}
+
+/* Ellipse masks (rect is the default) */
+.fakecard-image-mask.is-ellipse {
+  border-radius: 50%;
+}
+
+/* Editing uses the same opaque mask as review. */
+.fakecard-image-panel .fakecard-image-mask {
+  cursor: pointer;
+}
+
+.fakecard-image-mask.is-selected {
+  outline: 2px solid var(--interactive-accent);
+}
+
+.fakecard-image-mask.is-drawing {
+  background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+  border-style: dashed;
+}
+
+.fakecard-image-mask-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 0.7em;
+}
+
+body.theme-light .fakecard-image-mask-label {
+  color: #fff;
+}
+
+body.theme-dark .fakecard-image-mask-label {
+  color: #222;
+}
+
+/* Stats view */
+.fakecard-stats {
+  padding: 20px 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.fakecard-stats-cards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0 20px;
+}
+
+.fakecard-stat-card {
+  background: var(--background-secondary);
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 130px;
+}
+
+.fakecard-stat-value {
+  font-size: 1.6em;
+  font-weight: var(--font-semibold);
+}
+
+.fakecard-stat-label {
+  font-size: 0.8em;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+.fakecard-stats-states {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 16px;
+}
+
+.fakecard-stat-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--background-secondary);
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.fakecard-stat-chip-value {
+  font-weight: var(--font-semibold);
+}
+
+.fakecard-stat-chip-label {
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.fakecard-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 120px;
+  margin: 8px 0 20px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 2px;
+}
+
+.fakecard-chart-bar {
+  flex: 1;
+  background: var(--interactive-accent);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+.fakecard-stats-ratings {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 16px;
+}
+
+.fakecard-rating-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.fakecard-rating-chip.is-again {
+  background: color-mix(in srgb, var(--color-red) 16%, transparent);
+}
+
+.fakecard-rating-chip.is-hard {
+  background: color-mix(in srgb, var(--color-orange) 16%, transparent);
+}
+
+.fakecard-rating-chip.is-good {
+  background: color-mix(in srgb, var(--color-green) 16%, transparent);
+}
+
+.fakecard-rating-chip.is-easy {
+  background: color-mix(in srgb, var(--color-blue) 16%, transparent);
+}
+
+.fakecard-stats-retention {
+  margin: 4px 0 18px;
+  font-size: 0.95em;
+}
+
+.fakecard-heatmap {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  gap: 3px;
+  margin: 8px 0 20px;
+}
+
+.fakecard-heatmap-cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+}
+
+.fakecard-heatmap-cell.is-active {
+  background: var(--interactive-accent);
+}
+
+.fakecard-stats-hardest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 20px;
+}
+
+.fakecard-stats-hardest-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--background-secondary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.9em;
+}
+
+.fakecard-stats-hardest-front {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fakecard-stats-hardest-count {
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.fakecard-stats-forecast-summary {
+  font-size: 0.9em;
+  opacity: 0.7;
+  margin: 2px 0 6px;
+}
+
+.fakecard-stats-empty {
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+/* Browse view */
+.fakecard-browse {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fakecard-browse-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.fakecard-browse-search {
+  flex: 1;
+}
+
+.fakecard-browse-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.fakecard-chip {
+  padding: 2px 10px;
+  font-size: 0.8em;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  background: transparent;
+  cursor: pointer;
+}
+
+.fakecard-chip.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.fakecard-browse-count {
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.fakecard-browse-body {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.fakecard-browse-list {
+  flex: 0 0 45%;
+  overflow: auto;
+}
+
+.fakecard-browse-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fakecard-browse-table th,
+.fakecard-browse-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 0.9em;
+}
+
+.fakecard-browse-row {
+  cursor: pointer;
+}
+
+.fakecard-browse-row:hover,
+.fakecard-browse-row.is-selected {
+  background: var(--background-modifier-hover);
+}
+
+.fakecard-browse-preview {
+  flex: 1;
+  overflow: auto;
+  border-left: 1px solid var(--background-modifier-border);
+  padding-left: 12px;
+}
+
+.fakecard-browse-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fakecard-card-view {
+  background: var(--background-secondary);
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 4px 0 12px;
+}
+
+/* Full card preview dialog (Browse -> Preview) */
+.fakecard-card-preview-front {
+  font-size: 1.2em;
+  line-height: 1.7;
+}
+
+.fakecard-card-preview-back {
+  line-height: 1.7;
+}
+
+.fakecard-card-preview-show {
+  margin-top: 12px;
+}
+
+.fakecard-tags-input {
+  width: 100%;
+}
+
+.fakecard-source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.fakecard-source-row button {
+  padding: 2px 10px;
+  font-size: 0.85em;
+}
+
+.fakecard-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* Reading-view badge: injected at render time, the note itself is untouched. */
+.fakecard-source-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 0.75em;
+  line-height: 1.4;
+  border-radius: 4px;
+  background: var(--background-modifier-border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.fakecard-source-badge:hover {
+  background: var(--background-modifier-hover);
+}

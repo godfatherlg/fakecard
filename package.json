@@ -1,0 +1,27 @@
+{
+	"name": "obsidian-fakecards",
+	"version": "0.1.0",
+	"description": "Spaced-repetition flashcards for Obsidian - cards live in their own folder and never touch your notes.",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+	},
+	"keywords": [],
+	"author": "godfatherlg",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^16.18.126",
+		"@types/sql.js": "^1.4.11",
+		"esbuild": "0.14.47",
+		"obsidian": "^1.13.1",
+		"tslib": "^2.4.0",
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"fflate": "^0.8.3",
+		"fzstd": "^0.1.1",
+		"sql.js": "^1.16.0",
+		"ts-fsrs": "^4.5.0"
+	}
+}
