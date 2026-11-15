@@ -1,41 +1,41 @@
 ## 中文
 
-### 修复第二轮审核反馈
+### 修复第三轮审核反馈
 
-这一版没有功能变化，只做类型与写法上的清理：
+这一版没有功能变化。上一轮给 `Object.entries()`、`padStart()` 补显式类型没有生效，原因是审核器的类型检查把 ES2017 的 API 解析为 `any`（其 lib 只到 ES2016，与仓库原先的 `["DOM", "ES5", "ES6", "ES7"]` 一致）。因此这一版直接绕开这些 API，而不是继续补类型：
 
-- **`sql.js` 深层导入补上模块声明**：删掉 `@ts-ignore` 和 `any`，`initSqlJs()` 现在有完整签名，`wasmBinary` 也按官方类型传入
-- **`Object.entries()` 显式标注元组类型**：`src/ankiImport.ts` 里读取 notetypes 与 media 映射不再产生 `any`
-- **日期补零不再调用 `String(...)`**：`reviews.ts`、`statsView.ts` 改用模板字符串
-- **统计视图不再依赖 `flatMap`**：`last30Keys` 用显式循环归并，并标注 `ReviewLog[]`，避免在 `lib: ES7` 下被解析为 `any[]`
-- **枚举比较改为纯数字比较**：`reviewView.ts` 先取 `const hardGrade: number = Rating.Hard`，既不需要断言，也不跨枚举比较
-- **`activeDocument.createElement('input')` → `createEl('input')`**：`src/importer.ts` 里唯一真实存在的原生建元素调用
+- **`Object.entries()` → `Object.keys()` 循环**（`src/ankiImport.ts` 两处）：遍历 notetypes 与 media 映射时由 `Record` 直接给出值的类型，不再产生 `[string, any][]`
+- **日期补零改为手写拼接**（`src/reviews.ts`、`src/statsView.ts`）：`` `${y}-${m < 10 ? '0' : ''}${m}-${d < 10 ? '0' : ''}${d}` ``，不再调用 `String.prototype.padStart`
+- **去掉多余的类型断言**（`src/sqlite.ts`）：`*.wasm` 模块声明为 `ArrayBuffer`，直接 `initSqlJs({ wasmBinary })`；esbuild 内联的实际值是 Uint8Array，它本身是合法的 WebAssembly `BufferSource`，两条路径都实测可初始化
+- **`tsconfig.json` 的 `lib` 改为显式 `["DOM", "ES2020"]`**：不再依赖 `@types` 里 `/// <reference lib>` 的隐式引入
 
-### 关于 `prefer-create-el` 报错
+以上对应本轮报告里 10 条 `no-unsafe-*` 与 1 条「断言多余」，全部有明确处理点。
 
-报告里列出的 89 个行号位置，实际内容都是 `createEl` / `createDiv` / `createSpan` 调用。源码中 `.createEl(` 共 181 处、`createElement` 仅 1 处（本版已改），线上 `main.js` 中 `createElement` 出现次数为 0。这条规则疑似误报，欢迎复核。
+### 关于 `prefer-create-el`
+
+1.0.2 报告里唯一真实命中 `src/importer.ts:37`（`activeDocument.createElement('input')`）已在 1.0.3 修掉，该条目在 1.0.3 的报告中随之消失。剩余行号位置的内容均为 `createEl` / `createDiv` 调用，且同一文件内同类调用有的报、有的不报（例如 `src/clozePanel.ts` 有 14 处 `createEl` 只报了 1 处，`src/qaPanel.ts` 10 处一处未报）。源码与产物中 `createElement` 计数均为 0。
 
 ### 测试提醒
 
-- 无行为变化；仍建议导入一个 `.apkg` 牌组，确认基本、填空、图片遮挡三类笔记与媒体正常
+- 无行为变化，纯类型与写法清理；仍建议导入一个 `.apkg` 牌组，并打开一次统计页确认 30 天窗口与热力图正常
 
 ## English
 
-### Second round of review feedback
+### Third round of review feedback
 
-No behaviour changes in this release, only type and code clean-up:
+No behaviour changes in this release. Explicit types on `Object.entries()` and `padStart()` did not help last time because the review checker resolves ES2017 APIs to `any` (its lib stops at ES2016, matching the repo's previous `["DOM", "ES5", "ES6", "ES7"]`). This release removes the APIs instead of typing them:
 
-- **Proper module declaration for the deep `sql.js` import**: the `@ts-ignore` and the `any` are gone, `initSqlJs()` is fully typed and `wasmBinary` is passed with the official type
-- **Explicit tuple types for `Object.entries()`**: reading the notetypes and media maps in `src/ankiImport.ts` no longer produces `any`
-- **Date padding no longer calls `String(...)`**: `reviews.ts` and `statsView.ts` use template strings instead
-- **Statistics no longer relies on `flatMap`**: `last30Keys` is merged with an explicit loop typed as `ReviewLog[]`, so it cannot degrade to `any[]` under `lib: ES7`
-- **Enum comparison replaced by a plain number comparison**: `reviewView.ts` takes `const hardGrade: number = Rating.Hard` first, which needs neither an assertion nor a cross-enum comparison
-- **`activeDocument.createElement('input')` → `createEl('input')`**: the only real raw element creation left in `src/importer.ts`
+- **`Object.entries()` → `Object.keys()` loops** (`src/ankiImport.ts`, two sites): iterating the notetypes and media maps now takes its value types from the `Record`, so it never produces `[string, any][]`
+- **Date padding written out by hand** (`src/reviews.ts`, `src/statsView.ts`): `` `${y}-${m < 10 ? '0' : ''}${m}-${d < 10 ? '0' : ''}${d}` ``, with no `String.prototype.padStart` call
+- **Redundant type assertion removed** (`src/sqlite.ts`): the `*.wasm` module is declared as `ArrayBuffer` and `initSqlJs({ wasmBinary })` is called directly. esbuild inlines the bytes as a Uint8Array, which is a valid WebAssembly `BufferSource`; both forms were verified to initialise
+- **`tsconfig.json` now declares `lib` as `["DOM", "ES2020"]`** instead of relying on implicit `/// <reference lib>` directives pulled in by `@types`
 
-### About the `prefer-create-el` finding
+Together these cover every one of the ten `no-unsafe-*` warnings and the single "unnecessary assertion" warning in this round's report.
 
-Every line listed in that report is a `createEl` / `createDiv` / `createSpan` call. The source has 181 `.createEl(` call sites and exactly one `createElement` (fixed in this release), and the shipped `main.js` contains zero occurrences of `createElement`. This looks like a false positive and is worth a second look.
+### About `prefer-create-el`
+
+The only real hit in the 1.0.2 report was `src/importer.ts:37` (`activeDocument.createElement('input')`), which was fixed in 1.0.3 — and that entry is gone from the 1.0.3 report. Every remaining listed line is a `createEl` / `createDiv` call, and within the same file some identical calls are reported while others are not (for example `src/clozePanel.ts` has 14 `createEl` calls and only one is listed, while the 10 in `src/qaPanel.ts` are not listed at all). Both the source tree and the shipped `main.js` contain zero occurrences of `createElement`.
 
 ### Please test
 
-- No behaviour changes; importing one `.apkg` deck to confirm basic, cloze and image-occlusion notes and their media still come through would be great
+- No behaviour changes, only type and code clean-up; importing one `.apkg` deck and opening the statistics view once (30-day window and heatmap) would still be welcome
