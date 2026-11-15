@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-fakecards",
-	"version": "0.1.0",
+	"version": "1.0.1",
 	"description": "Spaced-repetition flashcards for Obsidian - cards live in their own folder and never touch your notes.",
 	"main": "main.js",
 	"scripts": {
