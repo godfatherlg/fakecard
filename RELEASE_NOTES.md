@@ -1,39 +1,41 @@
-# 1.0.9
+# 1.0.10
 
 ## 中文
 
-### 维护版本
+### 修复：重启后复习首屏的内链不渲染
 
-相对 1.0.8 只有一处内部清理，界面和行为完全一致。
+重启 Obsidian 后，如果复习界面是随工作区一起恢复的，首屏卡片里的 `[[双链]]` 和嵌入会显示成不可点击的纯文本；把那张卡翻面再翻回来，或者关掉复习界面重新打开，就正常了。
 
-Anki 导入器以前在读 revlog 时先用 `ease >= 1 && ease <= 4` 过滤，再靠一个 `as Grade` 断言把数字交给 FSRS 重放。那个断言其实什么都没做（TS 允许任意 `number` 赋给数字枚举），真正挡脏数据的是前面的比较。现在改成查表：`ease` 在读取时就被映射成 FSRS 的 Again / Hard / Good / Easy，越界的记录直接丢弃，重放阶段不再有断言，类型和运行时的约束一致了。
+原因是视图在布局恢复阶段就开始绘制卡片，此刻它在文档里还没挂好，链接那层样式和点击处理还没跟上；而手动打开的视图是在布局就绪后才画的，所以从来碰不到。现在恢复的视图会先显示「Loading…」，等布局就绪再画第一张卡，和手动打开的时序一致。
 
-实际效果：损坏或手改过的 apkg 不会再把非法评分传进调度器；正常 apkg 的结果与 1.0.8 逐字节一致。
+同时 `onOpen` 不再等待布局，否则整个恢复过程会卡到 Obsidian 的 deferred view 超时（之前那版能看到 `Failed to load deferred view Error: Timeout`）。
 
-### 1.0.8 的内容保持不变
+### 优化：统计页首次打开更快
 
-Anki 导入携带完整复习历史、子卡失败分数、GitHub 风格热力图、可配置的评分快捷键与复习布局、淡色评分按钮——都还在。
+卡片文件和复习日志都改成并发读取，统计页只读一次全量日志，「近 90 天」窗口与连击数从同一份内存数据里推导，不再逐天、逐份重复扫盘。冷启动（系统缓存为空）时差别最明显。
 
 ### 请测试
 
-- 导入一个 apkg，确认到期日期、复习次数和建子卡弹窗里的分数与 1.0.8 相同
-- 其余界面不需要测试，没有改动
+- 重启 Obsidian，直接看复习界面首屏卡片里的链接能不能点、有没有链接样式
+- 首次进统计页，确认速度与数字都正常
+- 手动从侧边栏打开复习界面，确认没有回归
 
 ## English
 
-### Maintenance release
+### Fixed: links in the first review card after a restart
 
-Exactly one internal cleanup since 1.0.8, with no change in behaviour or UI.
+When Obsidian started with the review view restored, wiki links and embeds in the first card came out as plain, unclickable text. Flipping the card or reopening the view made them render, because those paths painted the card later.
 
-The Anki importer used to filter revlog rows with `ease >= 1 && ease <= 4` and then hand the number to FSRS through an `as Grade` assertion. That assertion did nothing - TypeScript lets any `number` stand in for a numeric enum - so the comparison was the only real guard. The value is now looked up in a table while reading: `ease` becomes FSRS's Again / Hard / Good / Easy on the spot, anything out of range is dropped, and the replay path carries no assertion at all. The type and the runtime check now agree.
+The view was painting while the workspace was still assembling, before its leaf was attached; Obsidian adds the link styling and click handling after that point. A restored view now shows "Loading…" and paints once the layout is ready, the same timing a manually opened view always had.
 
-In practice a damaged or hand-edited .apkg can no longer push an unknown rating into the scheduler, and a healthy one imports exactly as it did in 1.0.8.
+`onOpen` no longer waits for that, which previously stalled the whole restore until Obsidian gave up on the view (`Failed to load deferred view Error: Timeout`).
 
-### Everything from 1.0.8 stays
+### Faster statistics page
 
-Anki imports with the full review history, the child-card failing score, the GitHub-style heatmap, configurable rating keys and review layout, and the pale rating buttons - all unchanged.
+Card files and review logs are read in parallel, the page reads the full history once, and the 90-day window and the streak are derived from that single in-memory map instead of scanning the disk day by day. The gain is largest on a cold start, when the OS cache is empty.
 
 ### Please test
 
-- Import an apkg and confirm due dates, review counts and the child-card score match 1.0.8
-- Nothing else needs testing, the rest is untouched
+- Restart Obsidian and check that links in the first review card are clickable and styled
+- Open the statistics page once and confirm it is fast and the numbers are right
+- Open the review view from the ribbon and confirm nothing regressed
