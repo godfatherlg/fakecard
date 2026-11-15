@@ -3,6 +3,7 @@ import { unzipSync } from 'fflate';
 import { normalizePath } from 'obsidian';
 // @ts-ignore - the asm build has no declaration file of its own
 import initSqlJs from 'sql.js/dist/sql-asm.js';
+import type { Database, QueryExecResult, SqlJsStatic, SqlValue } from 'sql.js';
 import type FakeCardPlugin from '../main';
 
 /**
@@ -178,9 +179,9 @@ export async function importApkg(
     const sqlite = pickCollection(files);
     if (!sqlite) return { ...result, error: 'No collection database found in the .apkg.' };
 
-    let db: any;
+    let db: Database;
     try {
-        const SQL = await initSqlJs();
+        const SQL: SqlJsStatic = await initSqlJs();
         db = new SQL.Database(sqlite);
     } catch {
         return { ...result, error: 'Could not open the collection database.' };
@@ -190,8 +191,8 @@ export async function importApkg(
     // notetypes / fields tables. Try both.
     const models = new Map<string, AnkiModel>();
     try {
-        const rows = db.exec('SELECT models FROM col LIMIT 1');
-        const json = rows?.[0]?.values?.[0]?.[0];
+        const rows: QueryExecResult[] = db.exec('SELECT models FROM col LIMIT 1');
+        const json = rows[0]?.values[0]?.[0];
         if (typeof json === 'string') {
             const parsed = JSON.parse(json) as Record<string, AnkiModel>;
             for (const [id, model] of Object.entries(parsed)) models.set(id, model);
@@ -202,21 +203,23 @@ export async function importApkg(
 
     if (models.size === 0) {
         try {
-            const notetypes = db.exec('SELECT id, name, config FROM notetypes');
-            const fields = db.exec('SELECT ntid, ord, name FROM fields');
+            const notetypes: QueryExecResult[] = db.exec('SELECT id, name, config FROM notetypes');
+            const fields: QueryExecResult[] = db.exec('SELECT ntid, ord, name FROM fields');
             const fieldMap = new Map<string, AnkiModelField[]>();
-            for (const row of fields?.[0]?.values ?? []) {
+            for (const row of fields[0]?.values ?? []) {
                 const ntid = String(row[0]);
                 const list = fieldMap.get(ntid) ?? [];
                 list.push({ name: String(row[2]), ord: Number(row[1]) });
                 fieldMap.set(ntid, list);
             }
-            for (const row of notetypes?.[0]?.values ?? []) {
+            for (const row of notetypes[0]?.values ?? []) {
                 const id = String(row[0]);
                 let type = 0;
                 try {
-                    const config = typeof row[2] === 'string' ? JSON.parse(row[2]) : {};
-                    type = config?.type === 1 ? 1 : 0;
+                    const config: { type?: number } = typeof row[2] === 'string'
+                        ? (JSON.parse(row[2]) as { type?: number })
+                        : {};
+                    type = config.type === 1 ? 1 : 0;
                 } catch {
                     type = 0;
                 }
@@ -251,7 +254,7 @@ export async function importApkg(
                 if (!(data instanceof Uint8Array)) continue;
                 const path = normalizePath(`${dir}/${name}`);
                 if (!plugin.app.vault.getAbstractFileByPath(path)) {
-                    await plugin.app.vault.createBinary(path, data.buffer as ArrayBuffer);
+                    await plugin.app.vault.createBinary(path, data.slice().buffer);
                 }
                 mediaMap.set(name, path);
             }
@@ -260,10 +263,10 @@ export async function importApkg(
         }
     }
 
-    let notes: any[] = [];
+    let notes: SqlValue[][] = [];
     try {
-        const rows = db.exec('SELECT id, mid, flds FROM notes');
-        notes = rows?.[0]?.values ?? [];
+        const rows: QueryExecResult[] = db.exec('SELECT id, mid, flds FROM notes');
+        notes = rows[0]?.values ?? [];
     } catch {
         db.close();
         return { ...result, error: 'Could not read notes from the collection.' };

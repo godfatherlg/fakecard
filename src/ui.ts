@@ -12,8 +12,8 @@ export function parseTags(value: string): string[] {
 }
 
 export function autoSizeTextarea(el: HTMLTextAreaElement): void {
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    el.setCssProps({ '--fakecard-ta-height': 'auto' });
+    el.setCssProps({ '--fakecard-ta-height': `${el.scrollHeight}px` });
 }
 
 export function bindAutoSize(el: HTMLTextAreaElement): void {

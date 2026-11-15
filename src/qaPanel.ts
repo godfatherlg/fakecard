@@ -66,7 +66,7 @@ export class QaPanelModal extends Modal {
 
         contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Deck' });
         this.deckEl = contentEl.createEl('select', { cls: 'dropdown' });
-        this.fillDeckOptions(this.card?.deck ?? this.plugin.settings.defaultDeck ?? 'default');
+        void this.fillDeckOptions(this.card?.deck ?? this.plugin.settings.defaultDeck ?? 'default');
 
         contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Tags' });
         this.tagsEl = contentEl.createEl('input', { cls: 'fakecard-tags-input' });

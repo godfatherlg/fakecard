@@ -28,7 +28,7 @@ export function findSourceTarget(container: HTMLElement, card: CardRecord): HTML
             const needle = firstLine.replace(/^\s*(?:[-*+]|\d+\.)\s+/, '').slice(0, 20).trim();
             if (needle) {
                 for (const node of Array.from(container.querySelectorAll('li'))) {
-                    if ((node.textContent ?? '').includes(needle)) return node as HTMLElement;
+                    if ((node.textContent ?? '').includes(needle)) return node;
                 }
             }
         }
@@ -38,7 +38,7 @@ export function findSourceTarget(container: HTMLElement, card: CardRecord): HTML
         const fileName = card.image.path.split('/').pop() ?? '';
         if (fileName) {
             for (const node of Array.from(container.querySelectorAll('img'))) {
-                const img = node as HTMLImageElement;
+                const img = node;
                 const src = img.getAttribute('src') ?? '';
                 if (src.includes(fileName) || src.includes(encodeURIComponent(fileName))) {
                     // The badge lives next to the image, so use its wrapper.

@@ -180,7 +180,7 @@ export class BrowseView extends ItemView {
         }
 
         bar.createEl('button', { text: 'New card' }).addEventListener('click', () => {
-            this.plugin.newCard();
+            void this.plugin.newCard();
         });
 
         // Quick filters that just write into the search box.

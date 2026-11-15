@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type FakeCardPlugin from '../main';
+import { t } from './i18n';
 import { DEFAULT_LIBRARY_FOLDER } from './store';
 
 export interface FakeCardSettings {
@@ -114,11 +115,11 @@ export class FakeCardSettingTab extends PluginSettingTab {
     // ------------------------------------------------------------------ Library
 
     private renderLibrary(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName('Library').setHeading();
+        new Setting(containerEl).setName(t('library.heading')).setHeading();
 
         new Setting(containerEl)
-            .setName('Card library folder')
-            .setDesc('Folder inside the vault that holds the cards. Changing it switches to another library; the old files are left untouched.')
+            .setName(t('library.folder.name'))
+            .setDesc(t('library.folder.desc'))
             .addText((text) => text
                 .setPlaceholder(DEFAULT_LIBRARY_FOLDER)
                 .setValue(this.plugin.settings.libraryFolder)
@@ -131,8 +132,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Decks')
-            .setDesc('One deck name per line. These are the decks offered when creating or editing a card, and by the Browse filter.')
+            .setName(t('library.decks.name'))
+            .setDesc(t('library.decks.desc'))
             .addTextArea((area) => {
                 area.inputEl.rows = 4;
                 area.setPlaceholder('default\n方剂\n针灸');
@@ -148,8 +149,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
-            .setName('Default deck for new cards')
-            .setDesc('Where a newly created card goes when the panel does not pick a deck.')
+            .setName(t('library.defaultDeck.name'))
+            .setDesc(t('library.defaultDeck.desc'))
             .addDropdown((dropdown) => {
                 void this.plugin.store.loadDecks().then((decks) => {
                     for (const deck of decks) dropdown.addOption(deck, deck);
@@ -166,11 +167,11 @@ export class FakeCardSettingTab extends PluginSettingTab {
     // ----------------------------------------------------------------- Creation
 
     private renderCreation(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName('Card creation').setHeading();
+        new Setting(containerEl).setName(t('creation.heading')).setHeading();
 
         new Setting(containerEl)
-            .setName('Heading marker')
-            .setDesc('A heading that contains this symbol is treated as a Q&A card: the heading becomes the question and the text under it becomes the answer. The symbol itself is removed from the question.')
+            .setName(t('creation.marker.name'))
+            .setDesc(t('creation.marker.desc'))
             .addText((text) => text
                 .setPlaceholder('*')
                 .setValue(this.plugin.settings.markerSymbol)
@@ -180,8 +181,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Alt+click an image to make an occlusion card')
-            .setDesc('Holding Alt and clicking an image in the editor opens the mask panel directly. The normal right-click menu stays untouched either way.')
+            .setName(t('creation.altClick.name'))
+            .setDesc(t('creation.altClick.desc'))
             .addToggle((toggle) => toggle
                 .setValue(this.plugin.settings.altClickOcclusion)
                 .onChange(async (value) => {
@@ -190,8 +191,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Child cards')
-            .setDesc('Pause a card that keeps failing and study it through easier stand-ins. Children graduate after a Good streak; when every child has graduated, the parent comes back.')
+            .setName(t('creation.childCards.name'))
+            .setDesc(t('creation.childCards.desc'))
             .addToggle((toggle) => toggle
                 .setValue(this.plugin.settings.childCardsEnabled)
                 .onChange(async (value) => {
@@ -201,8 +202,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
 
         numberSetting(
             containerEl,
-            'Good streak to graduate a child',
-            'Consecutive Good or Easy ratings a child needs before it graduates.',
+            t('creation.goodStreak.name'),
+            t('creation.goodStreak.desc'),
             this.plugin.settings.childGoodStreak,
             2,
             1,
@@ -214,8 +215,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
 
         numberSetting(
             containerEl,
-            'Hard streak before a hint',
-            'Consecutive Hard ratings on a child card before review suggests simplifying it.',
+            t('creation.hardStreak.name'),
+            t('creation.hardStreak.desc'),
             this.plugin.settings.childHardStreak,
             4,
             1,
@@ -229,12 +230,12 @@ export class FakeCardSettingTab extends PluginSettingTab {
     // ------------------------------------------------------------------- Review
 
     private renderReview(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName('Review').setHeading();
+        new Setting(containerEl).setName(t('review.heading')).setHeading();
 
         numberSetting(
             containerEl,
-            'New cards per day',
-            'How many unseen cards are introduced per day.',
+            t('review.newPerDay.name'),
+            t('review.newPerDay.desc'),
             this.plugin.settings.newCardsPerDay,
             20,
             0,
@@ -246,8 +247,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
 
         numberSetting(
             containerEl,
-            'Maximum reviews per day',
-            'Upper bound on cards shown in a single day.',
+            t('review.maxPerDay.name'),
+            t('review.maxPerDay.desc'),
             this.plugin.settings.maxReviewsPerDay,
             200,
             1,
@@ -258,8 +259,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
         );
 
         new Setting(containerEl)
-            .setName('Show suggested answer time')
-            .setDesc('Review shows an estimated time for the current card: a base budget plus reading time for the answer, adjusted by how hard the card has been.')
+            .setName(t('review.answerTime.name'))
+            .setDesc(t('review.answerTime.desc'))
             .addToggle((toggle) => toggle
                 .setValue(this.plugin.settings.answerTimeHint)
                 .onChange(async (value) => {
@@ -269,8 +270,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
 
         numberSetting(
             containerEl,
-            'Answer time: base seconds',
-            'Seconds allowed for a short answer before reading time is added.',
+            t('review.answerBase.name'),
+            t('review.answerBase.desc'),
             this.plugin.settings.answerTimeBase,
             20,
             5,
@@ -284,11 +285,11 @@ export class FakeCardSettingTab extends PluginSettingTab {
     // ------------------------------------------------------------------ Display
 
     private renderDisplay(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName('Card display').setHeading();
+        new Setting(containerEl).setName(t('display.heading')).setHeading();
 
         new Setting(containerEl)
-            .setName('Mask all groups on the front')
-            .setDesc('On: every group of a cloze or image card is hidden on the front (the answer side always reveals everything). Off: only the group this card asks is hidden, the other groups stay visible.')
+            .setName(t('display.maskAll.name'))
+            .setDesc(t('display.maskAll.desc'))
             .addToggle((toggle) => toggle
                 .setValue(this.plugin.settings.maskAllGroups)
                 .onChange(async (value) => {
@@ -300,11 +301,11 @@ export class FakeCardSettingTab extends PluginSettingTab {
     // --------------------------------------------------------------------- Exam
 
     private renderExam(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName('Exam plan').setHeading();
+        new Setting(containerEl).setName(t('exam.heading')).setHeading();
 
         new Setting(containerEl)
-            .setName('Exam date')
-            .setDesc('Target date (YYYY-MM-DD). The exam plan spreads the selected cards across the days until then, so nothing lands after the exam. Once the date passes, the plan is dropped automatically and cards return to the normal FSRS schedule.')
+            .setName(t('exam.date.name'))
+            .setDesc(t('exam.date.desc'))
             .addText((text) => text
                 .setPlaceholder('2027-01-15')
                 .setValue(this.plugin.settings.examDate)
@@ -314,8 +315,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Exam plan: decks')
-            .setDesc('Comma separated deck names to include (empty = every deck). Cards from these decks are still ordered by difficulty, so the hardest ones enter the plan first.')
+            .setName(t('exam.decks.name'))
+            .setDesc(t('exam.decks.desc'))
             .addText((text) => text
                 .setPlaceholder('方剂, 针灸')
                 .setValue(this.plugin.settings.examDecks)
@@ -325,22 +326,21 @@ export class FakeCardSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Exam plan: share of cards')
-            .setDesc('How many cards join the plan, hardest first. 100% = every card; lower means fewer cards per day, at the cost of coverage.')
+            .setName(t('exam.ratio.name'))
+            .setDesc(t('exam.ratio.desc'))
             .addSlider((slider) => slider
                 .setLimits(10, 100, 10)
                 .setValue(this.plugin.settings.examPlanRatio)
-                .setDynamicTooltip()
                 .onChange(async (value) => {
                     this.plugin.settings.examPlanRatio = value;
                     await this.plugin.saveSettings();
                 }));
 
         new Setting(containerEl)
-            .setName('Build the exam plan now')
-            .setDesc('Applies the settings above: pulls cards due after the exam into the remaining days and writes a backup first.')
+            .setName(t('exam.build.name'))
+            .setDesc(t('exam.build.desc'))
             .addButton((button) => button
-                .setButtonText('Build plan')
+                .setButtonText(t('exam.build.button'))
                 .setCta()
                 .onClick(async () => {
                     await this.plugin.buildExamPlan();
@@ -350,49 +350,49 @@ export class FakeCardSettingTab extends PluginSettingTab {
     // ---------------------------------------------------------- Import / export
 
     private renderImportExport(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName('Import and export').setHeading();
+        new Setting(containerEl).setName(t('io.heading')).setHeading();
 
         new Setting(containerEl)
-            .setName('External AI / tools')
-            .setDesc('No model is built in. Any tool can push cards through "obsidian://fakecard?data=<url-encoded JSON>" or the clipboard button below. JSON shape: [{"type":"qa","front":"...","back":"..."},{"type":"cloze","clozeText":"{{c1::...}}"}] - ==highlights== are accepted too.');
+            .setName(t('io.external.name'))
+            .setDesc(t('io.external.desc'));
 
         new Setting(containerEl)
-            .setName('Import cards from the clipboard')
-            .setDesc('Reads JSON from the clipboard.')
+            .setName(t('io.clipboard.name'))
+            .setDesc(t('io.clipboard.desc'))
             .addButton((button) => button
-                .setButtonText('Import')
+                .setButtonText(t('io.clipboard.button'))
                 .onClick(() => {
                     void this.plugin.importFromClipboard();
                 }));
 
         new Setting(containerEl)
-            .setName('Import an Anki deck (.apkg)')
-            .setDesc('Basic, cloze and image-occlusion notes are converted.')
+            .setName(t('io.apkg.name'))
+            .setDesc(t('io.apkg.desc'))
             .addButton((button) => button
-                .setButtonText('Choose file')
+                .setButtonText(t('io.apkg.button'))
                 .onClick(() => {
                     this.plugin.importApkgFile();
                 }));
 
         new Setting(containerEl)
-            .setName('Export all cards')
-            .setDesc('Writes every card (including FSRS state) to a JSON file in the library folder.')
+            .setName(t('io.export.name'))
+            .setDesc(t('io.export.desc'))
             .addButton((button) => button
-                .setButtonText('Export')
+                .setButtonText(t('io.export.button'))
                 .onClick(() => {
                     void this.plugin.exportCards();
                 }));
 
         new Setting(containerEl)
-            .setName('Housekeeping')
-            .setDesc('Removes orphan cards whose note was deleted, or graduated child cards. Both write a backup first.')
+            .setName(t('io.housekeeping.name'))
+            .setDesc(t('io.housekeeping.desc'))
             .addButton((button) => button
-                .setButtonText('Clean orphans')
+                .setButtonText(t('io.orphans.button'))
                 .onClick(() => {
                     void this.plugin.cleanOrphans();
                 }))
             .addButton((button) => button
-                .setButtonText('Clean graduated')
+                .setButtonText(t('io.graduated.button'))
                 .onClick(() => {
                     void this.plugin.cleanGraduated();
                 }));

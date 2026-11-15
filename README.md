@@ -54,10 +54,10 @@ Spaced-repetition flashcards for Obsidian, built from your notes and stored as p
 
 然后：
 
-- 命令 **Generate Q&A cards from the current note**
-- 命令 **Generate cloze cards from the current note**
+- 命令 **Generate Q&A cards from the whole note**
+- 命令 **Generate cloze cards from the whole note**
 - 或右键文件 → **fakecard: generate Q&A / cloze cards**
-- 或选中几行后 **Generate from the selected lines**
+- 或选中几行后 **Generate cards from the selected lines**
 
 会先弹出预览，勾选后才写入卡片库。
 

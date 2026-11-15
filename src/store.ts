@@ -138,7 +138,7 @@ export class CardStore {
         try {
             const parsed = JSON.parse(await this.app.vault.cachedRead(file)) as unknown;
             if (Array.isArray(parsed) && parsed.every((d) => typeof d === 'string') && parsed.length > 0) {
-                return parsed as string[];
+                return parsed;
             }
         } catch {
             // fall through to the default

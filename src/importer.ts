@@ -10,6 +10,13 @@ import type FakeCardPlugin from '../main';
  * skipped because the JSON itself is the preview.
  */
 
+/** Text from an unknown JSON field; anything else becomes an empty string. */
+function asText(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '';
+}
+
 /** Read JSON from the clipboard and import it. */
 export async function importFromClipboard(plugin: FakeCardPlugin): Promise<void> {
     try {
@@ -88,7 +95,7 @@ export async function importCardJson(plugin: FakeCardPlugin, jsonText: string): 
         const sourceText = typeof raw.sourceText === 'string' ? raw.sourceText : undefined;
 
         if (type === 'cloze') {
-            const clozeText = String(raw.clozeText ?? raw.text ?? '').trim();
+            const clozeText = asText(raw.clozeText ?? raw.text).trim();
             if (!clozeText) continue;
             const cards = plugin.createClozeCards(clozeText, sourcePath, sourceText);
             const content = sourceText ? '' : await readSource(sourcePath);
@@ -101,8 +108,8 @@ export async function importCardJson(plugin: FakeCardPlugin, jsonText: string): 
             }
             count += cards.length;
         } else {
-            const front = String(raw.front ?? raw.question ?? '').trim();
-            const back = String(raw.back ?? raw.answer ?? '').trim();
+            const front = asText(raw.front ?? raw.question).trim();
+            const back = asText(raw.back ?? raw.answer).trim();
             if (!front || !back) continue;
             const card: CardRecord = plugin.createQaCard(front, back, sourcePath);
             if (sourceText) {

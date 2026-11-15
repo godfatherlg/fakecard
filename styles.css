@@ -59,6 +59,11 @@
   overflow: hidden;
 }
 
+/* Textareas grow with their content; ui.ts sets --fakecard-ta-height. */
+.fakecard-autosize {
+  height: var(--fakecard-ta-height, auto);
+}
+
 .fakecard-toolbar {
   display: flex;
   gap: 8px;

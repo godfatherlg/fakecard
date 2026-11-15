@@ -190,8 +190,9 @@ export class ReviewView extends ItemView {
         // Child card that keeps getting Hard: suggest simplifying it.
         if (card.childOf) {
             const streak = Math.max(1, this.plugin.settings.childHardStreak);
+            const hard = Rating.Hard as number;
             void this.plugin.reviews.recentForCard(card.id, streak).then((logs) => {
-                if (logs.length < streak || !logs.every((log) => log.rating === Rating.Hard)) return;
+                if (logs.length < streak || !logs.every((log) => log.rating === hard)) return;
                 const hint = container.createEl('div', {
                     cls: 'fakecard-review-hint',
                     text: `⚠️ ${streak} Hard ratings in a row - consider simplifying this child card.`,
@@ -223,7 +224,7 @@ export class ReviewView extends ItemView {
                 this.render();
             });
             // Space also reveals.
-            this.registerDomEvent(document, 'keydown', (event: KeyboardEvent) => {
+            this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => {
                 if (event.code === 'Space' && !this.revealed) {
                     event.preventDefault();
                     this.revealed = true;

@@ -1,6 +1,6 @@
 import { App, Editor, FileSystemAdapter, MarkdownFileInfo, MarkdownView, Menu, Modal, Notice, Plugin, Setting, TAbstractFile, TFile, WorkspaceLeaf, normalizePath } from 'obsidian';
 import type { CardImage, CardRecord } from './src/card';
-import { clozeGroups, previewCloze, renderCloze, selectionToClozeText } from './src/cloze';
+import { clozeGroups, renderCloze, selectionToClozeText } from './src/cloze';
 import { ClozePanelModal } from './src/clozePanel';
 import { buildExamPlan as buildExamPlanImpl } from './src/examPlan';
 import { ImagePanelModal } from './src/imagePanel';
@@ -21,7 +21,7 @@ import { StatsView, STATS_VIEW_TYPE } from './src/statsView';
 import { ReviewStore } from './src/reviews';
 import { CardDraft, extractClozeLists, extractMarkedHeadings, LineRange, splitHeadingSelection } from './src/rules';
 import { DEFAULT_SETTINGS, FakeCardSettings, FakeCardSettingTab } from './src/settings';
-import { findSourceSnapshot, findSourceTarget } from './src/sourceLocate';
+import { findSourceTarget } from './src/sourceLocate';
 import { syncClozeGroup as syncClozeGroupImpl } from './src/sourceSync';
 import { CardStore } from './src/store';
 
@@ -300,7 +300,8 @@ export default class FakeCardPlugin extends Plugin {
     }
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        const loaded = (await this.loadData()) as Partial<FakeCardSettings> | null;
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
     }
 
     async saveSettings() {
@@ -517,7 +518,7 @@ export default class FakeCardPlugin extends Plugin {
             leaf = this.app.workspace.getLeaf('tab');
             await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
         }
-        this.app.workspace.revealLeaf(leaf);
+        void this.app.workspace.revealLeaf(leaf);
         const view = leaf.view;
         if (view instanceof ReviewView) await view.reload();
     }
@@ -528,7 +529,7 @@ export default class FakeCardPlugin extends Plugin {
             leaf = this.app.workspace.getLeaf('tab');
             await leaf.setViewState({ type: BROWSE_VIEW_TYPE, active: true });
         }
-        this.app.workspace.revealLeaf(leaf);
+        void this.app.workspace.revealLeaf(leaf);
         const view = leaf.view;
         if (view instanceof BrowseView) await view.reload();
     }
@@ -539,7 +540,7 @@ export default class FakeCardPlugin extends Plugin {
             leaf = this.app.workspace.getLeaf('tab');
             await leaf.setViewState({ type: STATS_VIEW_TYPE, active: true });
         }
-        this.app.workspace.revealLeaf(leaf);
+        void this.app.workspace.revealLeaf(leaf);
         const view = leaf.view;
         if (view instanceof StatsView) await view.reload();
     }
