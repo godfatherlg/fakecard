@@ -641,3 +641,15 @@ body.theme-dark .fakecard-image-mask-label {
 .fakecard-source-badge:hover {
   background: var(--background-modifier-hover);
 }
+
+/* ----- What is new dialog ----- */
+
+.fakecard-whats-new-list {
+  margin: 0 0 1em;
+  padding-left: 1.4em;
+}
+
+.fakecard-whats-new-list li {
+  margin-bottom: 0.6em;
+  line-height: 1.5;
+}

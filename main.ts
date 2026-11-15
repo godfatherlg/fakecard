@@ -24,6 +24,7 @@ import { DEFAULT_SETTINGS, FakeCardSettings, FakeCardSettingTab } from './src/se
 import { findSourceTarget } from './src/sourceLocate';
 import { syncClozeGroup as syncClozeGroupImpl } from './src/sourceSync';
 import { CardStore } from './src/store';
+import { WHATS_NEW_VERSION, WhatsNewModal } from './src/whatsNew';
 
 export default class FakeCardPlugin extends Plugin {
     settings: FakeCardSettings;
@@ -33,6 +34,10 @@ export default class FakeCardPlugin extends Plugin {
 
     /** Debounce handle for refreshing views after a settings change. */
     private refreshTimer: number | null = null;
+    /** Timer that opens the "what is new" dialog after an update. */
+    private whatsNewTimer: number | null = null;
+    /** Set by onunload, so delayed startup work does not run after unloading. */
+    private unloaded = false;
 
     async onload() {
         await this.loadSettings();
@@ -297,6 +302,42 @@ export default class FakeCardPlugin extends Plugin {
                     void this.newCard();
                 }));
         }));
+
+        // Show "what is new" once, right after an update - never on a fresh
+        // install, where notes about past releases are of no use to anyone.
+        // Only when the notes really belong to this version, so a release that
+        // forgot to update them stays quiet instead of showing stale text.
+        //
+        // It has to wait for onLayoutReady: a modal opened while the workspace
+        // is still restoring its layout gets thrown away with the old DOM, and
+        // the timer alone is not enough because the plugin can be loaded long
+        // before the layout is ready. The version is written only once the
+        // dialog is actually shown, so an interrupted start does not swallow
+        // the notice for good.
+        const currentVersion = this.manifest.version;
+        const isUpdate = this.settings.lastSeenVersion !== ''
+            && this.settings.lastSeenVersion !== currentVersion;
+        if (isUpdate && WHATS_NEW_VERSION === currentVersion) {
+            this.app.workspace.onLayoutReady(() => {
+                if (this.unloaded) return;
+                this.whatsNewTimer = window.setTimeout(() => {
+                    this.whatsNewTimer = null;
+                    if (this.unloaded || this.settings.lastSeenVersion === currentVersion) return;
+                    this.settings.lastSeenVersion = currentVersion;
+                    void this.saveData(this.settings);
+                    new WhatsNewModal(this.app, currentVersion).open();
+                }, 1500);
+            });
+        } else if (isUpdate) {
+            this.settings.lastSeenVersion = currentVersion;
+            void this.saveData(this.settings);
+        }
+    }
+
+    onunload(): void {
+        this.unloaded = true;
+        if (this.whatsNewTimer !== null) window.clearTimeout(this.whatsNewTimer);
+        if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
     }
 
     async loadSettings() {

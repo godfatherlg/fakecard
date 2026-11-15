@@ -1,12 +1,12 @@
 import { App, TFile, TFolder, normalizePath } from 'obsidian';
 import type { CardRecord } from './card';
 
-export const DEFAULT_LIBRARY_FOLDER = 'Fake Cards';
+export const DEFAULT_LIBRARY_FOLDER = 'fakecard';
 
 /**
  * Cards live in a plain folder inside the vault:
  *
- *   Fake Cards/
+ *   fakecard/
  *     decks.json
  *     cards/<card-id>.json
  *

@@ -69,6 +69,10 @@ const EN = {
     'io.housekeeping.desc': 'Removes orphan cards whose note was deleted, or graduated child cards. Both write a backup first.',
     'io.orphans.button': 'Clean orphans',
     'io.graduated.button': 'Clean graduated',
+
+    'whatsNew.title': "What's new",
+    'whatsNew.notes': 'See the full release notes',
+    'whatsNew.close': 'Got it',
 };
 
 /** Key of a settings string; keeps callers in sync with the English map. */
@@ -136,6 +140,10 @@ const ZH: Record<UiTextKey, string> = {
     'io.housekeeping.desc': '删除来源笔记已被删除的孤儿卡片，或已毕业的子卡片；两者都会先写备份。',
     'io.orphans.button': '清理孤儿卡',
     'io.graduated.button': '清理已毕业',
+
+    'whatsNew.title': '更新内容',
+    'whatsNew.notes': '查看完整发布说明',
+    'whatsNew.close': '知道了',
 };
 
 /** Language picked in Obsidian; falls back to the moment locale, then English. */
@@ -147,4 +155,13 @@ function detectLang(): Lang {
 /** Settings text for the current Obsidian language. */
 export function t(key: UiTextKey): string {
     return detectLang() === 'zh' ? ZH[key] : EN[key];
+}
+
+/**
+ * Whether the UI is Chinese. Long-form text that is not a single settings
+ * string (the release notes in the "what is new" dialog) picks its language
+ * with this, so such strings do not have to be keyed one by one.
+ */
+export function isChinese(): boolean {
+    return detectLang() === 'zh';
 }

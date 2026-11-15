@@ -1,69 +1,71 @@
+# 1.0.6
+
 ## 中文
 
-### 关于 `obsidianmd/prefer-create-el`：实际检测的是 `createEl('div' / 'span')`
+### 默认卡片库文件夹改为 `fakecard`
 
-上一版我把这条归为「规则误报」，那是错的，这里更正。对比报告条目与源码后可以确认：规则命中的位置全部是 `createEl('div', …)` 与 `createEl('span', …)`——它要的是标签专用简写 `createDiv()` / `createSpan()`，而报告文案（“Uses `document.createElement` instead of Obsidian's `createEl` helpers”）与规则 id 并不描述它实际检查的内容。
+新建的卡片库现在放在 vault 的 `fakecard/` 文件夹（原来是 `Fake Cards/`）。
 
-依据：
+- 全新安装、或在保存过设置之前就升级的安装，会直接使用新默认值
+- 已经在 `data.json` 里保存过 `libraryFolder` 的安装行为不变：插件照旧读写原来那个文件夹，不会自动移动或改名任何文件。想切换的话，把设置里的「卡片库文件夹」改成 `fakecard`，或先用文件管理器把 `Fake Cards/` 重命名为 `fakecard/` 再改设置
 
-- 按文件统计 `createEl('div'|'span')` 站点数，与报告条目数逐一对上：`browseView.ts` 15/15、`cardPreview.ts` 7/7、`imagePanel.ts` 7/7、`clozePanel.ts` 1/1、`confirm.ts` 1/1；`qaPanel.ts` 一处都没有，报告也是 0 条
-- 其余标签全都没被报：`createEl('select' / 'button' / 'input' / 'h2' / 'img' / 'tr' / 'th' / 'td' / 'p' / 'hr' / 'label' / 'option' / 'textarea')` 一条命中都没有
-- 1.0.3 里消失的 `src/importer.ts:37`，是因为那行改成了 `createEl('input')`——`input` 不在目标标签里，与是否 `createElement` 无关
+### 修复：打开插件设置页时整窗卡死
 
-### 本版改动
+症状：进入 fakecard 的设置标签页后整个窗口无响应，切标签、按 Esc 都没反应，只能强杀进程。
 
-把 82 处 `createEl('div', opts)` / `createEl('span', opts)` 换成 `createDiv(opts)` / `createSpan(opts)`：
+原因是 `src/settings.ts` 里这一行：
 
-| 文件 | 处数 |
-|---|---|
-| `src/statsView.ts` | 26 |
-| `src/browseView.ts` | 15 |
-| `src/reviewView.ts` | 13 |
-| `main.ts` | 12 |
-| `src/cardPreview.ts` | 7 |
-| `src/imagePanel.ts` | 7 |
-| `src/clozePanel.ts` | 1 |
-| `src/confirm.ts` | 1 |
+```ts
+void this.plugin.store.loadDecks().then((decks) => area.setValue(decks.join('\n')));
+```
 
-两者在 Obsidian API 中就是同一件事的简写（`createDiv(o?, cb?): HTMLDivElement`、`createSpan(o?, cb?): HTMLSpanElement` 与 `createEl('div' | 'span', o?, cb?)` 等价），参数对象原样传入，返回值只是类型收窄。全部为单行机械替换，共 82 行增、82 行删，无逻辑改动；`tsc --noEmit` 与构建通过。
+箭头函数是表达式体，返回了 `area.setValue(...)` 的返回值，也就是文本组件本身。Obsidian 的声明式设置里 `Setting` 和它创建的组件都带一个 `then` 方法（`then(t){ return t(this), this }`），于是这个 Promise 用「带 `then` 的对象」去 resolve；按规范解析时会再调用它的 `then`，它又把自己 resolve 出去——微任务无限自我调度，主线程再也回不到事件循环，界面因此彻底冻死。设置页一渲染就会执行这段代码，所以一进去就卡。
 
-其余标签保持不变，源码与产物中 `createElement` 计数仍为 0。
+修复：回调改成语句体、只做 DOM 赋值不返回值，并补上 `.catch()`。牌组下拉框里同样的写法一并加固。设置页在 28 个设置项全部渲染的情况下打开耗时 6ms（修复前是无限挂起）。
 
-### 测试提醒
+### 新增：更新后的「更新内容」弹窗
 
-- 无行为变化；仍建议快速过一遍浏览视图（表格、筛选 chips、分页）、统计页（评级条、状态条、热力图）、卡片预览与图片遮罩层，确认布局与之前一致
+升级到新版本后，第一次启动会弹一次更新说明，按钮可以跳到这一版的 GitHub 发布页。
+
+- 只在版本真的变了时弹一次；全新安装不弹（对没有历史可言的安装没有意义）
+- 文案随 Obsidian 的界面语言在中文与英文之间切换，内容内置在插件里，不联网、离线可用
+
+### 测试提示
+
+- 设置页应能正常打开，牌组文本框显示当前的牌组列表
+- 从 1.0.5 升级（`data.json` 里已有 `lastSeenVersion`）时才会看到更新弹窗；想复测可以删掉 `data.json` 里的 `lastSeenVersion`，或把它改成旧版本号
 
 ## English
 
-### About `obsidianmd/prefer-create-el`: it actually checks `createEl('div' / 'span')`
+### The default card library folder is now `fakecard`
 
-The previous release called this rule a false positive; that was wrong and is corrected here. Matching the reported entries against the source shows that every hit is a `createEl('div', …)` or `createEl('span', …)` call — the rule wants the tag-specific shorthands `createDiv()` / `createSpan()`, while the report text (“Uses `document.createElement` instead of Obsidian's `createEl` helpers”) and the rule id do not describe what it checks.
+A new library lives in the vault's `fakecard/` folder (it used to be `Fake Cards/`).
 
-Evidence:
+- A fresh install, or an install that had never saved settings, picks up the new default directly
+- Installs that already store `libraryFolder` in `data.json` behave exactly as before: the plugin keeps reading and writing that same folder, and nothing is moved or renamed for you. To switch, set "Card library folder" to `fakecard`, or rename `Fake Cards/` to `fakecard/` in your file manager first and then update the setting
 
-- Counting `createEl('div'|'span')` sites per file reproduces the report exactly: `browseView.ts` 15/15, `cardPreview.ts` 7/7, `imagePanel.ts` 7/7, `clozePanel.ts` 1/1, `confirm.ts` 1/1, and `qaPanel.ts` contains none of them and receives no entries at all
-- No other tag is ever reported: `createEl('select' / 'button' / 'input' / 'h2' / 'img' / 'tr' / 'th' / 'td' / 'p' / 'hr' / 'label' / 'option' / 'textarea')` never appears in the report
-- The `src/importer.ts:37` entry that vanished in 1.0.3 disappeared because that line became `createEl('input')` — `input` is not one of the targeted tags, so it had nothing to do with `createElement`
+### Fixed: the whole window froze when opening the plugin settings tab
 
-### Changes in this release
+Symptom: entering the fakecard settings tab made the entire window unresponsive - switching tabs and Esc did nothing, only killing the process helped.
 
-82 call sites switched from `createEl('div', opts)` / `createEl('span', opts)` to `createDiv(opts)` / `createSpan(opts)`:
+The cause was this line in `src/settings.ts`:
 
-| File | Sites |
-|---|---|
-| `src/statsView.ts` | 26 |
-| `src/browseView.ts` | 15 |
-| `src/reviewView.ts` | 13 |
-| `main.ts` | 12 |
-| `src/cardPreview.ts` | 7 |
-| `src/imagePanel.ts` | 7 |
-| `src/clozePanel.ts` | 1 |
-| `src/confirm.ts` | 1 |
+```ts
+void this.plugin.store.loadDecks().then((decks) => area.setValue(decks.join('\n')));
+```
 
-In the Obsidian API these are the same operation (`createDiv(o?, cb?): HTMLDivElement` and `createSpan(o?, cb?): HTMLSpanElement` are shorthands for `createEl('div' | 'span', o?, cb?)`): the options object is passed through unchanged and only the return type narrows. All changes are single-line mechanical replacements, 82 lines added and 82 removed, with no logic changes; `tsc --noEmit` and the build both pass.
+The arrow function has an expression body, so it returned whatever `area.setValue(...)` returns - the text component itself. In Obsidian's declarative settings both `Setting` and the components it creates carry a `then` method (`then(t){ return t(this), this }`), so the promise was resolved with a thenable: resolving it calls that `then`, which resolves itself again, and the microtask queue schedules itself forever. The main thread never returns to the event loop, hence the frozen UI. That render callback runs as soon as the tab is drawn, which is why opening the tab was enough.
 
-Other tags are untouched, and `createElement` still occurs zero times in both the source tree and the bundle.
+Fix: the callback is now a statement body that only assigns to the DOM and returns nothing, with a `.catch()` added. The same pattern in the deck dropdown was hardened too. The tab now opens in 6ms with all 28 rows rendered (it used to hang indefinitely).
+
+### New: a "what is new" dialog after each update
+
+The first start after an upgrade shows the release notes once, with a button that opens this version's GitHub release page.
+
+- It appears once and only when the version really changed; it is skipped on a fresh install, where notes about past releases mean nothing
+- The text follows Obsidian's UI language (English or Chinese), ships inside the plugin and needs no network access
 
 ### Please test
 
-- No behaviour changes; a quick pass over the browse view (table, filter chips, paging), the statistics view (rating and state bars, heatmap), card preview and the image mask overlay would confirm the layout is unchanged
+- The settings tab should open normally and the decks box should show the current deck list
+- The dialog only shows when upgrading from 1.0.5 (where `data.json` already has `lastSeenVersion`); to re-test, delete `lastSeenVersion` from `data.json` or set it to an older version

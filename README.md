@@ -1,12 +1,12 @@
 # fakecard
 
-在 Obsidian 里从笔记生成间隔重复卡片，卡片独立存放在 vault 的 `Fake Cards/` 文件夹，**不修改你的笔记**。
+在 Obsidian 里从笔记生成间隔重复卡片，卡片独立存放在 vault 的 `fakecard/` 文件夹，**不修改你的笔记**。
 
 Spaced-repetition flashcards for Obsidian, built from your notes and stored as plain JSON in their own folder. Notes are never modified.
 
 ## English
 
-**fakecard** turns your notes into spaced-repetition flashcards inside Obsidian. Cards live as plain JSON in a `Fake Cards/` folder in your vault; your notes are only ever read, never edited.
+**fakecard** turns your notes into spaced-repetition flashcards inside Obsidian. Cards live as plain JSON in a `fakecard/` folder in your vault; your notes are only ever read, never edited.
 
 Features:
 
@@ -34,7 +34,7 @@ Quick start:
 
 The settings tab follows the Obsidian language and switches between English and Chinese automatically.
 
-Data and privacy: cards are stored in `Fake Cards/cards/`, review logs in `Fake Cards/reviews/`, backups in `Fake Cards/backup/`. Everything is local and the plugin makes no network requests. The system clipboard is read only when you run one of the import commands that takes cards from it, and the plugin never writes to it.
+Data and privacy: cards are stored in `fakecard/cards/`, review logs in `fakecard/reviews/`, backups in `fakecard/backup/`. Everything is local and the plugin makes no network requests. The system clipboard is read only when you run one of the import commands that takes cards from it, and the plugin never writes to it.
 
 The rest of this document is in Chinese.
 
@@ -178,11 +178,11 @@ obsidian://fakecard?data=<URL 编码的 JSON>
 
 ## 数据与隐私
 
-- 卡片：`Fake Cards/cards/<id>.json`（纯 JSON，可手改）
-- 牌组：`Fake Cards/decks.json`
-- 复习记录：`Fake Cards/reviews/YYYY-MM-DD.json`
-- 备份/导出：`Fake Cards/backup/`、`Fake Cards/export/`
-- 导入的图片：`Fake Cards/images/`
+- 卡片：`fakecard/cards/<id>.json`（纯 JSON，可手改）
+- 牌组：`fakecard/decks.json`
+- 复习记录：`fakecard/reviews/YYYY-MM-DD.json`
+- 备份/导出：`fakecard/backup/`、`fakecard/export/`
+- 导入的图片：`fakecard/images/`
 
 **全部本地，没有任何网络请求**。插件不写你的笔记文件；阅读模式里的 📇 是渲染时插入的 DOM，不落盘。
 
