@@ -1,41 +1,69 @@
 ## 中文
 
-### 修复第三轮审核反馈
+### 关于 `obsidianmd/prefer-create-el`：实际检测的是 `createEl('div' / 'span')`
 
-这一版没有功能变化。上一轮给 `Object.entries()`、`padStart()` 补显式类型没有生效，原因是审核器的类型检查把 ES2017 的 API 解析为 `any`（其 lib 只到 ES2016，与仓库原先的 `["DOM", "ES5", "ES6", "ES7"]` 一致）。因此这一版直接绕开这些 API，而不是继续补类型：
+上一版我把这条归为「规则误报」，那是错的，这里更正。对比报告条目与源码后可以确认：规则命中的位置全部是 `createEl('div', …)` 与 `createEl('span', …)`——它要的是标签专用简写 `createDiv()` / `createSpan()`，而报告文案（“Uses `document.createElement` instead of Obsidian's `createEl` helpers”）与规则 id 并不描述它实际检查的内容。
 
-- **`Object.entries()` → `Object.keys()` 循环**（`src/ankiImport.ts` 两处）：遍历 notetypes 与 media 映射时由 `Record` 直接给出值的类型，不再产生 `[string, any][]`
-- **日期补零改为手写拼接**（`src/reviews.ts`、`src/statsView.ts`）：`` `${y}-${m < 10 ? '0' : ''}${m}-${d < 10 ? '0' : ''}${d}` ``，不再调用 `String.prototype.padStart`
-- **去掉多余的类型断言**（`src/sqlite.ts`）：`*.wasm` 模块声明为 `ArrayBuffer`，直接 `initSqlJs({ wasmBinary })`；esbuild 内联的实际值是 Uint8Array，它本身是合法的 WebAssembly `BufferSource`，两条路径都实测可初始化
-- **`tsconfig.json` 的 `lib` 改为显式 `["DOM", "ES2020"]`**：不再依赖 `@types` 里 `/// <reference lib>` 的隐式引入
+依据：
 
-以上对应本轮报告里 10 条 `no-unsafe-*` 与 1 条「断言多余」，全部有明确处理点。
+- 按文件统计 `createEl('div'|'span')` 站点数，与报告条目数逐一对上：`browseView.ts` 15/15、`cardPreview.ts` 7/7、`imagePanel.ts` 7/7、`clozePanel.ts` 1/1、`confirm.ts` 1/1；`qaPanel.ts` 一处都没有，报告也是 0 条
+- 其余标签全都没被报：`createEl('select' / 'button' / 'input' / 'h2' / 'img' / 'tr' / 'th' / 'td' / 'p' / 'hr' / 'label' / 'option' / 'textarea')` 一条命中都没有
+- 1.0.3 里消失的 `src/importer.ts:37`，是因为那行改成了 `createEl('input')`——`input` 不在目标标签里，与是否 `createElement` 无关
 
-### 关于 `prefer-create-el`
+### 本版改动
 
-1.0.2 报告里唯一真实命中 `src/importer.ts:37`（`activeDocument.createElement('input')`）已在 1.0.3 修掉，该条目在 1.0.3 的报告中随之消失。剩余行号位置的内容均为 `createEl` / `createDiv` 调用，且同一文件内同类调用有的报、有的不报（例如 `src/clozePanel.ts` 有 14 处 `createEl` 只报了 1 处，`src/qaPanel.ts` 10 处一处未报）。源码与产物中 `createElement` 计数均为 0。
+把 82 处 `createEl('div', opts)` / `createEl('span', opts)` 换成 `createDiv(opts)` / `createSpan(opts)`：
+
+| 文件 | 处数 |
+|---|---|
+| `src/statsView.ts` | 26 |
+| `src/browseView.ts` | 15 |
+| `src/reviewView.ts` | 13 |
+| `main.ts` | 12 |
+| `src/cardPreview.ts` | 7 |
+| `src/imagePanel.ts` | 7 |
+| `src/clozePanel.ts` | 1 |
+| `src/confirm.ts` | 1 |
+
+两者在 Obsidian API 中就是同一件事的简写（`createDiv(o?, cb?): HTMLDivElement`、`createSpan(o?, cb?): HTMLSpanElement` 与 `createEl('div' | 'span', o?, cb?)` 等价），参数对象原样传入，返回值只是类型收窄。全部为单行机械替换，共 82 行增、82 行删，无逻辑改动；`tsc --noEmit` 与构建通过。
+
+其余标签保持不变，源码与产物中 `createElement` 计数仍为 0。
 
 ### 测试提醒
 
-- 无行为变化，纯类型与写法清理；仍建议导入一个 `.apkg` 牌组，并打开一次统计页确认 30 天窗口与热力图正常
+- 无行为变化；仍建议快速过一遍浏览视图（表格、筛选 chips、分页）、统计页（评级条、状态条、热力图）、卡片预览与图片遮罩层，确认布局与之前一致
 
 ## English
 
-### Third round of review feedback
+### About `obsidianmd/prefer-create-el`: it actually checks `createEl('div' / 'span')`
 
-No behaviour changes in this release. Explicit types on `Object.entries()` and `padStart()` did not help last time because the review checker resolves ES2017 APIs to `any` (its lib stops at ES2016, matching the repo's previous `["DOM", "ES5", "ES6", "ES7"]`). This release removes the APIs instead of typing them:
+The previous release called this rule a false positive; that was wrong and is corrected here. Matching the reported entries against the source shows that every hit is a `createEl('div', …)` or `createEl('span', …)` call — the rule wants the tag-specific shorthands `createDiv()` / `createSpan()`, while the report text (“Uses `document.createElement` instead of Obsidian's `createEl` helpers”) and the rule id do not describe what it checks.
 
-- **`Object.entries()` → `Object.keys()` loops** (`src/ankiImport.ts`, two sites): iterating the notetypes and media maps now takes its value types from the `Record`, so it never produces `[string, any][]`
-- **Date padding written out by hand** (`src/reviews.ts`, `src/statsView.ts`): `` `${y}-${m < 10 ? '0' : ''}${m}-${d < 10 ? '0' : ''}${d}` ``, with no `String.prototype.padStart` call
-- **Redundant type assertion removed** (`src/sqlite.ts`): the `*.wasm` module is declared as `ArrayBuffer` and `initSqlJs({ wasmBinary })` is called directly. esbuild inlines the bytes as a Uint8Array, which is a valid WebAssembly `BufferSource`; both forms were verified to initialise
-- **`tsconfig.json` now declares `lib` as `["DOM", "ES2020"]`** instead of relying on implicit `/// <reference lib>` directives pulled in by `@types`
+Evidence:
 
-Together these cover every one of the ten `no-unsafe-*` warnings and the single "unnecessary assertion" warning in this round's report.
+- Counting `createEl('div'|'span')` sites per file reproduces the report exactly: `browseView.ts` 15/15, `cardPreview.ts` 7/7, `imagePanel.ts` 7/7, `clozePanel.ts` 1/1, `confirm.ts` 1/1, and `qaPanel.ts` contains none of them and receives no entries at all
+- No other tag is ever reported: `createEl('select' / 'button' / 'input' / 'h2' / 'img' / 'tr' / 'th' / 'td' / 'p' / 'hr' / 'label' / 'option' / 'textarea')` never appears in the report
+- The `src/importer.ts:37` entry that vanished in 1.0.3 disappeared because that line became `createEl('input')` — `input` is not one of the targeted tags, so it had nothing to do with `createElement`
 
-### About `prefer-create-el`
+### Changes in this release
 
-The only real hit in the 1.0.2 report was `src/importer.ts:37` (`activeDocument.createElement('input')`), which was fixed in 1.0.3 — and that entry is gone from the 1.0.3 report. Every remaining listed line is a `createEl` / `createDiv` call, and within the same file some identical calls are reported while others are not (for example `src/clozePanel.ts` has 14 `createEl` calls and only one is listed, while the 10 in `src/qaPanel.ts` are not listed at all). Both the source tree and the shipped `main.js` contain zero occurrences of `createElement`.
+82 call sites switched from `createEl('div', opts)` / `createEl('span', opts)` to `createDiv(opts)` / `createSpan(opts)`:
+
+| File | Sites |
+|---|---|
+| `src/statsView.ts` | 26 |
+| `src/browseView.ts` | 15 |
+| `src/reviewView.ts` | 13 |
+| `main.ts` | 12 |
+| `src/cardPreview.ts` | 7 |
+| `src/imagePanel.ts` | 7 |
+| `src/clozePanel.ts` | 1 |
+| `src/confirm.ts` | 1 |
+
+In the Obsidian API these are the same operation (`createDiv(o?, cb?): HTMLDivElement` and `createSpan(o?, cb?): HTMLSpanElement` are shorthands for `createEl('div' | 'span', o?, cb?)`): the options object is passed through unchanged and only the return type narrows. All changes are single-line mechanical replacements, 82 lines added and 82 removed, with no logic changes; `tsc --noEmit` and the build both pass.
+
+Other tags are untouched, and `createElement` still occurs zero times in both the source tree and the bundle.
 
 ### Please test
 
-- No behaviour changes, only type and code clean-up; importing one `.apkg` deck and opening the statistics view once (30-day window and heatmap) would still be welcome
+- No behaviour changes; a quick pass over the browse view (table, filter chips, paging), the statistics view (rating and state bars, heatmap), card preview and the image mask overlay would confirm the layout is unchanged
