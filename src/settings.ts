@@ -45,6 +45,10 @@ export interface FakeCardSettings {
     /** Share of cards (10-100%) that join the exam plan, hardest first. */
     examPlanRatio: number;
 
+    // --- Update notice -----------------------------------------------------
+    /** Version this plugin last ran as, so "what is new" is shown once. */
+    lastSeenVersion: string;
+
     /** Legacy switches, kept so old data still loads. Not read any more. */
     showOtherClozeGroups?: boolean;
     showOtherImageGroups?: boolean;
@@ -72,6 +76,8 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     examDate: '',
     examDecks: '',
     examPlanRatio: 100,
+
+    lastSeenVersion: '',
 };
 
 /** Numeric settings never drop below these values, whatever gets typed. */
@@ -152,7 +158,15 @@ export class FakeCardSettingTab extends PluginSettingTab {
                         setting.addTextArea((area) => {
                             area.inputEl.rows = 4;
                             area.setPlaceholder('default\n方剂\n针灸');
-                            void this.plugin.store.loadDecks().then((decks) => area.setValue(decks.join('\n')));
+                            // Keep the callback body in braces and return nothing:
+                            // TextAreaComponent.setValue() returns the component, which is
+                            // thenable in Obsidian's declarative settings, so returning it
+                            // would resolve the promise with a thenable and spin forever.
+                            void this.plugin.store.loadDecks()
+                                .then((decks) => {
+                                    area.setValue(decks.join('\n'));
+                                })
+                                .catch(() => undefined);
                             area.onChange(async (value) => {
                                 const decks = value
                                     .split('\n')
@@ -169,11 +183,13 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     desc: t('library.defaultDeck.desc'),
                     render: (setting) => {
                         setting.addDropdown((dropdown) => {
-                            void this.plugin.store.loadDecks().then((decks) => {
-                                for (const deck of decks) dropdown.addOption(deck, deck);
-                                const current = this.plugin.settings.defaultDeck;
-                                dropdown.setValue(decks.includes(current) ? current : (decks[0] ?? 'default'));
-                            });
+                            void this.plugin.store.loadDecks()
+                                .then((decks) => {
+                                    for (const deck of decks) dropdown.addOption(deck, deck);
+                                    const current = this.plugin.settings.defaultDeck;
+                                    dropdown.setValue(decks.includes(current) ? current : (decks[0] ?? 'default'));
+                                })
+                                .catch(() => undefined);
                             dropdown.onChange(async (value) => {
                                 this.plugin.settings.defaultDeck = value;
                                 await this.plugin.saveSettings();
