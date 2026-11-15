@@ -1,39 +1,41 @@
 ## 中文
 
-### 修复审核反馈
+### 修复第二轮审核反馈
 
-- **设置页改用 1.13 声明式 API**：设置项现在会出现在 Obsidian 的设置搜索里，所有开关、数字、滑块、文本框由官方控件渲染，行为与之前一致
-- **插件体积从 8.7 MB 降到 1.2 MB**：`sql.js` 改用浏览器版 WebAssembly 构建并内联 wasm，不再打包 8 MB 的 asm.js 版本。使用 Sync Standard 方案的用户现在可以正常同步 `main.js`
-- **不再包含 Node.js 文件系统调用**：产物中 `node:fs`、`node:crypto` 引用为 0，Anki 导入不再借用 Node 分支
-- **语言检测改用 `getLanguage()`**：不再读取 `localStorage`
-- **删除卡片改用 `FileManager.trashFile()`**：遵循你在 Obsidian 里设置的删除偏好
-- **去掉多余的 `Rating.Hard as number` 断言**
-- **README 补全英文说明**：定位、功能、安装、快速开始、数据与隐私
+这一版没有功能变化，只做类型与写法上的清理：
 
-### 其他改动
+- **`sql.js` 深层导入补上模块声明**：删掉 `@ts-ignore` 和 `any`，`initSqlJs()` 现在有完整签名，`wasmBinary` 也按官方类型传入
+- **`Object.entries()` 显式标注元组类型**：`src/ankiImport.ts` 里读取 notetypes 与 media 映射不再产生 `any`
+- **日期补零不再调用 `String(...)`**：`reviews.ts`、`statsView.ts` 改用模板字符串
+- **统计视图不再依赖 `flatMap`**：`last30Keys` 用显式循环归并，并标注 `ReviewLog[]`，避免在 `lib: ES7` 下被解析为 `any[]`
+- **枚举比较改为纯数字比较**：`reviewView.ts` 先取 `const hardGrade: number = Rating.Hard`，既不需要断言，也不跨枚举比较
+- **`activeDocument.createElement('input')` → `createEl('input')`**：`src/importer.ts` 里唯一真实存在的原生建元素调用
 
-- 发布流程迁到 GitHub Actions：推送 tag 后自动构建、生成 [构建来源证明](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) 并创建 Release
+### 关于 `prefer-create-el` 报错
+
+报告里列出的 89 个行号位置，实际内容都是 `createEl` / `createDiv` / `createSpan` 调用。源码中 `.createEl(` 共 181 处、`createElement` 仅 1 处（本版已改），线上 `main.js` 中 `createElement` 出现次数为 0。这条规则疑似误报，欢迎复核。
 
 ### 测试提醒
 
-- Anki 导入（`.apkg`）底层从 asm.js 换成 WebAssembly，建议导入一个牌组确认基本、填空、图片遮挡三类笔记及其媒体都正常
+- 无行为变化；仍建议导入一个 `.apkg` 牌组，确认基本、填空、图片遮挡三类笔记与媒体正常
 
 ## English
 
-### Review feedback fixes
+### Second round of review feedback
 
-- **Settings tab moves to the 1.13 declarative API**: every setting is now indexed by Obsidian's settings search, and controls are rendered by the official components with the same behaviour as before
-- **Bundle size down from 8.7 MB to 1.2 MB**: `sql.js` now uses the browser WebAssembly build with the wasm binary inlined instead of the 8 MB asm.js build. Users on the Sync Standard plan can sync `main.js` again
-- **No Node.js filesystem calls left**: the bundle contains zero references to `node:fs` and `node:crypto`, and Anki import no longer pulls in the Node code paths
-- **Language detection uses `getLanguage()`** instead of reading `localStorage`
-- **Card deletion uses `FileManager.trashFile()`**, so your Obsidian deletion preference is respected
-- **Removed the redundant `Rating.Hard as number` assertion**
-- **README now has a full English section**: positioning, features, install, quick start, data and privacy
+No behaviour changes in this release, only type and code clean-up:
 
-### Other changes
+- **Proper module declaration for the deep `sql.js` import**: the `@ts-ignore` and the `any` are gone, `initSqlJs()` is fully typed and `wasmBinary` is passed with the official type
+- **Explicit tuple types for `Object.entries()`**: reading the notetypes and media maps in `src/ankiImport.ts` no longer produces `any`
+- **Date padding no longer calls `String(...)`**: `reviews.ts` and `statsView.ts` use template strings instead
+- **Statistics no longer relies on `flatMap`**: `last30Keys` is merged with an explicit loop typed as `ReviewLog[]`, so it cannot degrade to `any[]` under `lib: ES7`
+- **Enum comparison replaced by a plain number comparison**: `reviewView.ts` takes `const hardGrade: number = Rating.Hard` first, which needs neither an assertion nor a cross-enum comparison
+- **`activeDocument.createElement('input')` → `createEl('input')`**: the only real raw element creation left in `src/importer.ts`
 
-- Releases now run on GitHub Actions: pushing a tag builds the plugin, generates [build provenance attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) and publishes the release
+### About the `prefer-create-el` finding
+
+Every line listed in that report is a `createEl` / `createDiv` / `createSpan` call. The source has 181 `.createEl(` call sites and exactly one `createElement` (fixed in this release), and the shipped `main.js` contains zero occurrences of `createElement`. This looks like a false positive and is worth a second look.
 
 ### Please test
 
-- Anki import (`.apkg`) now runs on WebAssembly instead of asm.js; importing one deck to confirm basic, cloze and image-occlusion notes plus their media still come through would be great
+- No behaviour changes; importing one `.apkg` deck to confirm basic, cloze and image-occlusion notes and their media still come through would be great
