@@ -2,7 +2,7 @@ import { decompress } from 'fzstd';
 import { unzipSync } from 'fflate';
 import { normalizePath } from 'obsidian';
 import type { Database, QueryExecResult, SqlValue } from 'sql.js';
-import { createEmptyCard, fsrs, State } from 'ts-fsrs';
+import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type FakeCardPlugin from '../main';
 import type { CardRecord } from './card';
@@ -78,8 +78,15 @@ interface AnkiCardRow {
 interface AnkiReview {
     /** revlog.id is a millisecond timestamp. */
     time: Date;
-    /** 1 = Again, 2 = Hard, 3 = Good, 4 = Easy. */
-    ease: number;
+    /** 1 = Again, 2 = Hard, 3 = Good, 4 = Easy, as FSRS names them. */
+    ease: Grade;
+}
+
+/** revlog's ease column is 1..4; a number outside that range is not a rating. */
+const GRADES: readonly Grade[] = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy];
+
+function toGrade(ease: number): Grade | null {
+    return GRADES[ease - 1] ?? null;
 }
 
 /** A card that has been built but not written yet. */
@@ -293,8 +300,8 @@ function readReviews(db: Database): Map<string, AnkiReview[]> {
     try {
         const rows: QueryExecResult[] = db.exec('SELECT id, cid, ease FROM revlog ORDER BY id');
         for (const row of rows[0]?.values ?? []) {
-            const ease = Number(row[2] ?? 0);
-            if (ease < 1 || ease > 4) continue;
+            const ease = toGrade(Number(row[2] ?? 0));
+            if (ease === null) continue;
             const time = new Date(Number(row[0]));
             if (!Number.isFinite(time.getTime())) continue;
             const cid = String(row[1]);
@@ -331,7 +338,7 @@ function replayReviews(reviews: AnkiReview[]): FsrsCard | null {
     let card = createEmptyCard(reviews[0].time);
     for (const review of reviews) {
         try {
-            card = scheduler.next(card, review.time, review.ease as Grade).card;
+            card = scheduler.next(card, review.time, review.ease).card;
         } catch {
             // A rating FSRS rejects (hand-edited log, out-of-order timestamps)
             // is skipped instead of failing the whole import.

@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.8';
+export const WHATS_NEW_VERSION = '1.0.9';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,24 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Anki imports now carry the full review history: every rating lands in the daily log, so the heatmap, the retention numbers and the child-card streak all see it. Duplicates ask whether to use the Anki schedule or keep the current one.',
-        zh: 'Anki 导入会带上完整复习历史：每一条评分都写进按日日志，热力图、留存率和子卡失败连击都能读到。重复卡会询问使用 Anki 进度还是保留当前进度。',
+        en: 'A maintenance build on top of 1.0.8. The Anki importer validates each revlog rating while reading the file, so a damaged or hand-edited .apkg can no longer hand FSRS a grade it does not know.',
+        zh: '1.0.8 之上的维护版本：Anki 导入器在读 revlog 时就把每条评分校验成 FSRS 认识的 Again / Hard / Good / Easy，损坏或手改过的 apkg 不会再喂进非法评分。',
     },
     {
-        en: 'Review settings grew two pages: Again / Hard / Good / Easy can each be bound to a key (Space and digits work), and the card sits in a centred column or spans the full pane.',
-        zh: '复习设置多了两项：Again / Hard / Good / Easy 可以各自绑定按键（空格和数字都行），卡片可选居中一栏或铺满窗格。',
-    },
-    {
-        en: 'A card that keeps failing now offers a child card right in review, showing the recent failing score - Q&A, cloze or image occlusion - and the parent is paused. Ratings can be undone.',
-        zh: '反复失败的卡会在复习界面直接提示建子卡，并显示最近的失败分数——问答、填空或图片遮挡都可以，父卡自动暂停。评分可以撤销。',
-    },
-    {
-        en: 'The heatmap is rebuilt GitHub-style: 7 rows, horizontal scrolling, drag to pan, arrows to page through, and it covers the whole history instead of the last 90 days.',
-        zh: '热力图按 GitHub 风格重做：7 行、横向滚动、可拖动、两侧箭头翻页，显示全部历史而不是固定 90 天。',
-    },
-    {
-        en: 'The answer button and the four rating buttons use pale fills with matching text instead of full-strength colour blocks.',
-        zh: '「显示答案」和四个评分按钮改成淡底同色系文字，不再是大块饱和色。',
+        en: 'Nothing else moves - Anki history, the child-card failing score, the heatmap, the configurable keys and layout all stay as they were in 1.0.8.',
+        zh: '其余一切照旧：Anki 复习历史、子卡失败分数、热力图、可配置的快捷键和布局都和 1.0.8 一样。',
     },
 ];
 
