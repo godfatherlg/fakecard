@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.9';
+export const WHATS_NEW_VERSION = '1.0.11';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'A maintenance build on top of 1.0.8. The Anki importer validates each revlog rating while reading the file, so a damaged or hand-edited .apkg can no longer hand FSRS a grade it does not know.',
-        zh: '1.0.8 之上的维护版本：Anki 导入器在读 revlog 时就把每条评分校验成 FSRS 认识的 Again / Hard / Good / Easy，损坏或手改过的 apkg 不会再喂进非法评分。',
+        en: 'The review view no longer flashes on startup: the "Loading…" placeholder is gone, so the card is painted once and is the first thing you see.',
+        zh: '启动时复习界面不再闪：去掉了「Loading…」占位，卡片只绘制一次，出现即是最终状态。',
     },
     {
-        en: 'Nothing else moves - Anki history, the child-card failing score, the heatmap, the configurable keys and layout all stay as they were in 1.0.8.',
-        zh: '其余一切照旧：Anki 复习历史、子卡失败分数、热力图、可配置的快捷键和布局都和 1.0.8 一样。',
+        en: 'The card queue is read while the layout is still loading, so the card lands together with the rest of the workspace instead of a moment later.',
+        zh: '读卡片队列改到等布局的同时进行，卡片和其余界面同帧出现，不再晚一步补上来。',
+    },
+    {
+        en: 'Also from the previous two releases, whose notes never showed: wiki links in the first card after a restart are clickable again, and the statistics page opens faster.',
+        zh: '顺带补上前两版没弹出的说明：重启后首屏卡片的内链恢复可点击，统计页首次打开更快。',
     },
 ];
 
