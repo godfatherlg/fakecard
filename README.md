@@ -4,6 +4,40 @@
 
 Spaced-repetition flashcards for Obsidian, built from your notes and stored as plain JSON in their own folder. Notes are never modified.
 
+## English
+
+**fakecard** turns your notes into spaced-repetition flashcards inside Obsidian. Cards live as plain JSON in a `Fake Cards/` folder in your vault; your notes are only ever read, never edited.
+
+Features:
+
+- Three ways to create cards: rules over a note, a manual editing panel, or JSON from any external tool
+- Q&A, cloze (Anki `{{c1::...}}` syntax) and image-occlusion cards
+- FSRS scheduling (`ts-fsrs`) with four grades
+- Daily queue: due cards first, with separate caps for new cards and reviews
+- Multi-group cloze and image cards, every group scheduled on its own
+- Child cards: a card you keep failing is paused and studied through easier stand-ins; the parent comes back once they graduate
+- Exam plan: spreads the selected cards over the days before an exam, hardest first
+- Statistics: today, rating distribution, true retention, maturity, heatmap, due forecast, hard cards
+- Anki import (`.apkg`): basic, cloze and image-occlusion notes plus their media
+- Read-only towards your notes: any card can jump back to the exact spot it came from
+
+Install:
+
+1. Community plugins: Settings -> Community plugins -> Browse -> search `fakecard` (submission pending)
+2. Manual: download `main.js`, `manifest.json` and `styles.css` from [Releases](https://github.com/godfatherlg/fakecard/releases) into `<vault>/.obsidian/plugins/fakecard/`, then enable the plugin
+
+Quick start:
+
+1. Put a `*` marker in a heading (`## Ginkgo biloba *`); the heading is the question and the text below it is the answer. Run **Generate Q&A cards from the whole note**.
+2. Highlight text inside a list block; every `==highlight==` becomes a cloze deletion. Run **Generate cloze cards from the whole note**.
+3. Review with **Start reviewing** or the ribbon icon; grade with Again / Hard / Good / Easy (space bar shows the answer).
+
+The settings tab follows the Obsidian language and switches between English and Chinese automatically.
+
+Data and privacy: cards are stored in `Fake Cards/cards/`, review logs in `Fake Cards/reviews/`, backups in `Fake Cards/backup/`. Everything is local and the plugin makes no network requests. The system clipboard is read only when you run one of the import commands that takes cards from it, and the plugin never writes to it.
+
+The rest of this document is in Chinese.
+
 ---
 
 ## 功能

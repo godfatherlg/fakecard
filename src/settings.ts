@@ -1,4 +1,5 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab } from 'obsidian';
+import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type FakeCardPlugin from '../main';
 import { t } from './i18n';
 import { DEFAULT_LIBRARY_FOLDER } from './store';
@@ -73,328 +74,307 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     examPlanRatio: 100,
 };
 
-/** Small helper: integer field that only saves valid values. */
-function numberSetting(
-    containerEl: HTMLElement,
-    name: string,
-    desc: string,
-    value: number,
-    fallback: number,
-    min: number,
-    onSave: (value: number) => void,
-): void {
-    new Setting(containerEl)
-        .setName(name)
-        .setDesc(desc)
-        .addText((text) => text
-            .setPlaceholder(String(fallback))
-            .setValue(String(value))
-            .onChange((raw) => {
-                const parsed = Number.parseInt(raw, 10);
-                if (Number.isFinite(parsed) && parsed >= min) onSave(parsed);
-            }));
-}
+/** Numeric settings never drop below these values, whatever gets typed. */
+const NUMBER_FLOORS: Record<string, number> = {
+    childGoodStreak: 1,
+    childHardStreak: 1,
+    newCardsPerDay: 0,
+    maxReviewsPerDay: 1,
+    answerTimeBase: 5,
+};
 
+/**
+ * Settings UI. The values are declared once and rendered by Obsidian's
+ * declarative settings API (1.13+), so every row is indexed by the settings
+ * search. Rows that need async data or a button use a custom render callback.
+ */
 export class FakeCardSettingTab extends PluginSettingTab {
     constructor(app: App, private plugin: FakeCardPlugin) {
         super(app, plugin);
     }
 
-    display(): void {
-        const { containerEl } = this;
-        containerEl.empty();
+    getSettingDefinitions(): SettingDefinitionItem[] {
+        return [
+            this.libraryGroup(),
+            this.creationGroup(),
+            this.reviewGroup(),
+            this.displayGroup(),
+            this.examGroup(),
+            this.importExportGroup(),
+        ];
+    }
 
-        this.renderLibrary(containerEl);
-        this.renderCreation(containerEl);
-        this.renderReview(containerEl);
-        this.renderDisplay(containerEl);
-        this.renderExam(containerEl);
-        this.renderImportExport(containerEl);
+    getControlValue(key: string): unknown {
+        return (this.plugin.settings as unknown as Record<string, unknown>)[key];
+    }
+
+    async setControlValue(key: string, value: unknown): Promise<void> {
+        const settings = this.plugin.settings as unknown as Record<string, unknown>;
+        let next = typeof value === 'string' ? value.trim() : value;
+
+        if (key === 'libraryFolder' && next === '') next = DEFAULT_LIBRARY_FOLDER;
+        if (key === 'markerSymbol' && next === '') next = '*';
+
+        const floor = NUMBER_FLOORS[key];
+        if (floor !== undefined) {
+            const parsed = Number(next);
+            if (!Number.isFinite(parsed)) return;
+            next = Math.max(floor, Math.round(parsed));
+        }
+
+        if (settings[key] === next) return;
+        settings[key] = next;
+        if (key === 'libraryFolder') this.plugin.rebuildStores();
+        await this.plugin.saveSettings();
     }
 
     // ------------------------------------------------------------------ Library
 
-    private renderLibrary(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName(t('library.heading')).setHeading();
-
-        new Setting(containerEl)
-            .setName(t('library.folder.name'))
-            .setDesc(t('library.folder.desc'))
-            .addText((text) => text
-                .setPlaceholder(DEFAULT_LIBRARY_FOLDER)
-                .setValue(this.plugin.settings.libraryFolder)
-                .onChange(async (value) => {
-                    const folder = value.trim() || DEFAULT_LIBRARY_FOLDER;
-                    if (folder === this.plugin.settings.libraryFolder) return;
-                    this.plugin.settings.libraryFolder = folder;
-                    this.plugin.rebuildStores();
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('library.decks.name'))
-            .setDesc(t('library.decks.desc'))
-            .addTextArea((area) => {
-                area.inputEl.rows = 4;
-                area.setPlaceholder('default\n方剂\n针灸');
-                void this.plugin.store.loadDecks().then((decks) => area.setValue(decks.join('\n')));
-                area.onChange(async (value) => {
-                    const decks = value
-                        .split('\n')
-                        .map((deck) => deck.trim())
-                        .filter((deck) => deck.length > 0);
-                    await this.plugin.store.saveDecks(decks.length > 0 ? decks : ['default']);
-                    await this.plugin.saveSettings();
-                });
-            });
-
-        new Setting(containerEl)
-            .setName(t('library.defaultDeck.name'))
-            .setDesc(t('library.defaultDeck.desc'))
-            .addDropdown((dropdown) => {
-                void this.plugin.store.loadDecks().then((decks) => {
-                    for (const deck of decks) dropdown.addOption(deck, deck);
-                    const current = this.plugin.settings.defaultDeck;
-                    dropdown.setValue(decks.includes(current) ? current : (decks[0] ?? 'default'));
-                });
-                dropdown.onChange(async (value) => {
-                    this.plugin.settings.defaultDeck = value;
-                    await this.plugin.saveSettings();
-                });
-            });
+    private libraryGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('library.heading'),
+            items: [
+                {
+                    name: t('library.folder.name'),
+                    desc: t('library.folder.desc'),
+                    control: {
+                        type: 'text',
+                        key: 'libraryFolder',
+                        placeholder: DEFAULT_LIBRARY_FOLDER,
+                        defaultValue: DEFAULT_LIBRARY_FOLDER,
+                    },
+                },
+                {
+                    name: t('library.decks.name'),
+                    desc: t('library.decks.desc'),
+                    render: (setting) => {
+                        setting.addTextArea((area) => {
+                            area.inputEl.rows = 4;
+                            area.setPlaceholder('default\n方剂\n针灸');
+                            void this.plugin.store.loadDecks().then((decks) => area.setValue(decks.join('\n')));
+                            area.onChange(async (value) => {
+                                const decks = value
+                                    .split('\n')
+                                    .map((deck) => deck.trim())
+                                    .filter((deck) => deck.length > 0);
+                                await this.plugin.store.saveDecks(decks.length > 0 ? decks : ['default']);
+                                await this.plugin.saveSettings();
+                            });
+                        });
+                    },
+                },
+                {
+                    name: t('library.defaultDeck.name'),
+                    desc: t('library.defaultDeck.desc'),
+                    render: (setting) => {
+                        setting.addDropdown((dropdown) => {
+                            void this.plugin.store.loadDecks().then((decks) => {
+                                for (const deck of decks) dropdown.addOption(deck, deck);
+                                const current = this.plugin.settings.defaultDeck;
+                                dropdown.setValue(decks.includes(current) ? current : (decks[0] ?? 'default'));
+                            });
+                            dropdown.onChange(async (value) => {
+                                this.plugin.settings.defaultDeck = value;
+                                await this.plugin.saveSettings();
+                            });
+                        });
+                    },
+                },
+            ],
+        };
     }
 
     // ----------------------------------------------------------------- Creation
 
-    private renderCreation(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName(t('creation.heading')).setHeading();
-
-        new Setting(containerEl)
-            .setName(t('creation.marker.name'))
-            .setDesc(t('creation.marker.desc'))
-            .addText((text) => text
-                .setPlaceholder('*')
-                .setValue(this.plugin.settings.markerSymbol)
-                .onChange(async (value) => {
-                    this.plugin.settings.markerSymbol = value || '*';
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('creation.altClick.name'))
-            .setDesc(t('creation.altClick.desc'))
-            .addToggle((toggle) => toggle
-                .setValue(this.plugin.settings.altClickOcclusion)
-                .onChange(async (value) => {
-                    this.plugin.settings.altClickOcclusion = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('creation.childCards.name'))
-            .setDesc(t('creation.childCards.desc'))
-            .addToggle((toggle) => toggle
-                .setValue(this.plugin.settings.childCardsEnabled)
-                .onChange(async (value) => {
-                    this.plugin.settings.childCardsEnabled = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        numberSetting(
-            containerEl,
-            t('creation.goodStreak.name'),
-            t('creation.goodStreak.desc'),
-            this.plugin.settings.childGoodStreak,
-            2,
-            1,
-            (value) => {
-                this.plugin.settings.childGoodStreak = value;
-                void this.plugin.saveSettings();
-            },
-        );
-
-        numberSetting(
-            containerEl,
-            t('creation.hardStreak.name'),
-            t('creation.hardStreak.desc'),
-            this.plugin.settings.childHardStreak,
-            4,
-            1,
-            (value) => {
-                this.plugin.settings.childHardStreak = value;
-                void this.plugin.saveSettings();
-            },
-        );
+    private creationGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('creation.heading'),
+            items: [
+                {
+                    name: t('creation.marker.name'),
+                    desc: t('creation.marker.desc'),
+                    control: { type: 'text', key: 'markerSymbol', placeholder: '*' },
+                },
+                {
+                    name: t('creation.altClick.name'),
+                    desc: t('creation.altClick.desc'),
+                    control: { type: 'toggle', key: 'altClickOcclusion' },
+                },
+                {
+                    name: t('creation.childCards.name'),
+                    desc: t('creation.childCards.desc'),
+                    control: { type: 'toggle', key: 'childCardsEnabled' },
+                },
+                {
+                    name: t('creation.goodStreak.name'),
+                    desc: t('creation.goodStreak.desc'),
+                    control: { type: 'number', key: 'childGoodStreak', min: 1, step: 1 },
+                },
+                {
+                    name: t('creation.hardStreak.name'),
+                    desc: t('creation.hardStreak.desc'),
+                    control: { type: 'number', key: 'childHardStreak', min: 1, step: 1 },
+                },
+            ],
+        };
     }
 
     // ------------------------------------------------------------------- Review
 
-    private renderReview(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName(t('review.heading')).setHeading();
-
-        numberSetting(
-            containerEl,
-            t('review.newPerDay.name'),
-            t('review.newPerDay.desc'),
-            this.plugin.settings.newCardsPerDay,
-            20,
-            0,
-            (value) => {
-                this.plugin.settings.newCardsPerDay = value;
-                void this.plugin.saveSettings();
-            },
-        );
-
-        numberSetting(
-            containerEl,
-            t('review.maxPerDay.name'),
-            t('review.maxPerDay.desc'),
-            this.plugin.settings.maxReviewsPerDay,
-            200,
-            1,
-            (value) => {
-                this.plugin.settings.maxReviewsPerDay = value;
-                void this.plugin.saveSettings();
-            },
-        );
-
-        new Setting(containerEl)
-            .setName(t('review.answerTime.name'))
-            .setDesc(t('review.answerTime.desc'))
-            .addToggle((toggle) => toggle
-                .setValue(this.plugin.settings.answerTimeHint)
-                .onChange(async (value) => {
-                    this.plugin.settings.answerTimeHint = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        numberSetting(
-            containerEl,
-            t('review.answerBase.name'),
-            t('review.answerBase.desc'),
-            this.plugin.settings.answerTimeBase,
-            20,
-            5,
-            (value) => {
-                this.plugin.settings.answerTimeBase = value;
-                void this.plugin.saveSettings();
-            },
-        );
+    private reviewGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('review.heading'),
+            items: [
+                {
+                    name: t('review.newPerDay.name'),
+                    desc: t('review.newPerDay.desc'),
+                    control: { type: 'number', key: 'newCardsPerDay', min: 0, step: 1 },
+                },
+                {
+                    name: t('review.maxPerDay.name'),
+                    desc: t('review.maxPerDay.desc'),
+                    control: { type: 'number', key: 'maxReviewsPerDay', min: 1, step: 1 },
+                },
+                {
+                    name: t('review.answerTime.name'),
+                    desc: t('review.answerTime.desc'),
+                    control: { type: 'toggle', key: 'answerTimeHint' },
+                },
+                {
+                    name: t('review.answerBase.name'),
+                    desc: t('review.answerBase.desc'),
+                    control: { type: 'number', key: 'answerTimeBase', min: 5, step: 1 },
+                },
+            ],
+        };
     }
 
     // ------------------------------------------------------------------ Display
 
-    private renderDisplay(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName(t('display.heading')).setHeading();
-
-        new Setting(containerEl)
-            .setName(t('display.maskAll.name'))
-            .setDesc(t('display.maskAll.desc'))
-            .addToggle((toggle) => toggle
-                .setValue(this.plugin.settings.maskAllGroups)
-                .onChange(async (value) => {
-                    this.plugin.settings.maskAllGroups = value;
-                    await this.plugin.saveSettings();
-                }));
+    private displayGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('display.heading'),
+            items: [
+                {
+                    name: t('display.maskAll.name'),
+                    desc: t('display.maskAll.desc'),
+                    control: { type: 'toggle', key: 'maskAllGroups' },
+                },
+            ],
+        };
     }
 
     // --------------------------------------------------------------------- Exam
 
-    private renderExam(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName(t('exam.heading')).setHeading();
-
-        new Setting(containerEl)
-            .setName(t('exam.date.name'))
-            .setDesc(t('exam.date.desc'))
-            .addText((text) => text
-                .setPlaceholder('2027-01-15')
-                .setValue(this.plugin.settings.examDate)
-                .onChange(async (value) => {
-                    this.plugin.settings.examDate = value.trim();
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('exam.decks.name'))
-            .setDesc(t('exam.decks.desc'))
-            .addText((text) => text
-                .setPlaceholder('方剂, 针灸')
-                .setValue(this.plugin.settings.examDecks)
-                .onChange(async (value) => {
-                    this.plugin.settings.examDecks = value.trim();
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('exam.ratio.name'))
-            .setDesc(t('exam.ratio.desc'))
-            .addSlider((slider) => slider
-                .setLimits(10, 100, 10)
-                .setValue(this.plugin.settings.examPlanRatio)
-                .onChange(async (value) => {
-                    this.plugin.settings.examPlanRatio = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('exam.build.name'))
-            .setDesc(t('exam.build.desc'))
-            .addButton((button) => button
-                .setButtonText(t('exam.build.button'))
-                .setCta()
-                .onClick(async () => {
-                    await this.plugin.buildExamPlan();
-                }));
+    private examGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('exam.heading'),
+            items: [
+                {
+                    name: t('exam.date.name'),
+                    desc: t('exam.date.desc'),
+                    control: { type: 'text', key: 'examDate', placeholder: '2027-01-15' },
+                },
+                {
+                    name: t('exam.decks.name'),
+                    desc: t('exam.decks.desc'),
+                    control: { type: 'text', key: 'examDecks', placeholder: '方剂, 针灸' },
+                },
+                {
+                    name: t('exam.ratio.name'),
+                    desc: t('exam.ratio.desc'),
+                    control: {
+                        type: 'slider',
+                        key: 'examPlanRatio',
+                        min: 10,
+                        max: 100,
+                        step: 10,
+                        displayFormat: (value) => `${value}%`,
+                    },
+                },
+                {
+                    name: t('exam.build.name'),
+                    desc: t('exam.build.desc'),
+                    render: (setting) => {
+                        setting.addButton((button) => button
+                            .setButtonText(t('exam.build.button'))
+                            .setCta()
+                            .onClick(() => {
+                                void this.plugin.buildExamPlan();
+                            }));
+                    },
+                },
+            ],
+        };
     }
 
     // ---------------------------------------------------------- Import / export
 
-    private renderImportExport(containerEl: HTMLElement): void {
-        new Setting(containerEl).setName(t('io.heading')).setHeading();
-
-        new Setting(containerEl)
-            .setName(t('io.external.name'))
-            .setDesc(t('io.external.desc'));
-
-        new Setting(containerEl)
-            .setName(t('io.clipboard.name'))
-            .setDesc(t('io.clipboard.desc'))
-            .addButton((button) => button
-                .setButtonText(t('io.clipboard.button'))
-                .onClick(() => {
-                    void this.plugin.importFromClipboard();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('io.apkg.name'))
-            .setDesc(t('io.apkg.desc'))
-            .addButton((button) => button
-                .setButtonText(t('io.apkg.button'))
-                .onClick(() => {
-                    this.plugin.importApkgFile();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('io.export.name'))
-            .setDesc(t('io.export.desc'))
-            .addButton((button) => button
-                .setButtonText(t('io.export.button'))
-                .onClick(() => {
-                    void this.plugin.exportCards();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('io.housekeeping.name'))
-            .setDesc(t('io.housekeeping.desc'))
-            .addButton((button) => button
-                .setButtonText(t('io.orphans.button'))
-                .onClick(() => {
-                    void this.plugin.cleanOrphans();
-                }))
-            .addButton((button) => button
-                .setButtonText(t('io.graduated.button'))
-                .onClick(() => {
-                    void this.plugin.cleanGraduated();
-                }));
+    private importExportGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('io.heading'),
+            items: [
+                {
+                    name: t('io.external.name'),
+                    desc: t('io.external.desc'),
+                },
+                {
+                    name: t('io.clipboard.name'),
+                    desc: t('io.clipboard.desc'),
+                    render: (setting) => {
+                        setting.addButton((button) => button
+                            .setButtonText(t('io.clipboard.button'))
+                            .onClick(() => {
+                                void this.plugin.importFromClipboard();
+                            }));
+                    },
+                },
+                {
+                    name: t('io.apkg.name'),
+                    desc: t('io.apkg.desc'),
+                    render: (setting) => {
+                        setting.addButton((button) => button
+                            .setButtonText(t('io.apkg.button'))
+                            .onClick(() => {
+                                this.plugin.importApkgFile();
+                            }));
+                    },
+                },
+                {
+                    name: t('io.export.name'),
+                    desc: t('io.export.desc'),
+                    render: (setting) => {
+                        setting.addButton((button) => button
+                            .setButtonText(t('io.export.button'))
+                            .onClick(() => {
+                                void this.plugin.exportCards();
+                            }));
+                    },
+                },
+                {
+                    name: t('io.housekeeping.name'),
+                    desc: t('io.housekeeping.desc'),
+                    render: (setting) => {
+                        setting
+                            .addButton((button) => button
+                                .setButtonText(t('io.orphans.button'))
+                                .onClick(() => {
+                                    void this.plugin.cleanOrphans();
+                                }))
+                            .addButton((button) => button
+                                .setButtonText(t('io.graduated.button'))
+                                .onClick(() => {
+                                    void this.plugin.cleanGraduated();
+                                }));
+                    },
+                },
+            ],
+        };
     }
 }

@@ -1,17 +1,16 @@
 import { decompress } from 'fzstd';
 import { unzipSync } from 'fflate';
 import { normalizePath } from 'obsidian';
-// @ts-ignore - the asm build has no declaration file of its own
-import initSqlJs from 'sql.js/dist/sql-asm.js';
-import type { Database, QueryExecResult, SqlJsStatic, SqlValue } from 'sql.js';
+import type { Database, QueryExecResult, SqlValue } from 'sql.js';
 import type FakeCardPlugin from '../main';
+import { loadSqlJs } from './sqlite';
 
 /**
  * Minimal .apkg importer.
  *
  * An .apkg is a zip containing an SQLite database (collection.anki2 /
- * collection.anki21b). We open it with the pure-JS asm build of SQLite, read
- * notes + models, and turn them into our cards:
+ * collection.anki21b). We open it with the single-file WebAssembly build of
+ * SQLite, read notes + models, and turn them into our cards:
  *
  *   - Basic models  -> Q&A card (field 0 = front, field 1 = back)
  *   - Cloze models  -> one card per cloze group (our createClozeCards)
@@ -181,7 +180,7 @@ export async function importApkg(
 
     let db: Database;
     try {
-        const SQL: SqlJsStatic = await initSqlJs();
+        const SQL = await loadSqlJs();
         db = new SQL.Database(sqlite);
     } catch {
         return { ...result, error: 'Could not open the collection database.' };

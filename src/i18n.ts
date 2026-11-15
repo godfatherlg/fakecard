@@ -1,4 +1,4 @@
-import { moment } from 'obsidian';
+import { getLanguage, moment } from 'obsidian';
 
 /** UI languages the plugin ships with; everything else falls back to English. */
 type Lang = 'en' | 'zh';
@@ -140,8 +140,7 @@ const ZH: Record<UiTextKey, string> = {
 
 /** Language picked in Obsidian; falls back to the moment locale, then English. */
 function detectLang(): Lang {
-    const stored = activeWindow.localStorage.getItem('language');
-    const tag = (stored ?? moment.locale() ?? 'en').toLowerCase();
+    const tag = (getLanguage() || moment.locale() || 'en').toLowerCase();
     return tag.startsWith('zh') ? 'zh' : 'en';
 }
 

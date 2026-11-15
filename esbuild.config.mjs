@@ -31,17 +31,11 @@ esbuild.build({
 		'@lezer/common',
 		'@lezer/highlight',
 		'@lezer/lr',
-		// sql-asm.js references these through require("node:...") in code
-		// paths Obsidian does not use; keep them external so esbuild does not
-		// try to resolve them at build time.
-		'node:fs',
-		'node:crypto',
-		'node:path',
-		'node:url',
 		...builtinModules],
 	format: 'cjs',
 	watch: !prod,
 	target: 'es2018',
+	loader: { '.wasm': 'binary' },
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,

@@ -106,7 +106,7 @@ export class CardStore {
         const path = normalizePath(`${this.cardsFolder}/${id}.json`);
         this.writing.add(path);
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof TFile) await this.app.vault.delete(file);
+        if (file instanceof TFile) await this.app.fileManager.trashFile(file);
         this.unindexCard(id);
         if (this.cached) this.cached = this.cached.filter((entry) => entry.id !== id);
     }
