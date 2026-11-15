@@ -56,7 +56,7 @@ export class ImagePanelModal extends Modal {
         });
 
         // Toolbar.
-        const toolbar = contentEl.createEl('div', { cls: 'fakecard-toolbar' });
+        const toolbar = contentEl.createDiv({ cls: 'fakecard-toolbar' });
         this.groupSelect = toolbar.createEl('select', { cls: 'dropdown' });
         this.rebuildGroupOptions();
         this.groupSelect.addEventListener('change', () => {
@@ -124,18 +124,18 @@ export class ImagePanelModal extends Modal {
         const zoomIn = toolbar.createEl('button', { text: '+' });
         zoomIn.addEventListener('click', () => this.setScale(this.scale + 0.2));
 
-        this.scrollEl = contentEl.createEl('div', { cls: 'fakecard-image-scroll' });
+        this.scrollEl = contentEl.createDiv({ cls: 'fakecard-image-scroll' });
         this.scrollEl.addEventListener('wheel', (event: WheelEvent) => {
             if (!event.ctrlKey) return;
             event.preventDefault();
             this.setScale(this.scale + (event.deltaY < 0 ? 0.1 : -0.1));
         }, { passive: false });
 
-        this.wrapEl = this.scrollEl.createEl('div', { cls: 'fakecard-image-wrap' });
+        this.wrapEl = this.scrollEl.createDiv({ cls: 'fakecard-image-wrap' });
         this.wrapElForScale = this.wrapEl;
         this.imgEl = this.wrapEl.createEl('img', { cls: 'fakecard-image' });
         this.imgEl.src = this.app.vault.adapter.getResourcePath(this.imagePath);
-        this.overlayEl = this.wrapEl.createEl('div', { cls: 'fakecard-image-overlay' });
+        this.overlayEl = this.wrapEl.createDiv({ cls: 'fakecard-image-overlay' });
 
         this.overlayEl.addEventListener('mousedown', (event) => this.onDragStart(event));
         this.overlayEl.addEventListener('mousemove', (event) => this.onDragMove(event));
@@ -200,7 +200,7 @@ export class ImagePanelModal extends Modal {
         if (!point) return;
         event.preventDefault();
         this.dragStart = point;
-        this.drawn = this.overlayEl.createEl('div', { cls: 'fakecard-image-mask is-drawing' });
+        this.drawn = this.overlayEl.createDiv({ cls: 'fakecard-image-mask is-drawing' });
     }
 
     private onDragMove(event: MouseEvent): void {
@@ -265,11 +265,11 @@ export class ImagePanelModal extends Modal {
         this.selectedEl = null;
         for (const group of this.groups) {
             for (const mask of group.masks) {
-                const el = this.overlayEl.createEl('div', {
+                const el = this.overlayEl.createDiv({
                     cls: `fakecard-image-mask${group.id === this.currentGroup ? ' is-current' : ''}${mask.shape === 'ellipse' ? ' is-ellipse' : ''}`,
                 });
                 this.positionMask(el, mask);
-                el.createEl('span', { cls: 'fakecard-image-mask-label', text: `c${group.id}` });
+                el.createSpan({ cls: 'fakecard-image-mask-label', text: `c${group.id}` });
                 el.dataset.groupId = String(group.id);
                 el.addEventListener('mousedown', (event) => {
                     event.stopPropagation();

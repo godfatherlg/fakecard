@@ -128,7 +128,7 @@ export class ReviewView extends ItemView {
         const card = this.cards[this.index];
 
         // Toolbar: deck selector + progress + edit the card being reviewed.
-        const bar = container.createEl('div', { cls: 'fakecard-review-bar' });
+        const bar = container.createDiv({ cls: 'fakecard-review-bar' });
 
         const deckSelect = bar.createEl('select', { cls: 'dropdown' });
         for (const deck of ['all', ...this.decks]) {
@@ -142,13 +142,13 @@ export class ReviewView extends ItemView {
             void this.reload();
         });
 
-        bar.createEl('div', {
+        bar.createDiv({
             cls: 'fakecard-review-progress',
             text: `${this.index + 1} / ${this.cards.length}`,
         });
 
         if (this.plugin.settings.answerTimeHint) {
-            bar.createEl('span', {
+            bar.createSpan({
                 cls: 'fakecard-review-time',
                 text: `⏱ ~${suggestedAnswerSeconds(card, this.plugin.settings.answerTimeBase)}s`,
                 attr: { title: 'Suggested answer time, based on the answer length and this card\'s history' },
@@ -160,7 +160,7 @@ export class ReviewView extends ItemView {
             if (Number.isFinite(examEnd)) {
                 const days = Math.ceil((examEnd - Date.now()) / 86400000);
                 if (days > 0) {
-                    bar.createEl('span', {
+                    bar.createSpan({
                         cls: 'fakecard-review-time',
                         text: `📅 ${days}d`,
                         attr: { title: 'Days until the exam date' },
@@ -193,7 +193,7 @@ export class ReviewView extends ItemView {
             const hardGrade: number = Rating.Hard;
             void this.plugin.reviews.recentForCard(card.id, streak).then((logs) => {
                 if (logs.length < streak || !logs.every((log) => log.rating === hardGrade)) return;
-                const hint = container.createEl('div', {
+                const hint = container.createDiv({
                     cls: 'fakecard-review-hint',
                     text: `⚠️ ${streak} Hard ratings in a row - consider simplifying this child card.`,
                 });
@@ -211,7 +211,7 @@ export class ReviewView extends ItemView {
         if (!this.revealed) {
             // Front. Q&A questions are centred; cloze fronts keep the text
             // flow; image cards draw the picture with the first group masked.
-            const frontEl = container.createEl('div', { cls: 'fakecard-review-front' });
+            const frontEl = container.createDiv({ cls: 'fakecard-review-front' });
             if (card.type === 'qa') frontEl.addClass('fakecard-qa-front');
             this.renderCardBody(frontEl, card, false);
 
@@ -236,20 +236,20 @@ export class ReviewView extends ItemView {
 
         if (card.type === 'qa') {
             // Q&A keeps both sides: question above, answer below.
-            const frontEl = container.createEl('div', { cls: 'fakecard-review-front fakecard-qa-front' });
+            const frontEl = container.createDiv({ cls: 'fakecard-review-front fakecard-qa-front' });
             this.renderCardBody(frontEl, card, false);
             container.createEl('hr');
-            const backEl = container.createEl('div', { cls: 'fakecard-review-back' });
+            const backEl = container.createDiv({ cls: 'fakecard-review-back' });
             this.renderCardBody(backEl, card, true);
         } else {
             // Cloze and image cards reveal in place - the same block shows the
             // answer, there is no separate answer side.
-            const bodyEl = container.createEl('div', { cls: 'fakecard-review-front' });
+            const bodyEl = container.createDiv({ cls: 'fakecard-review-front' });
             this.renderCardBody(bodyEl, card, true);
         }
 
         // Rating buttons.
-        const ratings = container.createEl('div', { cls: 'fakecard-review-ratings' });
+        const ratings = container.createDiv({ cls: 'fakecard-review-ratings' });
         const options: Array<[Rating, string, string]> = [
             [Rating.Again, 'Again', 'fakecard-again'],
             [Rating.Hard, 'Hard', 'fakecard-hard'],
@@ -281,21 +281,21 @@ export class ReviewView extends ItemView {
     private renderImageBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
         const image = card.image;
         if (!image) return;
-        const wrap = el.createEl('div', { cls: 'fakecard-image-wrap' });
+        const wrap = el.createDiv({ cls: 'fakecard-image-wrap' });
         const img = wrap.createEl('img', { cls: 'fakecard-image' });
         img.src = this.app.vault.adapter.getResourcePath(image.path);
 
         if (revealed || image.groups.length === 0) return;
 
         const firstId = image.groups[0].id;
-        const overlay = wrap.createEl('div', { cls: 'fakecard-image-overlay is-static' });
+        const overlay = wrap.createDiv({ cls: 'fakecard-image-overlay is-static' });
         for (const group of image.groups) {
             const isAsked = group.id === firstId;
             // The asked group is always hidden; other groups are hidden too
             // unless "mask all groups" is switched off.
             if (!isAsked && !this.plugin.settings.maskAllGroups) continue;
             for (const mask of group.masks) {
-                const maskEl = overlay.createEl('div', {
+                const maskEl = overlay.createDiv({
                     cls: `fakecard-image-mask${isAsked ? ' is-current' : ''}${mask.shape === 'ellipse' ? ' is-ellipse' : ''}`,
                 });
                 maskEl.style.left = `${mask.x * 100}%`;

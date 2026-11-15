@@ -15,7 +15,7 @@ export class ConfirmDialog extends Modal {
         this.contentEl.empty();
         this.contentEl.createEl('p', { text: this.message });
 
-        const buttons = this.contentEl.createEl('div', { cls: 'fakecard-dialog-buttons' });
+        const buttons = this.contentEl.createDiv({ cls: 'fakecard-dialog-buttons' });
 
         buttons.createEl('button', { text: 'Cancel' })
             .addEventListener('click', () => this.close());

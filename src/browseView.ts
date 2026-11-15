@@ -117,7 +117,7 @@ export class BrowseView extends ItemView {
         container.addClass('fakecard-browse');
 
         // Toolbar.
-        const bar = container.createEl('div', { cls: 'fakecard-browse-bar' });
+        const bar = container.createDiv({ cls: 'fakecard-browse-bar' });
 
         const deckSelect = bar.createEl('select', { cls: 'dropdown' });
         for (const deck of ['all', ...this.decks]) {
@@ -140,13 +140,13 @@ export class BrowseView extends ItemView {
             this.applyFilter();
         });
 
-        bar.createEl('span', {
+        bar.createSpan({
             cls: 'fakecard-browse-count',
             text: `${this.filtered.length} / ${this.cards.length}`,
         });
 
         if (this.checked.size > 0) {
-            bar.createEl('span', {
+            bar.createSpan({
                 cls: 'fakecard-browse-count',
                 text: `${this.checked.size} selected`,
             });
@@ -184,7 +184,7 @@ export class BrowseView extends ItemView {
         });
 
         // Quick filters that just write into the search box.
-        const chips = container.createEl('div', { cls: 'fakecard-browse-chips' });
+        const chips = container.createDiv({ cls: 'fakecard-browse-chips' });
         const presets: Array<[string, string]> = [
             ['All', ''],
             ['New', 'is:new'],
@@ -206,10 +206,10 @@ export class BrowseView extends ItemView {
             });
         }
 
-        const body = container.createEl('div', { cls: 'fakecard-browse-body' });
+        const body = container.createDiv({ cls: 'fakecard-browse-body' });
 
         // Left: table.
-        const listEl = body.createEl('div', { cls: 'fakecard-browse-list' });
+        const listEl = body.createDiv({ cls: 'fakecard-browse-list' });
         if (this.filtered.length === 0) {
             listEl.createEl('p', { text: 'No card matches.' });
         } else {
@@ -248,14 +248,14 @@ export class BrowseView extends ItemView {
         }
 
         // Right: preview + actions.
-        const previewEl = body.createEl('div', { cls: 'fakecard-browse-preview' });
+        const previewEl = body.createDiv({ cls: 'fakecard-browse-preview' });
         const selected = this.filtered.find((card) => card.id === this.selectedId);
         if (!selected) {
             previewEl.createEl('p', { text: 'Select a card to preview it.' });
             return;
         }
 
-        const actions = previewEl.createEl('div', { cls: 'fakecard-browse-actions' });
+        const actions = previewEl.createDiv({ cls: 'fakecard-browse-actions' });
         actions.createEl('button', { text: '👁 Preview' }).addEventListener('click', () => {
             new CardPreviewDialog(this.app, selected, this.plugin.settings.maskAllGroups).open();
         });
@@ -278,29 +278,29 @@ export class BrowseView extends ItemView {
             ).open();
         });
 
-        previewEl.createEl('div', { cls: 'fakecard-preview-label', text: 'Front' });
-        const frontEl = previewEl.createEl('div', { cls: 'fakecard-card-view' });
+        previewEl.createDiv({ cls: 'fakecard-preview-label', text: 'Front' });
+        const frontEl = previewEl.createDiv({ cls: 'fakecard-card-view' });
         this.renderPreview(frontEl, selected, false);
 
-        previewEl.createEl('div', { cls: 'fakecard-preview-label', text: 'Back' });
-        const backEl = previewEl.createEl('div', { cls: 'fakecard-card-view' });
+        previewEl.createDiv({ cls: 'fakecard-preview-label', text: 'Back' });
+        const backEl = previewEl.createDiv({ cls: 'fakecard-card-view' });
         this.renderPreview(backEl, selected, true);
     }
 
     private renderPreview(el: HTMLElement, card: CardRecord, revealed: boolean): void {
         if (card.type === 'image' && card.image) {
-            const wrap = el.createEl('div', { cls: 'fakecard-image-wrap' });
+            const wrap = el.createDiv({ cls: 'fakecard-image-wrap' });
             const img = wrap.createEl('img', { cls: 'fakecard-image' });
             img.src = this.app.vault.adapter.getResourcePath(card.image.path);
             if (revealed || card.image.groups.length === 0) return;
 
             const firstId = card.image.groups[0].id;
-            const overlay = wrap.createEl('div', { cls: 'fakecard-image-overlay is-static' });
+            const overlay = wrap.createDiv({ cls: 'fakecard-image-overlay is-static' });
             for (const group of card.image.groups) {
                 const isAsked = group.id === firstId;
                 if (!isAsked && !this.plugin.settings.maskAllGroups) continue;
                 for (const mask of group.masks) {
-                    const maskEl = overlay.createEl('div', {
+                    const maskEl = overlay.createDiv({
                         cls: `fakecard-image-mask${isAsked ? ' is-current' : ''}${mask.shape === 'ellipse' ? ' is-ellipse' : ''}`,
                     });
                     maskEl.style.left = `${mask.x * 100}%`;

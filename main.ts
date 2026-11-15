@@ -102,7 +102,7 @@ export default class FakeCardPlugin extends Plugin {
                 const target = findSourceTarget(el, card);
                 if (!target) continue;
                 if (key) seen.add(key);
-                const badge = target.createEl('span', {
+                const badge = target.createSpan({
                     cls: 'fakecard-source-badge',
                     text: '📇',
                     attr: { 'aria-label': 'fakecard: this block has cards' },
@@ -689,13 +689,13 @@ class CardTypeModal extends Modal {
         contentEl.createEl('h2', { text: 'New card' });
         contentEl.createEl('p', { cls: 'fakecard-help', text: 'Pick a card type. The manual panel opens next.' });
 
-        const list = contentEl.createEl('div', { cls: 'fakecards-preview' });
+        const list = contentEl.createDiv({ cls: 'fakecards-preview' });
 
         const row = (title: string, desc: string, onClick: () => void) => {
-            const item = list.createEl('div', { cls: 'fakecards-preview-row fakecards-clickable' });
-            const body = item.createEl('div', { cls: 'fakecards-preview-body' });
-            body.createEl('div', { cls: 'fakecards-preview-front', text: title });
-            body.createEl('div', { cls: 'fakecards-preview-back', text: desc });
+            const item = list.createDiv({ cls: 'fakecards-preview-row fakecards-clickable' });
+            const body = item.createDiv({ cls: 'fakecards-preview-body' });
+            body.createDiv({ cls: 'fakecards-preview-front', text: title });
+            body.createDiv({ cls: 'fakecards-preview-back', text: desc });
             item.addEventListener('click', onClick);
         };
 
@@ -743,10 +743,10 @@ class CardPreviewModal extends Modal {
         contentEl.createEl('h2', { text: `Preview ${this.drafts.length} card(s)` });
 
         const selected = new Set<number>(this.drafts.map((_, index) => index));
-        const list = contentEl.createEl('div', { cls: 'fakecards-preview' });
+        const list = contentEl.createDiv({ cls: 'fakecards-preview' });
 
         this.drafts.forEach((draft, index) => {
-            const row = list.createEl('div', { cls: 'fakecards-preview-row' });
+            const row = list.createDiv({ cls: 'fakecards-preview-row' });
 
             const checkbox = row.createEl('input');
             checkbox.type = 'checkbox';
@@ -756,13 +756,13 @@ class CardPreviewModal extends Modal {
                 else selected.delete(index);
             });
 
-            const body = row.createEl('div', { cls: 'fakecards-preview-body' });
-            body.createEl('div', {
+            const body = row.createDiv({ cls: 'fakecards-preview-body' });
+            body.createDiv({
                 cls: 'fakecards-preview-type',
                 text: draft.type === 'qa' ? 'Q&A' : 'Cloze',
             });
-            body.createEl('div', { cls: 'fakecards-preview-front', text: draft.front });
-            body.createEl('div', { cls: 'fakecards-preview-back', text: draft.back });
+            body.createDiv({ cls: 'fakecards-preview-front', text: draft.front });
+            body.createDiv({ cls: 'fakecards-preview-back', text: draft.back });
         });
 
         new Setting(contentEl).addButton((button) => button

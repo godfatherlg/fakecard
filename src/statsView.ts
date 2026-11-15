@@ -76,7 +76,7 @@ export class StatsView extends ItemView {
         const todayAccuracy = todayReviews > 0 ? Math.round((todayCorrect / todayReviews) * 100) : 0;
         const todayMinutes = Math.round(todayLogs.reduce((sum, log) => sum + (log.durationMs ?? 0), 0) / 60000);
 
-        const cards = container.createEl('div', { cls: 'fakecard-stats-cards' });
+        const cards = container.createDiv({ cls: 'fakecard-stats-cards' });
         this.statCard(cards, 'Reviewed today', String(todayReviews));
         this.statCard(cards, 'New today', String(todayNew));
         this.statCard(cards, 'Accuracy today', `${todayAccuracy}%`);
@@ -91,14 +91,14 @@ export class StatsView extends ItemView {
             if (log.rating >= 1 && log.rating <= 4) ratingCounts[log.rating - 1]++;
         }
         const ratingTotal = allLogs.length;
-        const ratingRow = container.createEl('div', { cls: 'fakecard-stats-ratings' });
+        const ratingRow = container.createDiv({ cls: 'fakecard-stats-ratings' });
         const ratingLabels = ['Again', 'Hard', 'Good', 'Easy'];
         const ratingClasses = ['is-again', 'is-hard', 'is-good', 'is-easy'];
         ratingLabels.forEach((label, index) => {
-            const chip = ratingRow.createEl('div', { cls: `fakecard-rating-chip ${ratingClasses[index]}` });
-            chip.createEl('span', { cls: 'fakecard-stat-chip-value', text: String(ratingCounts[index]) });
+            const chip = ratingRow.createDiv({ cls: `fakecard-rating-chip ${ratingClasses[index]}` });
+            chip.createSpan({ cls: 'fakecard-stat-chip-value', text: String(ratingCounts[index]) });
             const percent = ratingTotal > 0 ? Math.round((ratingCounts[index] / ratingTotal) * 100) : 0;
-            chip.createEl('span', { cls: 'fakecard-stat-chip-label', text: `${label} ${percent}%` });
+            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: `${label} ${percent}%` });
         });
 
         // --- True retention ---
@@ -106,7 +106,7 @@ export class StatsView extends ItemView {
             ? Math.round(((ratingTotal - ratingCounts[0]) / ratingTotal) * 100)
             : 0;
         container.createEl('h3', { text: 'True retention, last 30 days' });
-        container.createEl('div', {
+        container.createDiv({
             cls: 'fakecard-stats-retention',
             text: `${retention}%  (${ratingTotal - ratingCounts[0]} / ${ratingTotal} reviews rated Hard, Good or Easy)`,
         });
@@ -124,7 +124,7 @@ export class StatsView extends ItemView {
         }
 
         container.createEl('h3', { text: 'Card states' });
-        const stateRow = container.createEl('div', { cls: 'fakecard-stats-states' });
+        const stateRow = container.createDiv({ cls: 'fakecard-stats-states' });
         const stateLabels: Array<[State, string]> = [
             [State.New, 'New'],
             [State.Learning, 'Learning'],
@@ -132,9 +132,9 @@ export class StatsView extends ItemView {
             [State.Relearning, 'Relearning'],
         ];
         for (const [state, label] of stateLabels) {
-            const chip = stateRow.createEl('div', { cls: 'fakecard-stat-chip' });
-            chip.createEl('span', { cls: 'fakecard-stat-chip-value', text: String(states.get(state) ?? 0) });
-            chip.createEl('span', { cls: 'fakecard-stat-chip-label', text: label });
+            const chip = stateRow.createDiv({ cls: 'fakecard-stat-chip' });
+            chip.createSpan({ cls: 'fakecard-stat-chip-value', text: String(states.get(state) ?? 0) });
+            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: label });
         }
 
         // --- Maturity (Anki style: < 21 days = young, >= 21 = mature) ---
@@ -146,11 +146,11 @@ export class StatsView extends ItemView {
             else young++;
         }
         container.createEl('h3', { text: 'Maturity' });
-        const maturityRow = container.createEl('div', { cls: 'fakecard-stats-states' });
+        const maturityRow = container.createDiv({ cls: 'fakecard-stats-states' });
         for (const [label, value] of [['Young (< 21 days)', young], ['Mature (≥ 21 days)', mature]] as Array<[string, number]>) {
-            const chip = maturityRow.createEl('div', { cls: 'fakecard-stat-chip' });
-            chip.createEl('span', { cls: 'fakecard-stat-chip-value', text: String(value) });
-            chip.createEl('span', { cls: 'fakecard-stat-chip-label', text: label });
+            const chip = maturityRow.createDiv({ cls: 'fakecard-stat-chip' });
+            chip.createSpan({ cls: 'fakecard-stat-chip-value', text: String(value) });
+            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: label });
         }
 
         // --- Heatmap, last 90 days ---
@@ -196,7 +196,7 @@ export class StatsView extends ItemView {
         const peakDay = Array.from(forecast.entries()).find(([, value]) => value === peakValue)?.[0] ?? '';
         const busyDays = forecastValues.filter((value) => value > forecastAverage * 2).length;
 
-        container.createEl('div', {
+        container.createDiv({
             cls: 'fakecard-stats-forecast-summary',
             text: `Average ${forecastAverage}/day · Peak ${peakValue} (${peakDay.slice(5)}) · ${busyDays} day(s) above 2× average`,
         });
@@ -221,20 +221,20 @@ export class StatsView extends ItemView {
         if (hardest.length === 0) {
             container.createEl('p', { cls: 'fakecard-stats-empty', text: 'No struggling cards yet.' });
         } else {
-            const list = container.createEl('div', { cls: 'fakecard-stats-hardest' });
+            const list = container.createDiv({ cls: 'fakecard-stats-hardest' });
             for (const { card, misses } of hardest) {
-                const row = list.createEl('div', { cls: 'fakecard-stats-hardest-row' });
-                row.createEl('span', { cls: 'fakecard-stats-hardest-front', text: card.front.slice(0, 70) });
-                row.createEl('span', { cls: 'fakecard-stats-hardest-count', text: `${misses} miss(es)` });
+                const row = list.createDiv({ cls: 'fakecard-stats-hardest-row' });
+                row.createSpan({ cls: 'fakecard-stats-hardest-front', text: card.front.slice(0, 70) });
+                row.createSpan({ cls: 'fakecard-stats-hardest-count', text: `${misses} miss(es)` });
             }
         }
     }
 
     private renderHeatmap(parent: HTMLElement, entries: Array<[string, number]>): void {
         const max = Math.max(1, ...entries.map(([, value]) => value));
-        const grid = parent.createEl('div', { cls: 'fakecard-heatmap' });
+        const grid = parent.createDiv({ cls: 'fakecard-heatmap' });
         for (const [day, value] of entries) {
-            const cell = grid.createEl('div', { cls: 'fakecard-heatmap-cell', attr: { 'aria-label': `${day}: ${value}` } });
+            const cell = grid.createDiv({ cls: 'fakecard-heatmap-cell', attr: { 'aria-label': `${day}: ${value}` } });
             if (value > 0) {
                 cell.style.opacity = String(0.25 + (value / max) * 0.75);
                 cell.addClass('is-active');
@@ -250,16 +250,16 @@ export class StatsView extends ItemView {
     }
 
     private statCard(parent: HTMLElement, label: string, value: string): void {
-        const card = parent.createEl('div', { cls: 'fakecard-stat-card' });
-        card.createEl('div', { cls: 'fakecard-stat-value', text: value });
-        card.createEl('div', { cls: 'fakecard-stat-label', text: label });
+        const card = parent.createDiv({ cls: 'fakecard-stat-card' });
+        card.createDiv({ cls: 'fakecard-stat-value', text: value });
+        card.createDiv({ cls: 'fakecard-stat-label', text: label });
     }
 
     private barChart(parent: HTMLElement, data: Array<{ label: string; value: number }>): void {
         const max = Math.max(1, ...data.map((entry) => entry.value));
-        const chart = parent.createEl('div', { cls: 'fakecard-chart' });
+        const chart = parent.createDiv({ cls: 'fakecard-chart' });
         for (const entry of data) {
-            const bar = chart.createEl('div', {
+            const bar = chart.createDiv({
                 cls: 'fakecard-chart-bar',
                 attr: { 'aria-label': `${entry.label}: ${entry.value}` },
             });

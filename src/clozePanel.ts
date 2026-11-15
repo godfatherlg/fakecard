@@ -76,7 +76,7 @@ export class ClozePanelModal extends Modal {
             autoSizeTextarea(this.textarea);
         });
 
-        const toolbar = contentEl.createEl('div', { cls: 'fakecard-toolbar' });
+        const toolbar = contentEl.createDiv({ cls: 'fakecard-toolbar' });
 
         this.groupSelect = toolbar.createEl('select', { cls: 'dropdown' });
         this.rebuildGroupOptions();

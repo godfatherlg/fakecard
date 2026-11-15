@@ -34,7 +34,7 @@ export class CardPreviewDialog extends Modal {
 
         contentEl.createEl('h2', { text: 'Card preview' });
 
-        const frontEl = contentEl.createEl('div', { cls: 'fakecard-card-preview-front' });
+        const frontEl = contentEl.createDiv({ cls: 'fakecard-card-preview-front' });
 
         if (!this.revealed) {
             this.renderSide(frontEl, false);
@@ -53,7 +53,7 @@ export class CardPreviewDialog extends Modal {
             // Q&A keeps both sides.
             this.renderSide(frontEl, false);
             contentEl.createEl('hr');
-            const backEl = contentEl.createEl('div', { cls: 'fakecard-card-preview-back' });
+            const backEl = contentEl.createDiv({ cls: 'fakecard-card-preview-back' });
             this.renderSide(backEl, true);
         } else {
             // Cloze and image reveal in place - no separate answer side.
@@ -61,8 +61,8 @@ export class CardPreviewDialog extends Modal {
         }
 
         if (this.card.source.path) {
-            const row = contentEl.createEl('div', { cls: 'fakecard-source-row' });
-            row.createEl('span', {
+            const row = contentEl.createDiv({ cls: 'fakecard-source-row' });
+            row.createSpan({
                 cls: 'fakecard-preview-label',
                 text: `Source: ${this.card.source.path}`,
             });
@@ -91,19 +91,19 @@ export class CardPreviewDialog extends Modal {
         const image = this.card.image;
         if (!image) return;
 
-        const wrap = el.createEl('div', { cls: 'fakecard-image-wrap' });
+        const wrap = el.createDiv({ cls: 'fakecard-image-wrap' });
         const img = wrap.createEl('img', { cls: 'fakecard-image' });
         img.src = this.app.vault.adapter.getResourcePath(image.path);
 
         if (revealed || image.groups.length === 0) return;
 
         const firstId = image.groups[0].id;
-        const overlay = wrap.createEl('div', { cls: 'fakecard-image-overlay is-static' });
+        const overlay = wrap.createDiv({ cls: 'fakecard-image-overlay is-static' });
         for (const group of image.groups) {
             const isAsked = group.id === firstId;
             if (!isAsked && !this.maskAllGroups) continue;
             for (const mask of group.masks) {
-                const maskEl = overlay.createEl('div', {
+                const maskEl = overlay.createDiv({
                     cls: `fakecard-image-mask${isAsked ? ' is-current' : ''}${mask.shape === 'ellipse' ? ' is-ellipse' : ''}`,
                 });
                 maskEl.style.left = `${mask.x * 100}%`;
