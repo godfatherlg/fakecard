@@ -2,6 +2,7 @@ import { App, Modal, Notice, Setting } from 'obsidian';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { HistoryStack } from './history';
+import { tt } from './i18n';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 
 /**
@@ -50,28 +51,28 @@ export class QaPanelModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.createEl('h2', { text: this.card ? 'Edit Q&A card' : 'New Q&A card' });
+        contentEl.createEl('h2', { text: this.card ? tt('Edit Q&A card') : tt('New Q&A card') });
 
-        contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Question' });
+        contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Question') });
         this.frontEl = contentEl.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
         this.frontEl.rows = 1;
         this.frontEl.value = this.initialFront;
         bindAutoSize(this.frontEl);
 
-        contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Answer' });
+        contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Answer') });
         this.backEl = contentEl.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
         this.backEl.rows = 3;
         this.backEl.value = this.initialBack;
         bindAutoSize(this.backEl);
 
-        contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Deck' });
+        contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Deck') });
         this.deckEl = contentEl.createEl('select', { cls: 'dropdown' });
         void this.fillDeckOptions(this.card?.deck ?? this.plugin.settings.defaultDeck ?? 'default');
 
-        contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Tags' });
+        contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Tags') });
         this.tagsEl = contentEl.createEl('input', { cls: 'fakecard-tags-input' });
         this.tagsEl.type = 'text';
-        this.tagsEl.placeholder = 'tag1, tag2';
+        this.tagsEl.placeholder = tt('tag1, tag2');
         this.tagsEl.value = (this.card?.tags ?? []).join(', ');
 
         this.history = new HistoryStack({ front: this.initialFront, back: this.initialBack });
@@ -98,13 +99,13 @@ export class QaPanelModal extends Modal {
 
         new Setting(contentEl)
             .addButton((button) => button
-                .setButtonText(this.card ? 'Save changes' : 'Create card')
+                .setButtonText(this.card ? tt('Save changes') : tt('Create card'))
                 .setCta()
                 .onClick(() => {
                     void this.save();
                 }))
             .addButton((button) => button
-                .setButtonText('Cancel')
+                .setButtonText(tt('Cancel'))
                 .onClick(() => this.close()));
     }
 
@@ -129,7 +130,7 @@ export class QaPanelModal extends Modal {
         const deck = this.deckEl.value || 'default';
         const tags = parseTags(this.tagsEl.value);
         if (!front || !back) {
-            new Notice('Both the question and the answer are required.');
+            new Notice(tt('Both the question and the answer are required.'));
             return;
         }
 
@@ -146,7 +147,7 @@ export class QaPanelModal extends Modal {
             if (this.childOf) card.childOf = this.childOf;
             await this.plugin.store.save(card);
         }
-        new Notice('Card saved.');
+        new Notice(tt('Card saved.'));
         this.close();
         this.onSaved?.();
     }

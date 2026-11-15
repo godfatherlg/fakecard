@@ -1,113 +1,91 @@
-# 1.0.7
+# 1.0.8
 
 ## 中文
 
-### 统计页成为入口
+### Anki 导入带上完整复习历史
 
-左侧功能区图标不再直接进 Browse，而是打开**统计**界面。统计页和浏览页顶部多了一行 `Statistics / Browse / Review`，在三个界面之间切换：
+以前导入 .apkg 只搬 FSRS 状态和复习次数，逐条的 Again / Hard / Good / Easy 没有进来，所以「建子卡」的失败连击一直显示 0 / 4。现在每一条评分都写进 fakecard 的按日日志：
 
-- 已经有同名标签时直接跳过去并刷新，不会开出第二个相同标签
-- 没有时原地替换当前标签，所以来回点不会堆一排页签
-- 正在进行的复习在自己的标签里，不会被导航顶掉
-- 命令面板照旧可以单独打开任意一页：**Open statistics** / **Browse and edit cards** / **Start reviewing**
+- 统计页的热力图、评分分布、留存率和连续天数会把 Anki 的历史一起算进去
+- 子卡提示里的失败分数来自真实历史，不再固定为 0
+- 子卡判定往回看 365 天，几个月前的记录同样有效
+- 写入按 `cardId + 时间` 去重，同一份 apkg 反复导入不会把记录翻倍
+- 导入的卡如果库里已经有，会先问一次：使用 Anki 进度，还是保留当前进度
 
-### 考试计划重做：多个计划、天数、牌组勾选、每日数量预估
+导出 apkg 时要勾选 Include scheduling information，否则文件里没有 revlog，也就没有历史可转。
 
-**多个计划**：设置 → 考试计划 里可以一次建多个计划（一科一个）。每个计划有自己的名称、剩余天数、牌组和参与比例，右上角 `×` 删除。命令 **Build an exam plan** 在有多个计划时会先弹菜单让你选一个。
+### 复习界面
 
-**用天数代替日期**：「还有多久考试」直接填天数（默认 30），不用再算日期：
+- **快捷键**：Again / Hard / Good / Easy 可以分别绑定按键，空格和数字（字母区或小键盘）都可以，清空输入框即取消
+- **布局**：居中一栏（760px）或铺满窗格，宽屏和长答案用后者更舒服
+- **撤销**：评分后可以撤销，对应的日志条目会一起删掉，不占当天的复习额度
 
-- 填 `0` 表示今天考，卡片全部排在今天
-- 数字按自然日计算，填多少就是多少，不会因为当前时刻而漂移；每天自动递减
-- 旧版保存过的考试日期在升级后自动变成第一个计划，不会丢配置
-- 考试当天过后，该计划自动消失（设置页先隐藏，下次打开复习时正式移除），卡片回到常规 FSRS 排程，数据全部保留
+### 子卡
 
-**牌组改为勾选**：直接列出库里已有的牌组，勾哪个就纳入哪个；一个都不勾表示全部牌组。
+反复失败的卡会在复习界面提示建子卡，弹窗里显示最近的失败分数（比如 3 / 4）。确认后按类型生成子卡，父卡自动暂停：
 
-**比例下方实时显示负荷**：拖动滑块、改天数或改牌组后，下面立刻算出这个计划每天要复习多少张：
+- 问答子卡、填空子卡、图片遮挡子卡
+- Hard 连击阈值（2–10）和 Again 记分（0–3）在设置里可调
 
-- `≈ 每天 2 张，共 3 天`
-- `选中的 6 张里有 6 张排在考试之后，会被铺到考前（每日上限 200）`
-- 超过每日复习上限时追加一行红字提醒降低比例
+### 统计页热力图
 
-生成前照旧自动备份到 `fakecard/backup/exam-plan-<计划 id>-<时间>.json`。
+- GitHub 风格的小方块，一列 7 天，横向滚动
+- 按住拖动可以平移，两侧箭头每次翻一屏
+- 从最早一条记录一直显示到今天，不再固定 90 天
 
-### 建议作答时间可以调了
+### 配色
 
-复习时「已用 / 建议」的预估改成 True Recall 那版算法：基础秒数 + 答案阅读时间，再按这张卡的评分历史加权。设置里多出三项：
+「显示答案」和 Again / Hard / Good / Easy 四个评分按钮改成淡底同色系文字，不再是大块饱和色，浅色和深色主题都适用。
 
-- **作答时间：基础秒数**（默认 10，范围 5–120）
-- **作答时间：每 40 字增加的秒数**（默认 10，设为 0 忽略答案长度）
-- **作答时间：评分历史权重 %**（默认 -20：反复失败的卡更早提示，避免过度纠结；正数则相反）
+### 请测试
 
-只有卡片停留超过建议时长后才显示计时，提前显示反而会增加压力。
-
-### 子卡失败判定可调
-
-把子卡的连击判定抽成了纯函数，并开放两个设置：
-
-- **Hard 连击阈值**：2–10（默认 4），即最近多少次 Hard 及以上算「卡住了」
-- **Again 记分**：0–3（默认 2），Again 在一次失败连击里算几分，设为 0 则 Again 不再推动阈值
-
-### 测试提示
-
-- 点功能区应进入统计页；点 Browse / Review 原地切换，标签数量保持 1
-- 设置里建两个计划（比如一个 3 天、一个 10 天），勾选一个牌组，看预估是否随滑块变化；点「生成」后检查卡片被均匀铺到考前
-- 从 1.0.6 升级时，旧的考试日期应该自动出现在计划列表里
-- 复习一张卡停留超过建议时长后，计时才出现
+- 导入一个带调度信息的 apkg，打开统计页，确认历史日期出现在热力图上
+- 对一张卡连续评 Hard 或 Again，再点建子卡，弹窗分数不应是 0
+- 改快捷键后按新键评分；清空输入框应恢复默认
+- 切换布局后卡片宽度立即变化
+- 评分后撤销，卡片回到上一张
 
 ## English
 
-### Statistics is now the entry point
+### Anki imports now carry the full review history
 
-The ribbon icon opens **Statistics** instead of Browse, and both Statistics and Browse now carry a `Statistics / Browse / Review` strip at the top:
+Importing an .apkg used to bring the FSRS state and the review count, but not the individual Again / Hard / Good / Easy ratings - which is why the child-card failing streak always read 0 / 4. Every rating is now written into the daily log:
 
-- An already-open tab of that page is revealed and refreshed instead of opening a second one
-- Otherwise the current tab is replaced, so clicking back and forth never piles up tabs
-- A review session in its own tab is not displaced by the navigation
-- The command palette still opens any page on its own: **Open statistics** / **Browse and edit cards** / **Start reviewing**
+- The heatmap, the rating breakdown, retention and the streak include the Anki history
+- The failing score in the child-card prompt comes from real history instead of a fixed 0
+- The child-card check looks back 365 days, so months-old ratings still count
+- Entries are deduplicated on `cardId + time`, so importing the same deck twice cannot double the history
+- A card that already exists asks once: use the Anki schedule or keep the current one
 
-### Exam plans reworked: several plans, countdowns in days, ticked decks, a live daily estimate
+Tick Include scheduling information when exporting the apkg - without it there is no revlog in the file, and therefore no history to bring along.
 
-**Several plans**: Settings → Exam plan now holds any number of plans (one per subject). Each has its own name, countdown, decks and share, and a `×` to delete it. The command **Build an exam plan** asks which plan to build when more than one exists.
+### Review screen
 
-**Days instead of a date**: "Days until the exam" is a plain number (default 30), so there is no date to work out:
+- **Shortcuts**: Again / Hard / Good / Easy can each be bound to a key, on the number row or the numpad, Space included; clear the field to drop it
+- **Layout**: a centred column (760px) or the full pane, the latter suits wide screens and long answers
+- **Undo**: a rating can be undone, and its log entry is removed with it, so it no longer counts towards the daily limit
 
-- `0` means the exam is today and every card lands today
-- The number is calendar-based, so what you typed is what you see; it decreases by itself every day
-- A single exam date saved by an older version is migrated into the first plan on upgrade, nothing is lost
-- Once the exam day is over the plan disappears (hidden in Settings, removed for good the next time review opens) and its cards return to the normal FSRS schedule with all their data intact
+### Child cards
 
-**Decks are ticked now**: the decks you already have are listed; tick the ones the plan covers, tick none for every deck.
+A card that keeps failing offers a child card right in review, with the recent failing score shown (3 / 4, for example). Confirming creates the child of that type and pauses the parent:
 
-**The load is shown under the share slider**: dragging the slider, changing the countdown or ticking a deck immediately recomputes what the plan means per day:
+- Q&A, cloze and image-occlusion child cards
+- The Hard streak threshold (2-10) and the Again score (0-3) are configurable
 
-- `≈ 2 card(s) per day, over 3 day(s)`
-- `6 of the 6 selected cards are due after the exam and get spread out (daily cap 200)`
-- When it exceeds the daily review limit, a red line suggests lowering the share
+### Heatmap
 
-Building still writes a backup to `fakecard/backup/exam-plan-<plan id>-<time>.json` first.
+- Small GitHub-style squares, seven rows, horizontal scrolling
+- Drag to pan, and the arrows page one screen at a time
+- Covers the whole history up to today instead of the last 90 days
 
-### The suggested answer time is configurable
+### Colours
 
-The "used / suggested" timer in review now uses the True Recall algorithm: a base budget plus reading time for the answer, weighted by the card's rating history. Three new settings:
-
-- **Answer time: base seconds** (default 10, range 5–120)
-- **Answer time: seconds per 40 characters** (default 10; 0 ignores answer length)
-- **Answer time: rating history weight (%)** (default -20, so cards you keep failing are flagged earlier instead of making you dwell on them; use a positive value for the opposite)
-
-The timer only appears once a card stays past its suggested time - showing it earlier turns it into pressure.
-
-### Child-card failure scoring is configurable
-
-The child-card streak logic now lives in pure helpers, and two settings are exposed:
-
-- **Hard streak threshold**: 2–10 (default 4) - how many recent Hard-or-worse ratings count as "stuck"
-- **Again score**: 0–3 (default 2) - what an Again contributes to a failing run; 0 makes Again part of the run but never push the threshold on its own
+The answer button and the four rating buttons now use pale fills with matching text instead of full-strength colour blocks, in light and dark themes alike.
 
 ### Please test
 
-- The ribbon icon should open Statistics; Browse / Review should switch in place and keep the tab count at 1
-- Create two plans (say 3 days and 10 days), tick a deck, and check the estimate follows the slider; press Build and confirm cards are spread over the days before the exam
-- Upgrading from 1.0.6 should show the old exam date as the first plan
-- The review timer should only appear after a card stays past its suggested time
+- Import an apkg with scheduling information, open Statistics and confirm the old dates show up on the heatmap
+- Rate a card Hard or Again a few times, then press the child-card action - the score should not be 0
+- Change a shortcut, rate with the new key, then clear the field and check the default comes back
+- Switch the layout and confirm the card width changes immediately
+- Rate a card, undo it, and confirm the card returns to the previous one

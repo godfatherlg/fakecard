@@ -109,32 +109,146 @@
   background: var(--background-modifier-hover);
 }
 
-/* Review view: the card is the main content, centred and readable. */
+/* Review view: the card scrolls, the rating row is a solid block underneath it
+   instead of an overlay. Sticky ratings used to cover the end of a long answer;
+   now the body owns the scroll area and the buttons sit outside it. */
 .fakecard-review {
-  padding: 10px 20px;
-  max-width: 780px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  max-width: 760px;
   margin: 0 auto;
+  padding: 14px 24px 20px;
+  box-sizing: border-box;
+  /* Follows Settings -> Appearance -> Font size instead of a fixed px size. */
+  font-size: var(--font-text-size, 16px);
 }
 
-.fakecard-review .fakecard-review-front {
-  font-size: 1.35em;
+/* Settings -> Card display -> Review layout -> "Full width": the card fills the
+   pane instead of sitting in a centred column. The question stays centred
+   horizontally; only the answer runs the full width. */
+.fakecard-review.is-wide {
+  max-width: none;
+  margin: 0;
+  /* The pane's own padding is tuned for a narrow column; at full width the
+     text needs a little air on both sides. */
+  padding-left: 32px;
+  padding-right: 32px;
 }
 
-.fakecard-qa-front {
-  text-align: center;
+/* Four buttons stretched over a 1900px pane read as a dashboard, not as a
+   rating row, so wide mode caps their width and centres the group. */
+.fakecard-review.is-wide .fakecard-review-ratings {
+  grid-template-columns: repeat(4, minmax(0, 300px));
+  justify-content: center;
 }
 
+/* Toolbar: quiet metadata on the left, icon actions on the right. */
 .fakecard-review-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.fakecard-review-meta,
+.fakecard-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fakecard-review-deck {
+  max-width: 190px;
+  font-size: var(--font-ui-smaller);
 }
 
 .fakecard-review-progress {
-  font-size: 0.8em;
-  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fakecard-review-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.fakecard-review-icon:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.fakecard-review-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Card area: top-aligned, so the question sits at the same height before and
+   after the answer appears. Centring it vertically made the whole card jump
+   when a long answer pushed the question upwards. */
+.fakecard-review-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 26px 0;
+}
+
+.fakecard-review-front {
+  font-size: calc(var(--font-text-size, 16px) * 1.1);
+  line-height: 1.7;
+}
+
+.fakecard-qa-front {
+  text-align: center;
+  font-size: calc(var(--font-text-size, 16px) * 1.25);
+}
+
+.fakecard-review-back {
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-text-size, 16px);
+  line-height: 1.7;
+}
+
+/* Headings inside a card should not dwarf the card itself. */
+.fakecard-review .markdown-rendered h1 {
+  font-size: 1.5em;
+}
+
+.fakecard-review .markdown-rendered h2 {
+  font-size: 1.3em;
+}
+
+.fakecard-review .markdown-rendered h3 {
+  font-size: 1.15em;
+}
+
+.fakecard-review .markdown-rendered > :first-child {
+  margin-top: 0;
+}
+
+.fakecard-review .markdown-rendered > :last-child {
+  margin-bottom: 0;
 }
 
 .fakecard-review-hint {
@@ -145,23 +259,28 @@
   background: color-mix(in srgb, var(--color-orange) 18%, transparent);
 }
 
-/* The only entry point for building a child card: the same card keeps coming
-   back. Sits above the rating bar on the question face, because a hint after
-   the rating arrives too late. */
-.fakecard-review-child-hint {
-  display: block;
-  margin: 4px auto 8px;
-  padding: 4px 10px;
-  border: none;
-  background: none;
-  box-shadow: none;
-  font-size: 0.9em;
-  color: var(--text-warning, var(--color-orange));
-  cursor: pointer;
+/* The child-card button turns red once the card has failed often enough for
+   the child flow to be the recommended move. Below that it stays a normal
+   icon and explains itself on click. */
+.fakecard-review-icon.is-armed {
+  color: var(--text-error);
+  background: color-mix(in srgb, var(--color-red) 16%, transparent);
 }
 
-.fakecard-review-child-hint:hover {
-  text-decoration: underline;
+.fakecard-review-icon.is-armed:hover {
+  color: var(--text-on-accent);
+  background: var(--color-red);
+}
+
+/* Confirmation shown before a child card is built below the threshold. */
+.fakecard-child-prompt-score {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.fakecard-child-prompt-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
 }
 
 /* Shown only once the card passes its suggested time, so no space is reserved
@@ -179,55 +298,114 @@
   white-space: nowrap;
 }
 
-.fakecard-review-edit {
-  padding: 4px 10px;
-  font-size: 0.85em;
-}
-
-.fakecard-review-front {
-  font-size: 1.2em;
-  line-height: 1.7;
-}
-
-.fakecard-review-back {
-  font-size: 1em;
-  line-height: 1.7;
-  margin-top: 8px;
-}
-
-.fakecard-review-show {
-  margin-top: 16px;
-}
-
-.fakecard-review-ratings {
+/* Bottom bar, occupying the same slot as the rating row: the reveal button
+   before the answer, the four ratings after it. Both bars share the top border
+   and height, so flipping a card does not move anything on screen. */
+.fakecard-review-footer {
+  flex: 0 0 auto;
   display: flex;
+  justify-content: center;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* app.css styles `button:not(.clickable-icon)` with the same specificity as a
+   bare class, so the accent fill has to name the element to win. */
+button.fakecard-review-show {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(100%, 300px);
+  min-height: 44px;
+  padding: 9px 24px;
+  border: 1px solid color-mix(in srgb, var(--interactive-accent) 32%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--interactive-accent) 14%, var(--background-primary));
+  color: var(--text-accent);
+  box-shadow: none;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.fakecard-review-show:hover {
+  background: color-mix(in srgb, var(--interactive-accent) 24%, var(--background-primary));
+}
+
+.fakecard-review-show .fakecard-rate-key {
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  opacity: 0.65;
+}
+
+/* A block of its own under the scrolling body: never on top of the answer. */
+.fakecard-review-ratings {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 16px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--background-modifier-border);
 }
 
-.fakecard-review-ratings button {
-  flex: 1;
-  padding: 8px;
+/* Each rating carries its own hue in `--rate-color`; the fill stays pale so
+   four saturated buttons in a row do not glare. */
+.fakecard-review-ratings button.fakecard-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 44px;
+  padding: 8px 6px;
+  border: 1px solid color-mix(in srgb, var(--rate-color, var(--interactive-accent)) 30%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--rate-color, var(--interactive-accent)) 13%, var(--background-primary));
+  box-shadow: none;
+  color: color-mix(in srgb, var(--rate-color, var(--interactive-accent)) 70%, var(--text-normal));
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s ease, transform 0.1s ease;
 }
 
-.fakecard-again {
-  background: var(--color-red);
-  color: var(--text-on-accent);
+.fakecard-review-ratings button.fakecard-rate:hover {
+  background: color-mix(in srgb, var(--rate-color, var(--interactive-accent)) 23%, var(--background-primary));
 }
 
-.fakecard-hard {
-  background: var(--color-orange);
-  color: var(--text-on-accent);
+.fakecard-review-ratings button.fakecard-rate:active {
+  transform: translateY(1px);
 }
 
-.fakecard-good {
-  background: var(--color-green);
-  color: var(--text-on-accent);
+.fakecard-rate-label {
+  font-size: var(--font-ui-small);
+  line-height: 1.2;
 }
 
-.fakecard-easy {
-  background: var(--color-blue);
-  color: var(--text-on-accent);
+.fakecard-rate-key {
+  font-size: var(--font-ui-smaller);
+  font-weight: 400;
+  line-height: 1.2;
+  opacity: 0.8;
+}
+
+/* app.css styles `button:not(.clickable-icon)` with the same specificity as a
+   bare class, so the fill has to name the element to win. */
+.fakecard-review-ratings button.fakecard-rate.fakecard-again {
+  --rate-color: var(--color-red);
+}
+
+.fakecard-review-ratings button.fakecard-rate.fakecard-hard {
+  --rate-color: var(--color-orange);
+}
+
+.fakecard-review-ratings button.fakecard-rate.fakecard-good {
+  --rate-color: var(--color-green);
+}
+
+.fakecard-review-ratings button.fakecard-rate.fakecard-easy {
+  --rate-color: var(--color-blue);
 }
 
 /* Cloze highlighting: the asked part vs the revealed answer */
@@ -254,6 +432,32 @@
 }
 
 /* Image occlusion */
+/* Image panel with no image yet: paste, drop or pick a file. */
+.fakecard-image-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 32px 24px;
+  border: 2px dashed var(--background-modifier-border);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.fakecard-image-picker.is-dropping {
+  border-color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+}
+
+.fakecard-image-picker .fakecard-toolbar {
+  justify-content: center;
+  margin: 0;
+}
+
+.fakecard-image-file {
+  max-width: 220px;
+  font-size: var(--font-ui-smaller);
+}
+
 .fakecard-image-scroll {
   overflow: auto;
   max-height: 60vh;
@@ -643,17 +847,72 @@ body.theme-dark .fakecard-image-mask-label {
   font-size: 0.95em;
 }
 
-.fakecard-heatmap {
-  display: grid;
-  grid-template-columns: repeat(13, 1fr);
-  gap: 3px;
+/* Heatmap: a fixed-size square per day, seven rows per week, scrolling
+   sideways instead of shrinking as the history grows. */
+.fakecard-heatmap-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 8px 0 20px;
 }
 
+.fakecard-heatmap-page {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fakecard-heatmap-page:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Nothing to page through: the strip fits the pane. */
+.fakecard-heatmap-page.is-hidden {
+  visibility: hidden;
+}
+
+.fakecard-heatmap-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0 8px;
+  cursor: grab;
+  scrollbar-width: thin;
+  user-select: none;
+}
+
+.fakecard-heatmap-scroll.is-dragging {
+  cursor: grabbing;
+}
+
+.fakecard-heatmap {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-columns: 12px;
+  gap: 3px;
+  width: max-content;
+}
+
 .fakecard-heatmap-cell {
-  aspect-ratio: 1;
+  width: 12px;
+  height: 12px;
   border-radius: 2px;
   background: var(--background-modifier-border);
+}
+
+.fakecard-heatmap-cell.is-empty {
+  background: transparent;
 }
 
 .fakecard-heatmap-cell.is-active {

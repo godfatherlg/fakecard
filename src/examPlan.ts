@@ -1,5 +1,6 @@
 import { Menu, normalizePath, Notice } from 'obsidian';
 import type { CardRecord } from './card';
+import { tt, ttf } from './i18n';
 import type FakeCardPlugin from '../main';
 
 const DAY_MS = 86400000;
@@ -211,12 +212,12 @@ async function applyExamPlan(plugin: FakeCardPlugin, plan: ExamPlanConfig): Prom
 
     if (estimate.eligible === 0) {
         new Notice(planDeckNames(plan).length > 0
-            ? `No reviewed cards in: ${planDeckNames(plan).join(', ')}.`
-            : 'No reviewed cards to plan yet.');
+            ? ttf('No reviewed cards in: {decks}.', { decks: planDeckNames(plan).join(', ') })
+            : tt('No reviewed cards to plan yet.'));
         return;
     }
     if (outside.length === 0) {
-        new Notice('Every selected card is already due before the exam.');
+        new Notice(tt('Every selected card is already due before the exam.'));
         return;
     }
 
@@ -246,14 +247,22 @@ async function applyExamPlan(plugin: FakeCardPlugin, plan: ExamPlanConfig): Prom
         await plugin.store.save(card);
     }
 
-    new Notice(
-        `${plan.name}: ${estimate.selected}/${estimate.eligible} card(s) selected, `
-        + `${outside.length} moved to ~${estimate.perDay}/day over ${days} days. Backup: ${path}`,
-    );
+    new Notice(ttf('{name}: {selected}/{eligible} card(s) selected, {moved} moved to ~{perDay}/day over {days} days. Backup: {path}', {
+        name: plan.name,
+        selected: estimate.selected,
+        eligible: estimate.eligible,
+        moved: outside.length,
+        perDay: estimate.perDay,
+        days,
+        path,
+    }));
     if (estimate.overloaded) {
         new Notice(
-            `Warning: ${outside.length} cards over ${days} days is more than `
-            + `${estimate.cap}/day. Lower the share, or raise the daily review limit.`,
+            ttf('Warning: {count} cards over {days} days is more than {cap}/day. Lower the share, or raise the daily review limit.', {
+                count: outside.length,
+                days,
+                cap: estimate.cap,
+            }),
             10000,
         );
     }
@@ -274,7 +283,7 @@ export async function buildExamPlan(
 
     const plans = activeExamPlans(plugin.settings.examPlans ?? []);
     if (plans.length === 0) {
-        new Notice('Add an exam plan first (Settings -> FakeCard -> Exam plan).');
+        new Notice(tt('Add an exam plan first (Settings -> FakeCard -> Exam plan).'));
         return;
     }
     if (plans.length === 1) {

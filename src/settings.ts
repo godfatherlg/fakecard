@@ -53,8 +53,18 @@ export interface FakeCardSettings {
     answerTimeSecondsPerChunk: number;
     /** Maximum bonus from rating history, in percent (0 ignores history). */
     answerTimeHistoryWeight: number;
+    /** Rating shortcuts: a character, "Space", or empty for none. */
+    ratingKeyAgain: string;
+    ratingKeyHard: string;
+    ratingKeyGood: string;
+    ratingKeyEasy: string;
 
     // --- Card display ------------------------------------------------------
+    /**
+     * Review layout: a centred column (default) or the full width of the pane
+     * with the text starting at the left edge.
+     */
+    reviewLayout: 'center' | 'wide';
     /**
      * Front side: hide EVERY group of a cloze/image card, not just the group
      * this card asks. Answer side always reveals everything.
@@ -99,7 +109,14 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     answerTimeBase: DEFAULT_ANSWER_SECONDS,
     answerTimeSecondsPerChunk: DEFAULT_SECONDS_PER_CHUNK,
     answerTimeHistoryWeight: DEFAULT_HISTORY_WEIGHT,
+    // Anki's layout: 1-2-3 along the top row, Space on Good. Digits work on
+    // the numpad too.
+    ratingKeyAgain: '1',
+    ratingKeyHard: '2',
+    ratingKeyGood: 'Space',
+    ratingKeyEasy: '3',
 
+    reviewLayout: 'center',
     maskAllGroups: true,
 
     examPlans: [],
@@ -123,6 +140,16 @@ const NUMBER_LIMITS: Record<string, { min: number; max?: number }> = {
     answerTimeBase: { min: 5, max: 120 },
     answerTimeSecondsPerChunk: { min: 0, max: 120 },
     answerTimeHistoryWeight: { min: -60, max: 100 },
+};
+
+/** Text settings that fall back to their default when the field is cleared. */
+const TEXT_DEFAULTS: Record<string, string> = {
+    libraryFolder: DEFAULT_LIBRARY_FOLDER,
+    markerSymbol: '*',
+    ratingKeyAgain: DEFAULT_SETTINGS.ratingKeyAgain,
+    ratingKeyHard: DEFAULT_SETTINGS.ratingKeyHard,
+    ratingKeyGood: DEFAULT_SETTINGS.ratingKeyGood,
+    ratingKeyEasy: DEFAULT_SETTINGS.ratingKeyEasy,
 };
 
 /**
@@ -154,8 +181,7 @@ export class FakeCardSettingTab extends PluginSettingTab {
         const settings = this.plugin.settings as unknown as Record<string, unknown>;
         let next = typeof value === 'string' ? value.trim() : value;
 
-        if (key === 'libraryFolder' && next === '') next = DEFAULT_LIBRARY_FOLDER;
-        if (key === 'markerSymbol' && next === '') next = '*';
+        if (next === '' && key in TEXT_DEFAULTS) next = TEXT_DEFAULTS[key];
 
         const limit = NUMBER_LIMITS[key];
         if (limit !== undefined) {
@@ -316,6 +342,26 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     desc: t('review.answerWeight.desc'),
                     control: { type: 'number', key: 'answerTimeHistoryWeight', min: -60, max: 100, step: 5 },
                 },
+                {
+                    name: t('review.keyAgain.name'),
+                    desc: t('review.keys.desc'),
+                    control: { type: 'text', key: 'ratingKeyAgain', placeholder: '1' },
+                },
+                {
+                    name: t('review.keyHard.name'),
+                    desc: t('review.keys.desc'),
+                    control: { type: 'text', key: 'ratingKeyHard', placeholder: '2' },
+                },
+                {
+                    name: t('review.keyGood.name'),
+                    desc: t('review.keys.desc'),
+                    control: { type: 'text', key: 'ratingKeyGood', placeholder: 'Space' },
+                },
+                {
+                    name: t('review.keyEasy.name'),
+                    desc: t('review.keys.desc'),
+                    control: { type: 'text', key: 'ratingKeyEasy', placeholder: '3' },
+                },
             ],
         };
     }
@@ -327,6 +373,19 @@ export class FakeCardSettingTab extends PluginSettingTab {
             type: 'group',
             heading: t('display.heading'),
             items: [
+                {
+                    name: t('display.layout.name'),
+                    desc: t('display.layout.desc'),
+                    control: {
+                        type: 'dropdown',
+                        key: 'reviewLayout',
+                        options: {
+                            center: t('display.layout.center'),
+                            wide: t('display.layout.wide'),
+                        },
+                        defaultValue: 'center',
+                    },
+                },
                 {
                     name: t('display.maskAll.name'),
                     desc: t('display.maskAll.desc'),

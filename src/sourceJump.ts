@@ -1,5 +1,6 @@
 import { App, Notice, TFile } from 'obsidian';
 import type { CardRecord } from './card';
+import { tt } from './i18n';
 
 /**
  * Jump from a card back to the block it came from - without writing anything
@@ -83,7 +84,7 @@ export async function jumpToCardSource(app: App, card: CardRecord): Promise<void
     const target = await findCardLine(app, card);
 
     if (!target) {
-        new Notice('Could not locate the source block - the note may have been edited. Opening the note instead.');
+        new Notice(tt('Could not locate the source block - the note may have been edited. Opening the note instead.'));
         const file = app.vault.getAbstractFileByPath(card.source.path);
         if (file instanceof TFile) await app.workspace.getLeaf('tab').openFile(file);
         return;

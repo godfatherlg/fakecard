@@ -1,6 +1,7 @@
 import { Component, MarkdownRenderer, Modal } from 'obsidian';
 import type { CardRecord } from './card';
 import { clozeGroups, renderClozeHtml } from './cloze';
+import { tt, ttf } from './i18n';
 import { jumpToCardSource } from './sourceJump';
 
 /**
@@ -32,7 +33,7 @@ export class CardPreviewDialog extends Modal {
         contentEl.empty();
         contentEl.addClass('fakecard-card-preview');
 
-        contentEl.createEl('h2', { text: 'Card preview' });
+        contentEl.createEl('h2', { text: tt('Card preview') });
 
         const frontEl = contentEl.createDiv({ cls: 'fakecard-card-preview-front' });
 
@@ -40,7 +41,7 @@ export class CardPreviewDialog extends Modal {
             this.renderSide(frontEl, false);
             const button = contentEl.createEl('button', {
                 cls: 'fakecard-card-preview-show',
-                text: 'Show answer',
+                text: tt('Show answer'),
             });
             button.addEventListener('click', () => {
                 this.revealed = true;
@@ -64,9 +65,9 @@ export class CardPreviewDialog extends Modal {
             const row = contentEl.createDiv({ cls: 'fakecard-source-row' });
             row.createSpan({
                 cls: 'fakecard-preview-label',
-                text: `Source: ${this.card.source.path}`,
+                text: ttf('Source: {path}', { path: this.card.source.path }),
             });
-            row.createEl('button', { text: '↗ Open at source' })
+            row.createEl('button', { text: tt('↗ Open at source') })
                 .addEventListener('click', () => {
                     void jumpToCardSource(this.app, this.card);
                 });

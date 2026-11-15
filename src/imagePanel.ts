@@ -1,6 +1,7 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type { CardImage, CardRecord, ImageGroup, ImageMask } from './card';
 import { cloneValue, HistoryStack } from './history';
+import { tt, ttf } from './i18n';
 import type FakeCardPlugin from '../main';
 
 /**
@@ -28,6 +29,10 @@ export class ImagePanelModal extends Modal {
     /** Display zoom of the image (1 = fit width). Masks stay fractional. */
     private scale = 1;
     private wrapElForScale!: HTMLElement;
+    /** Editor container; swapped between the picker and the canvas. */
+    private bodyEl!: HTMLElement;
+    /** Document-level paste listener, removed with the panel. */
+    private pasteHandler: ((event: ClipboardEvent) => void) | null = null;
 
     constructor(
         app: App,
@@ -36,6 +41,8 @@ export class ImagePanelModal extends Modal {
         private sourcePath: string,
         private card?: CardRecord,
         private onSaved?: () => void,
+        /** Set when the new card is a child: it links back and pauses the parent. */
+        private childOf?: string,
     ) {
         super(app);
         const existing = card?.image?.groups;
@@ -48,46 +55,20 @@ export class ImagePanelModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('fakecard-image-panel');
-        contentEl.createEl('h2', { text: this.card ? 'Edit image card' : 'New image card' });
+        contentEl.createEl('h2', { text: this.card ? tt('Edit image card') : tt('New image card') });
 
-        contentEl.createEl('p', {
-            cls: 'fakecard-help',
-            text: 'Drag on the image to add rectangles. Pick a group (c1, c2 ...) first; each group is asked separately during review.',
-        });
+        this.bodyEl = contentEl.createDiv({ cls: 'fakecard-image-body' });
 
-        // Toolbar.
-        const toolbar = contentEl.createDiv({ cls: 'fakecard-toolbar' });
-        this.groupSelect = toolbar.createEl('select', { cls: 'dropdown' });
-        this.rebuildGroupOptions();
-        this.groupSelect.addEventListener('change', () => {
-            this.currentGroup = Number.parseInt(this.groupSelect.value, 10) || 1;
-            this.renderMasks();
-        });
-
-        toolbar.createEl('button', { text: 'New group' }).addEventListener('click', () => {
-            const nextId = Math.max(0, ...this.groups.map((group) => group.id)) + 1;
-            this.groups.push({ id: nextId, masks: [] });
-            this.currentGroup = nextId;
-            this.rebuildGroupOptions();
-            this.renderMasks();
-        });
-
-        this.shapeButton = toolbar.createEl('button', { text: 'Shape: Rect' });
-        this.shapeButton.addEventListener('click', () => {
-            this.currentShape = this.currentShape === 'rect' ? 'ellipse' : 'rect';
-            this.shapeButton.textContent = this.currentShape === 'rect' ? 'Shape: Rect' : 'Shape: Ellipse';
-        });
-
-        toolbar.createEl('button', { text: 'Remove selected' }).addEventListener('click', () => {
-            this.removeSelected();
-        });
-
-        // Canvas.
-        this.history = new HistoryStack(cloneValue(this.groups));
+        // Ctrl/Cmd+V on an empty panel takes the image straight from the
+        // clipboard - screenshots usually arrive that way. Bound on document
+        // so the paste lands wherever the focus is, and removed on close.
+        this.pasteHandler = (event: ClipboardEvent): void => this.onPaste(event);
+        document.addEventListener('paste', this.pasteHandler);
 
         // Ctrl/Cmd+Z undoes the last mask change, Shift+Z redoes it.
         // Arrow keys nudge the selected mask (Shift = 1%, else 0.1%).
-        this.contentEl.addEventListener('keydown', (event: KeyboardEvent) => {
+        contentEl.addEventListener('keydown', (event: KeyboardEvent) => {
+            if (!this.imagePath) return;
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
                 event.preventDefault();
                 const next = event.shiftKey ? this.history.redo() : this.history.undo();
@@ -115,6 +96,53 @@ export class ImagePanelModal extends Modal {
             this.positionMask(this.selectedEl, mask);
             this.history.push(cloneValue(this.groups));
         });
+
+        this.renderBody();
+    }
+
+    /** The editor, rebuilt whenever the image changes. */
+    private renderBody(): void {
+        this.bodyEl.empty();
+        if (!this.imagePath) {
+            this.renderPicker();
+            return;
+        }
+
+        const contentEl = this.bodyEl;
+        contentEl.createEl('p', {
+            cls: 'fakecard-help',
+            text: tt('Drag on the image to add rectangles. Pick a group (c1, c2 ...) first; each group is asked separately during review.'),
+        });
+
+        // Toolbar.
+        const toolbar = contentEl.createDiv({ cls: 'fakecard-toolbar' });
+        this.groupSelect = toolbar.createEl('select', { cls: 'dropdown' });
+        this.rebuildGroupOptions();
+        this.groupSelect.addEventListener('change', () => {
+            this.currentGroup = Number.parseInt(this.groupSelect.value, 10) || 1;
+            this.renderMasks();
+        });
+
+        toolbar.createEl('button', { text: tt('New group') }).addEventListener('click', () => {
+            const nextId = Math.max(0, ...this.groups.map((group) => group.id)) + 1;
+            this.groups.push({ id: nextId, masks: [] });
+            this.currentGroup = nextId;
+            this.rebuildGroupOptions();
+            this.renderMasks();
+        });
+
+        this.shapeButton = toolbar.createEl('button', { text: tt('Shape: Rect') });
+        this.shapeButton.addEventListener('click', () => {
+            this.currentShape = this.currentShape === 'rect' ? 'ellipse' : 'rect';
+            this.shapeButton.textContent = this.currentShape === 'rect' ? tt('Shape: Rect') : tt('Shape: Ellipse');
+        });
+
+        toolbar.createEl('button', { text: tt('Remove selected') }).addEventListener('click', () => {
+            this.removeSelected();
+        });
+
+        // Canvas.
+        this.history = new HistoryStack(cloneValue(this.groups));
 
         // Zoom controls: +/- or Ctrl+wheel; the scroll container pans.
         const zoomOut = toolbar.createEl('button', { text: '−' });
@@ -148,17 +176,90 @@ export class ImagePanelModal extends Modal {
 
         new Setting(contentEl)
             .addButton((button) => button
-                .setButtonText(this.card ? 'Save changes' : 'Create card')
+                .setButtonText(this.card ? tt('Save changes') : tt('Create card'))
                 .setCta()
                 .onClick(() => {
                     void this.save();
                 }))
             .addButton((button) => button
-                .setButtonText('Cancel')
+                .setButtonText(tt('Cancel'))
                 .onClick(() => this.close()));
     }
 
+    /** Empty panel: no image yet, so offer the three ways to get one. */
+    private renderPicker(): void {
+        const box = this.bodyEl.createDiv({ cls: 'fakecard-image-picker' });
+        box.createEl('p', {
+            cls: 'fakecard-help',
+            text: tt('Paste an image (Ctrl/Cmd+V), drop a file here, or choose one from disk. It is copied into the library folder.'),
+        });
+
+        const actions = box.createDiv({ cls: 'fakecard-toolbar' });
+        const paste = actions.createEl('button', { cls: 'mod-cta', text: tt('Paste from clipboard') });
+        paste.addEventListener('click', () => {
+            void this.pasteFromClipboard();
+        });
+
+        const input = actions.createEl('input', {
+            type: 'file',
+            attr: { accept: 'image/*' },
+        });
+        input.addClass('fakecard-image-file');
+        input.addEventListener('change', () => {
+            const file = input.files?.[0];
+            if (file) void this.adoptFile(file);
+        });
+
+        actions.createEl('button', { text: tt('Cancel') }).addEventListener('click', () => this.close());
+
+        box.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            box.addClass('is-dropping');
+        });
+        box.addEventListener('dragleave', () => box.removeClass('is-dropping'));
+        box.addEventListener('drop', (event) => {
+            event.preventDefault();
+            box.removeClass('is-dropping');
+            const file = event.dataTransfer?.files?.[0];
+            if (file && file.type.startsWith('image/')) void this.adoptFile(file);
+        });
+    }
+
+    private async pasteFromClipboard(): Promise<void> {
+        const path = await this.plugin.clipboardImagePath();
+        if (!path) {
+            new Notice(tt('No image on the clipboard - press Ctrl/Cmd+V or choose a file.'));
+            return;
+        }
+        this.imagePath = path;
+        this.renderBody();
+    }
+
+    private async adoptFile(file: File): Promise<void> {
+        const path = await this.plugin.importImageFile(file);
+        if (!path) {
+            new Notice(tt('Could not import that image.'));
+            return;
+        }
+        this.imagePath = path;
+        this.renderBody();
+    }
+
+    private onPaste(event: ClipboardEvent): void {
+        if (this.imagePath) return;
+        const item = Array.from(event.clipboardData?.items ?? [])
+            .find((entry) => entry.type.startsWith('image/'));
+        const file = item?.getAsFile();
+        if (!file) return;
+        event.preventDefault();
+        void this.adoptFile(file);
+    }
+
     onClose(): void {
+        if (this.pasteHandler) {
+            document.removeEventListener('paste', this.pasteHandler);
+            this.pasteHandler = null;
+        }
         this.contentEl.empty();
     }
 
@@ -308,9 +409,13 @@ export class ImagePanelModal extends Modal {
     }
 
     private async save(): Promise<void> {
+        if (!this.imagePath) {
+            new Notice(tt('Choose an image first.'));
+            return;
+        }
         const total = this.groups.reduce((sum, group) => sum + group.masks.length, 0);
         if (total === 0) {
-            new Notice('Draw at least one rectangle first.');
+            new Notice(tt('Draw at least one rectangle first.'));
             return;
         }
 
@@ -323,6 +428,9 @@ export class ImagePanelModal extends Modal {
 
         // One card per group (Anki model): each group schedules separately.
         const cards = this.plugin.createImageCards(image, this.sourcePath);
+        if (this.childOf) {
+            for (const card of cards) card.childOf = this.childOf;
+        }
 
         if (this.card) {
             if (cards.length === 1) {
@@ -342,7 +450,7 @@ export class ImagePanelModal extends Modal {
         } else {
             for (const card of cards) await this.plugin.store.save(card);
         }
-        new Notice(`Saved ${cards.length} image card(s).`);
+        new Notice(ttf('Saved {count} image card(s).', { count: cards.length }));
         this.close();
         this.onSaved?.();
     }

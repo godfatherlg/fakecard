@@ -1,6 +1,7 @@
-import { Notice, TFile } from 'obsidian';
+import { App, Modal, Notice, TFile } from 'obsidian';
 import { importApkg } from './ankiImport';
 import type { CardRecord } from './card';
+import { tt, ttf } from './i18n';
 import { findSourceSnapshot } from './sourceLocate';
 import type FakeCardPlugin from '../main';
 
@@ -22,13 +23,74 @@ export async function importFromClipboard(plugin: FakeCardPlugin): Promise<void>
     try {
         const text = await navigator.clipboard.readText();
         if (!text.trim()) {
-            new Notice('The clipboard is empty.');
+            new Notice(tt('The clipboard is empty.'));
             return;
         }
         const count = await importCardJson(plugin, text);
-        new Notice(`Imported ${count} card(s).`);
+        new Notice(ttf('Imported {count} card(s).', { count }));
     } catch {
-        new Notice('Could not read the clipboard.');
+        new Notice(tt('Could not read the clipboard.'));
+    }
+}
+
+/**
+ * Asked before an .apkg import rewrites cards the library already has.
+ *
+ * Re-importing a deck is the whole point of carrying Anki's history over, but
+ * it replaces whatever was reviewed inside this plugin, so it gets a prompt of
+ * its own instead of happening silently.
+ */
+class AnkiDuplicateModal extends Modal {
+    private answer: ((choice: 'overwrite' | 'skip' | 'cancel') => void) | null = null;
+
+    constructor(
+        app: App,
+        private duplicates: number,
+        private withHistory: number,
+    ) {
+        super(app);
+    }
+
+    ask(): Promise<'overwrite' | 'skip' | 'cancel'> {
+        return new Promise((resolve) => {
+            this.answer = resolve;
+            this.open();
+        });
+    }
+
+    private finish(choice: 'overwrite' | 'skip' | 'cancel'): void {
+        const resolve = this.answer;
+        this.answer = null;
+        this.close();
+        resolve?.(choice);
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.createEl('h2', { text: tt('This deck is already in the library') });
+        contentEl.createEl('p', {
+            text: ttf(
+                '{duplicates} card(s) match cards that are already here, {withHistory} of them with an Anki schedule. Using the Anki schedule replaces their current progress here; the card text is never changed.',
+                { duplicates: this.duplicates, withHistory: this.withHistory },
+            ),
+        });
+
+        const buttons = contentEl.createDiv({ cls: 'modal-button-container' });
+        const useAnki = buttons.createEl('button', { cls: 'mod-cta', text: tt('Use the Anki schedule') });
+        useAnki.addEventListener('click', () => this.finish('overwrite'));
+        const keep = buttons.createEl('button', { text: tt('Keep the current schedule') });
+        keep.addEventListener('click', () => this.finish('skip'));
+        const cancel = buttons.createEl('button', { text: tt('Cancel') });
+        cancel.addEventListener('click', () => this.finish('cancel'));
+    }
+
+    onClose(): void {
+        this.contentEl.empty();
+        // Esc or a backdrop click counts as cancel.
+        const resolve = this.answer;
+        this.answer = null;
+        resolve?.('cancel');
     }
 }
 
@@ -40,15 +102,29 @@ export function importApkgFile(plugin: FakeCardPlugin): void {
     input.onchange = () => {
         const file = input.files?.[0];
         if (!file) return;
-        new Notice('Reading Anki deck…');
+        new Notice(tt('Reading Anki deck…'));
         void file.arrayBuffer().then(async (buffer) => {
             const sourcePath = plugin.app.workspace.getActiveFile()?.path ?? '';
-            const result = await importApkg(plugin, buffer, sourcePath);
+            const result = await importApkg(plugin, buffer, sourcePath, {
+                onDuplicates: ({ duplicates, withHistory }) => (
+                    new AnkiDuplicateModal(plugin.app, duplicates, withHistory).ask()
+                ),
+            });
+            if (result.cancelled) return;
             if (result.error) {
-                new Notice(`Anki import failed: ${result.error}`);
+                new Notice(ttf('Anki import failed: {error}', { error: result.error ?? '' }));
                 return;
             }
-            new Notice(`Imported ${result.qa} Q&A, ${result.cloze} cloze and ${result.image} image card(s), skipped ${result.skipped}.`);
+            new Notice(ttf(
+                'Imported {qa} Q&A, {cloze} cloze and {image} image card(s), updated {updated}, skipped {skipped}.',
+                {
+                    qa: result.qa,
+                    cloze: result.cloze,
+                    image: result.image,
+                    updated: result.updated,
+                    skipped: result.skipped + result.duplicates,
+                },
+            ));
         });
     };
     input.click();

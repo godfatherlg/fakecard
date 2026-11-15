@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { State } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import type { ReviewLog } from './reviews';
+import { tt, ttf } from './i18n';
 import { renderViewNav } from './viewNav';
 import type FakeCardPlugin from '../main';
 
@@ -17,6 +18,8 @@ export const STATS_VIEW_TYPE = 'fakecard-stats';
 export class StatsView extends ItemView {
     private cards: CardRecord[] = [];
     private recent = new Map<string, ReviewLog[]>();
+    /** Every day on record, for the heatmap. */
+    private history = new Map<string, ReviewLog[]>();
     private streak = 0;
     private loading = true;
 
@@ -29,7 +32,7 @@ export class StatsView extends ItemView {
     }
 
     getDisplayText(): string {
-        return 'fakecard: statistics';
+        return tt('Statistics');
     }
 
     getIcon(): string {
@@ -43,9 +46,10 @@ export class StatsView extends ItemView {
     async reload(): Promise<void> {
         this.loading = true;
         this.cards = await this.plugin.store.list();
-        // 90 days for the heatmap; the ratings / retention sections use the
-        // last 30 of those.
+        // The ratings / retention sections use the last 30 days; the heatmap
+        // shows the whole history.
         this.recent = await this.plugin.reviews.recent(90);
+        this.history = await this.plugin.reviews.all();
         this.streak = await this.plugin.reviews.streak();
         this.loading = false;
         this.render();
@@ -58,11 +62,11 @@ export class StatsView extends ItemView {
         renderViewNav(container, this.plugin, this.leaf, 'stats');
 
         if (this.loading) {
-            container.createEl('p', { text: 'Loading…' });
+            container.createEl('p', { text: tt('Loading…') });
             return;
         }
 
-        container.createEl('h2', { text: 'Statistics' });
+        container.createEl('h2', { text: tt('Statistics') });
 
         const todayKey = this.dayKey(new Date());
         const todayLogs = this.recent.get(todayKey) ?? [];
@@ -79,22 +83,22 @@ export class StatsView extends ItemView {
         const todayMinutes = Math.round(todayLogs.reduce((sum, log) => sum + (log.durationMs ?? 0), 0) / 60000);
 
         const cards = container.createDiv({ cls: 'fakecard-stats-cards' });
-        this.statCard(cards, 'Reviewed today', String(todayReviews));
-        this.statCard(cards, 'New today', String(todayNew));
-        this.statCard(cards, 'Accuracy today', `${todayAccuracy}%`);
-        this.statCard(cards, 'Time today', `${todayMinutes} min`);
-        this.statCard(cards, 'Streak', `${this.streak} day(s)`);
-        this.statCard(cards, 'All cards', String(this.cards.length));
+        this.statCard(cards, tt('Reviewed today'), String(todayReviews));
+        this.statCard(cards, tt('New today'), String(todayNew));
+        this.statCard(cards, tt('Accuracy today'), `${todayAccuracy}%`);
+        this.statCard(cards, tt('Time today'), ttf('{count} min', { count: todayMinutes }));
+        this.statCard(cards, tt('Streak'), ttf('{count} day(s)', { count: this.streak }));
+        this.statCard(cards, tt('All cards'), String(this.cards.length));
 
         // --- Ratings (last 30 days) ---
-        container.createEl('h3', { text: 'Ratings, last 30 days' });
+        container.createEl('h3', { text: tt('Ratings, last 30 days') });
         const ratingCounts = [0, 0, 0, 0];
         for (const log of allLogs) {
             if (log.rating >= 1 && log.rating <= 4) ratingCounts[log.rating - 1]++;
         }
         const ratingTotal = allLogs.length;
         const ratingRow = container.createDiv({ cls: 'fakecard-stats-ratings' });
-        const ratingLabels = ['Again', 'Hard', 'Good', 'Easy'];
+        const ratingLabels = ['Again', 'Hard', 'Good', 'Easy'].map((label) => tt(label));
         const ratingClasses = ['is-again', 'is-hard', 'is-good', 'is-easy'];
         ratingLabels.forEach((label, index) => {
             const chip = ratingRow.createDiv({ cls: `fakecard-rating-chip ${ratingClasses[index]}` });
@@ -107,10 +111,14 @@ export class StatsView extends ItemView {
         const retention = ratingTotal > 0
             ? Math.round(((ratingTotal - ratingCounts[0]) / ratingTotal) * 100)
             : 0;
-        container.createEl('h3', { text: 'True retention, last 30 days' });
+        container.createEl('h3', { text: tt('True retention, last 30 days') });
         container.createDiv({
             cls: 'fakecard-stats-retention',
-            text: `${retention}%  (${ratingTotal - ratingCounts[0]} / ${ratingTotal} reviews rated Hard, Good or Easy)`,
+            text: ttf('{percent}%  ({passed} / {total} reviews rated Hard, Good or Easy)', {
+                percent: retention,
+                passed: ratingTotal - ratingCounts[0],
+                total: ratingTotal,
+            }),
         });
 
         // --- Card states ---
@@ -125,7 +133,7 @@ export class StatsView extends ItemView {
             states.set(state, (states.get(state) ?? 0) + 1);
         }
 
-        container.createEl('h3', { text: 'Card states' });
+        container.createEl('h3', { text: tt('Card states') });
         const stateRow = container.createDiv({ cls: 'fakecard-stats-states' });
         const stateLabels: Array<[State, string]> = [
             [State.New, 'New'],
@@ -136,7 +144,7 @@ export class StatsView extends ItemView {
         for (const [state, label] of stateLabels) {
             const chip = stateRow.createDiv({ cls: 'fakecard-stat-chip' });
             chip.createSpan({ cls: 'fakecard-stat-chip-value', text: String(states.get(state) ?? 0) });
-            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: label });
+            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: tt(label) });
         }
 
         // --- Maturity (Anki style: < 21 days = young, >= 21 = mature) ---
@@ -147,38 +155,28 @@ export class StatsView extends ItemView {
             if ((card.fsrs.scheduled_days ?? 0) >= 21) mature++;
             else young++;
         }
-        container.createEl('h3', { text: 'Maturity' });
+        container.createEl('h3', { text: tt('Maturity') });
         const maturityRow = container.createDiv({ cls: 'fakecard-stats-states' });
         for (const [label, value] of [['Young (< 21 days)', young], ['Mature (≥ 21 days)', mature]] as Array<[string, number]>) {
             const chip = maturityRow.createDiv({ cls: 'fakecard-stat-chip' });
             chip.createSpan({ cls: 'fakecard-stat-chip-value', text: String(value) });
-            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: label });
+            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: tt(label) });
         }
 
-        // --- Heatmap, last 90 days ---
-        container.createEl('h3', { text: 'Review heatmap, last 90 days' });
-        const heat = new Map<string, number>();
-        const today = new Date();
-        for (let offset = 89; offset >= 0; offset--) {
-            const date = new Date(today);
-            date.setDate(today.getDate() - offset);
-            heat.set(this.dayKey(date), 0);
-        }
-        for (const [day, logs] of this.recent) {
-            if (heat.has(day)) heat.set(day, logs.length);
-        }
-        // Also fill days older than the 30-day window from disk, if present.
-        this.renderHeatmap(container, Array.from(heat.entries()));
+        // --- Heatmap, every day on record ---
+        container.createEl('h3', { text: tt('Review heatmap') });
+        this.renderHeatmap(container, this.heatmapSeries());
 
         // --- Reviews, last 30 days ---
-        container.createEl('h3', { text: 'Reviews, last 30 days' });
+        container.createEl('h3', { text: tt('Reviews, last 30 days') });
         this.barChart(container, last30Keys.map((day) => ({
             label: day.slice(5),
             value: (this.recent.get(day) ?? []).length,
         })));
 
         // --- Due forecast, next 30 days ---
-        container.createEl('h3', { text: 'Due forecast, next 30 days' });
+        container.createEl('h3', { text: tt('Due forecast, next 30 days') });
+        const today = new Date();
         const forecast = new Map<string, number>();
         for (let offset = 0; offset < 30; offset++) {
             const date = new Date(today);
@@ -200,7 +198,12 @@ export class StatsView extends ItemView {
 
         container.createDiv({
             cls: 'fakecard-stats-forecast-summary',
-            text: `Average ${forecastAverage}/day · Peak ${peakValue} (${peakDay.slice(5)}) · ${busyDays} day(s) above 2× average`,
+            text: ttf('Average {average}/day · Peak {peak} ({peakDay}) · {busy} day(s) above 2x average', {
+                average: forecastAverage,
+                peak: peakValue,
+                peakDay: peakDay.slice(5),
+                busy: busyDays,
+            }),
         });
 
         this.barChart(container, Array.from(forecast.entries()).map(([day, value]) => ({
@@ -209,7 +212,7 @@ export class StatsView extends ItemView {
         })));
 
         // --- Hardest cards ---
-        container.createEl('h3', { text: 'Hardest cards' });
+        container.createEl('h3', { text: tt('Hardest cards') });
         const hardest = this.cards
             .filter((card) => (card.reviews ?? 0) > 0)
             .map((card) => ({
@@ -221,27 +224,131 @@ export class StatsView extends ItemView {
             .slice(0, 5);
 
         if (hardest.length === 0) {
-            container.createEl('p', { cls: 'fakecard-stats-empty', text: 'No struggling cards yet.' });
+            container.createEl('p', { cls: 'fakecard-stats-empty', text: tt('No struggling cards yet.') });
         } else {
             const list = container.createDiv({ cls: 'fakecard-stats-hardest' });
             for (const { card, misses } of hardest) {
                 const row = list.createDiv({ cls: 'fakecard-stats-hardest-row' });
                 row.createSpan({ cls: 'fakecard-stats-hardest-front', text: card.front.slice(0, 70) });
-                row.createSpan({ cls: 'fakecard-stats-hardest-count', text: `${misses} miss(es)` });
+                row.createSpan({ cls: 'fakecard-stats-hardest-count', text: ttf('{count} miss(es)', { count: misses }) });
             }
         }
     }
 
+    /** One entry per day from the first day on record up to today. */
+    private heatmapSeries(): Array<[string, number]> {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const start = new Date(today);
+        const first = Array.from(this.history.keys()).sort()[0];
+        if (first) {
+            const recorded = new Date(`${first}T00:00:00`);
+            if (recorded < start) start.setTime(recorded.getTime());
+        }
+        // A year of squares, so the strip reads as a calendar even when the
+        // library is fresh; older records extend it further back.
+        const earliest = new Date(today);
+        earliest.setDate(today.getDate() - 364);
+        if (start > earliest) start.setTime(earliest.getTime());
+
+        const series: Array<[string, number]> = [];
+        const cursor = new Date(start);
+        while (cursor <= today) {
+            const key = this.dayKey(cursor);
+            series.push([key, this.history.get(key)?.length ?? 0]);
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        return series;
+    }
+
+    /**
+     * GitHub-style contribution strip: one 12px square per day, seven rows per
+     * column, scrolling sideways instead of shrinking, so the whole history
+     * stays readable however wide the pane is.
+     */
     private renderHeatmap(parent: HTMLElement, entries: Array<[string, number]>): void {
+        const wrap = parent.createDiv({ cls: 'fakecard-heatmap-wrap' });
+        const earlier = wrap.createEl('button', {
+            cls: 'fakecard-heatmap-page',
+            text: '‹',
+            attr: { 'aria-label': tt('Earlier days') },
+        });
+        const scroll = wrap.createDiv({ cls: 'fakecard-heatmap-scroll' });
+        const grid = scroll.createDiv({ cls: 'fakecard-heatmap' });
+
+        // Pad the first column so every column holds Sunday..Saturday.
+        const firstDay = new Date(`${entries[0]?.[0] ?? this.dayKey(new Date())}T00:00:00`);
+        for (let pad = 0; pad < firstDay.getDay(); pad++) {
+            grid.createDiv({ cls: 'fakecard-heatmap-cell is-empty' });
+        }
+
         const max = Math.max(1, ...entries.map(([, value]) => value));
-        const grid = parent.createDiv({ cls: 'fakecard-heatmap' });
         for (const [day, value] of entries) {
-            const cell = grid.createDiv({ cls: 'fakecard-heatmap-cell', attr: { 'aria-label': `${day}: ${value}` } });
+            const cell = grid.createDiv({
+                cls: 'fakecard-heatmap-cell',
+                attr: { 'aria-label': `${day}: ${value}` },
+            });
             if (value > 0) {
-                cell.style.opacity = String(0.25 + (value / max) * 0.75);
+                cell.style.opacity = String(0.35 + (value / max) * 0.65);
                 cell.addClass('is-active');
             }
         }
+
+        const used = firstDay.getDay() + entries.length;
+        for (let pad = used % 7; pad > 0 && pad < 7; pad++) {
+            grid.createDiv({ cls: 'fakecard-heatmap-cell is-empty' });
+        }
+
+        const later = wrap.createEl('button', {
+            cls: 'fakecard-heatmap-page',
+            text: '›',
+            attr: { 'aria-label': tt('Later days') },
+        });
+
+        this.enableDragScroll(scroll);
+        const page = (direction: 1 | -1): void => {
+            scroll.scrollBy({ left: direction * scroll.clientWidth * 0.9, behavior: 'smooth' });
+        };
+        earlier.addEventListener('click', () => page(-1));
+        later.addEventListener('click', () => page(1));
+
+        window.requestAnimationFrame(() => {
+            // Open at the present instead of the oldest day on record.
+            scroll.scrollLeft = scroll.scrollWidth;
+            // Paging only matters when the strip is wider than the pane.
+            const overflows = scroll.scrollWidth > scroll.clientWidth + 1;
+            earlier.toggleClass('is-hidden', !overflows);
+            later.toggleClass('is-hidden', !overflows);
+        });
+    }
+
+    /** Drag the strip with the mouse; the wheel and the buttons still work. */
+    private enableDragScroll(el: HTMLElement): void {
+        let startX = 0;
+        let startLeft = 0;
+        let dragging = false;
+
+        el.addEventListener('pointerdown', (event) => {
+            // A press on the scrollbar itself belongs to the native drag.
+            if (event.target === el) return;
+            dragging = true;
+            startX = event.clientX;
+            startLeft = el.scrollLeft;
+            el.addClass('is-dragging');
+        });
+        el.addEventListener('pointermove', (event) => {
+            if (!dragging) return;
+            el.scrollLeft = startLeft - (event.clientX - startX);
+        });
+        const stop = (): void => {
+            if (!dragging) return;
+            dragging = false;
+            el.removeClass('is-dragging');
+        };
+        el.addEventListener('pointerup', stop);
+        el.addEventListener('pointerleave', stop);
+        el.addEventListener('pointercancel', stop);
     }
 
     private dayKey(date: Date): string {

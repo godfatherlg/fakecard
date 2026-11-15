@@ -3,6 +3,7 @@ import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { clozeGroups, unwrapSelection, wrapSelection } from './cloze';
 import { HistoryStack } from './history';
+import { tt } from './i18n';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 
 /**
@@ -42,11 +43,11 @@ export class ClozePanelModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.createEl('h2', { text: this.card ? 'Edit cloze card' : 'New cloze card' });
+        contentEl.createEl('h2', { text: this.card ? tt('Edit cloze card') : tt('New cloze card') });
 
         contentEl.createEl('p', {
             cls: 'fakecard-help',
-            text: 'Anki cloze format: {{c1::answer}} hides "answer" in group 1. Append ::note to show a note while hidden, e.g. {{c1::answer::dose}}. Select text and press "Wrap" to create a hole; use "New group" to create c2, c3 ...',
+            text: tt('Anki cloze format: {{c1::answer}} hides "answer" in group 1. Append ::note to show a note while hidden, e.g. {{c1::answer::dose}}. Select text and press "Wrap" to create a hole; use "New group" to create c2, c3 ...'),
         });
 
         this.textarea = contentEl.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
@@ -81,7 +82,7 @@ export class ClozePanelModal extends Modal {
         this.groupSelect = toolbar.createEl('select', { cls: 'dropdown' });
         this.rebuildGroupOptions();
 
-        toolbar.createEl('button', { text: 'New group' })
+        toolbar.createEl('button', { text: tt('New group') })
             .addEventListener('click', () => {
                 // The next group is the first one after the last group that
                 // actually has holes. Empty groups created earlier are reused,
@@ -93,31 +94,31 @@ export class ClozePanelModal extends Modal {
                 this.groupSelect.value = String(next);
             });
 
-        toolbar.createEl('button', { text: 'Wrap selection' })
+        toolbar.createEl('button', { text: tt('Wrap selection') })
             .addEventListener('click', () => this.wrapSelection());
 
-        toolbar.createEl('button', { text: 'Remove cloze' })
+        toolbar.createEl('button', { text: tt('Remove cloze') })
             .addEventListener('click', () => this.removeCloze());
 
-        contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Deck' });
+        contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Deck') });
         this.deckEl = contentEl.createEl('select', { cls: 'dropdown' });
         void this.fillDeckOptions(this.card?.deck ?? this.plugin.settings.defaultDeck ?? 'default');
 
-        contentEl.createEl('label', { cls: 'fakecard-field-label', text: 'Tags' });
+        contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Tags') });
         this.tagsEl = contentEl.createEl('input', { cls: 'fakecard-tags-input' });
         this.tagsEl.type = 'text';
-        this.tagsEl.placeholder = 'tag1, tag2';
+        this.tagsEl.placeholder = tt('tag1, tag2');
         this.tagsEl.value = (this.card?.tags ?? []).join(', ');
 
         new Setting(contentEl)
             .addButton((button) => button
-                .setButtonText(this.card ? 'Save changes' : 'Create card')
+                .setButtonText(this.card ? tt('Save changes') : tt('Create card'))
                 .setCta()
                 .onClick(() => {
                     void this.save();
                 }))
             .addButton((button) => button
-                .setButtonText('Cancel')
+                .setButtonText(tt('Cancel'))
                 .onClick(() => this.close()));
     }
 
@@ -161,7 +162,7 @@ export class ClozePanelModal extends Modal {
         const from = this.textarea.selectionStart;
         const to = this.textarea.selectionEnd;
         if (from === to) {
-            new Notice('Select some text first.');
+            new Notice(tt('Select some text first.'));
             return;
         }
         const group = this.currentGroup();
@@ -189,11 +190,11 @@ export class ClozePanelModal extends Modal {
     private async save(): Promise<void> {
         const text = this.textarea.value.trim();
         if (!text) {
-            new Notice('The card body is empty.');
+            new Notice(tt('The card body is empty.'));
             return;
         }
         if (clozeGroups(text).length === 0) {
-            new Notice('No hole found - wrap some text in {{c1::...}} first.');
+            new Notice(tt('No hole found - wrap some text in {{c1::...}} first.'));
             return;
         }
 
@@ -215,7 +216,7 @@ export class ClozePanelModal extends Modal {
                 await this.plugin.store.save(card);
             }
         }
-        new Notice('Card saved.');
+        new Notice(tt('Card saved.'));
         this.close();
         this.onSaved?.();
     }

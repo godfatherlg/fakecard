@@ -1,5 +1,6 @@
 import { normalizePath, Notice } from 'obsidian';
 import type { CardRecord } from './card';
+import { tt, ttf } from './i18n';
 import type FakeCardPlugin from '../main';
 
 /**
@@ -32,7 +33,7 @@ export async function cleanOrphans(plugin: FakeCardPlugin): Promise<void> {
     const orphans = cards.filter((card) => card.source.path
         && !plugin.app.vault.getAbstractFileByPath(card.source.path));
     if (orphans.length === 0) {
-        new Notice('No orphan cards.');
+        new Notice(tt('No orphan cards.'));
         return;
     }
 
@@ -45,7 +46,7 @@ export async function cleanOrphans(plugin: FakeCardPlugin): Promise<void> {
     await plugin.app.vault.create(path, JSON.stringify(orphans, null, 2));
 
     for (const card of orphans) await plugin.store.remove(card.id);
-    new Notice(`Removed ${orphans.length} orphan card(s). Backup: ${path}`);
+    new Notice(ttf('Removed {count} orphan card(s). Backup: {path}', { count: orphans.length, path }));
 }
 
 /** Remove graduated child cards (backed up first), keeping the parent. */
@@ -53,7 +54,7 @@ export async function cleanGraduated(plugin: FakeCardPlugin): Promise<void> {
     const cards = await plugin.store.list();
     const graduated = cards.filter((card) => card.graduated);
     if (graduated.length === 0) {
-        new Notice('No graduated child cards.');
+        new Notice(tt('No graduated child cards.'));
         return;
     }
 
@@ -66,7 +67,7 @@ export async function cleanGraduated(plugin: FakeCardPlugin): Promise<void> {
     await plugin.app.vault.create(path, JSON.stringify(graduated, null, 2));
 
     for (const card of graduated) await plugin.store.remove(card.id);
-    new Notice(`Removed ${graduated.length} graduated child card(s). Backup: ${path}`);
+    new Notice(ttf('Removed {count} graduated child card(s). Backup: {path}', { count: graduated.length, path }));
 }
 
 /** Write every card to a JSON file inside the library (backup/migration). */
@@ -79,5 +80,5 @@ export async function exportCards(plugin: FakeCardPlugin): Promise<void> {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const path = normalizePath(`${dir}/fakecard-${stamp}.json`);
     await plugin.app.vault.create(path, JSON.stringify(cards, null, 2));
-    new Notice(`Exported ${cards.length} card(s) to ${path}`);
+    new Notice(ttf('Exported {count} card(s) to {path}', { count: cards.length, path }));
 }

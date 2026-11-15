@@ -1,12 +1,16 @@
-import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import { suggestedAnswerSeconds } from './answerTime';
-import { hasHardStreak, isGraduatable } from './childStreak';
+import { ChildCardPromptModal } from './childPrompt';
+import { hardStreakScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ClozePanelModal } from './clozePanel';
+import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan, pruneExpiredExamPlans } from './examPlan';
+import { tt, ttf } from './i18n';
+import { RatingKeys, keyLabel, matchesKey } from './keys';
 import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
 import type FakeCardPlugin from '../main';
@@ -35,6 +39,19 @@ export class ReviewView extends ItemView {
     private hintTimer: number | null = null;
     /** Handler that keeps the hint's clock from running while hidden. */
     private hintVisibilityHandler: (() => void) | null = null;
+    /** Ratings that can still be taken back with Ctrl+Z, newest last. */
+    private undoStack: UndoEntry[] = [];
+    /** Link under the pointer, waiting for Ctrl+hover to turn into a preview. */
+    private hoverLink: HTMLElement | null = null;
+    /** Mouse event over that link, replayed when the preview is raised. */
+    private hoverEvent: MouseEvent | null = null;
+    private hoverParent: HTMLElement | null = null;
+    private hoverTimer: number | null = null;
+    /** Link whose preview is already open, so one dwell asks only once. */
+    private hoverPreviewed: HTMLElement | null = null;
+    /** Ctrl/Cmd state, tracked so a key press over a still pointer counts. */
+    private hoverModifier = false;
+    private hoverSourcePath = '';
 
     constructor(leaf: WorkspaceLeaf, private plugin: FakeCardPlugin) {
         super(leaf);
@@ -45,7 +62,7 @@ export class ReviewView extends ItemView {
     }
 
     getDisplayText(): string {
-        return 'fakecard: review';
+        return tt('Review');
     }
 
     getIcon(): string {
@@ -53,6 +70,13 @@ export class ReviewView extends ItemView {
     }
 
     async onOpen(): Promise<void> {
+        // One listener for the whole view: reveal, ratings and undo all depend
+        // on the current state, so binding per render would go stale.
+        this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => this.onKeyDown(event));
+        // Pressing or releasing Ctrl over a link that is already under the
+        // pointer produces no mouse event, so the dwell has to watch keys too.
+        this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => this.onHoverModifierKey(event));
+        this.registerDomEvent(activeDocument, 'keyup', (event: KeyboardEvent) => this.onHoverModifierKey(event));
         await this.reload();
     }
 
@@ -64,8 +88,8 @@ export class ReviewView extends ItemView {
         const expired = await pruneExpiredExamPlans(this.plugin);
         if (expired > 0) {
             new Notice(expired === 1
-                ? 'The exam day has passed - that plan was removed and its cards are back on the long-term schedule.'
-                : `${expired} exam plans have passed and were removed. Their cards are back on the long-term schedule.`);
+                ? tt('The exam day has passed - that plan was removed and its cards are back on the long-term schedule.')
+                : ttf('{count} exam plans have passed and were removed. Their cards are back on the long-term schedule.', { count: expired }));
         }
 
         this.decks = await this.plugin.store.loadDecks();
@@ -111,17 +135,21 @@ export class ReviewView extends ItemView {
     private render(): void {
         const container = this.contentEl;
         this.clearAnswerTimeHint();
+        // The body element is rebuilt below; any tracked link is now detached.
+        this.endHoverDwell();
         container.empty();
         container.addClass('fakecard-review');
+        // Settings -> Card display: a centred column, or the whole pane.
+        container.toggleClass('is-wide', this.plugin.settings.reviewLayout === 'wide');
 
         if (this.loading) {
-            container.createEl('p', { text: 'Loading…' });
+            container.createEl('p', { text: tt('Loading…') });
             return;
         }
 
         if (this.cards.length === 0) {
-            container.createEl('h2', { text: 'No cards yet' });
-            container.createEl('p', { text: 'Generate cards from a note or create one manually first.' });
+            container.createEl('h2', { text: tt('No cards yet') });
+            container.createEl('p', { text: tt('Generate cards from a note or create one manually first.') });
             return;
         }
 
@@ -132,14 +160,17 @@ export class ReviewView extends ItemView {
 
         const card = this.cards[this.index];
 
-        // Toolbar: deck selector + progress + edit the card being reviewed.
+        // Toolbar: deck and progress on the left, small icon actions on the
+        // right. Anything that is not about answering the card is an icon with
+        // a tooltip, so the card itself stays the loudest thing on screen.
         const bar = container.createDiv({ cls: 'fakecard-review-bar' });
+        const meta = bar.createDiv({ cls: 'fakecard-review-meta' });
 
-        const deckSelect = bar.createEl('select', { cls: 'dropdown' });
+        const deckSelect = meta.createEl('select', { cls: 'dropdown fakecard-review-deck' });
         for (const deck of ['all', ...this.decks]) {
             const option = deckSelect.createEl('option');
             option.value = deck;
-            option.textContent = deck === 'all' ? 'All decks' : deck;
+            option.textContent = deck === 'all' ? tt('All decks') : deck;
         }
         deckSelect.value = this.deckFilter;
         deckSelect.addEventListener('change', () => {
@@ -147,46 +178,54 @@ export class ReviewView extends ItemView {
             void this.reload();
         });
 
-        bar.createDiv({
+        meta.createDiv({
             cls: 'fakecard-review-progress',
             text: `${this.index + 1} / ${this.cards.length}`,
         });
+
+        const actions = bar.createDiv({ cls: 'fakecard-review-actions' });
 
         // Countdown of the exam finishing first; plans with a later date still
         // show up in Settings.
         const nextPlan = nextExamPlan(this.plugin.settings.examPlans ?? []);
         if (nextPlan) {
             const days = daysLeft(nextPlan.date);
-            bar.createSpan({
+            actions.createSpan({
                 cls: 'fakecard-review-time',
-                text: days === 0 ? '📅 today' : `📅 ${days}d`,
-                attr: { title: days === 0 ? `${nextPlan.name}: exam today` : `${nextPlan.name}: days until the exam` },
+                text: days === 0 ? `📅 ${tt('today')}` : `📅 ${ttf('{days}d', { days })}`,
+                attr: {
+                    title: days === 0
+                        ? ttf('{name}: exam today', { name: nextPlan.name })
+                        : ttf('{name}: days until the exam', { name: nextPlan.name }),
+                },
             });
         }
 
-        const sourceButton = bar.createEl('button', {
-            cls: 'fakecard-review-edit',
-            text: '↗ Source',
-            attr: { title: 'Open the note at the block this card came from' },
-        });
-        sourceButton.addEventListener('click', () => {
+        const iconButton = (icon: string, title: string, onClick: (event: MouseEvent) => void): HTMLButtonElement => {
+            // setTooltip only: a native `title` here would pop a second, black
+            // tooltip next to the one Obsidian draws from aria-label.
+            const button = actions.createEl('button', { cls: 'fakecard-review-icon' });
+            setTooltip(button, title);
+            setIcon(button, icon);
+            button.addEventListener('click', onClick);
+            return button;
+        };
+
+        iconButton('arrow-up-right', tt('Open the note this card came from'), () => {
             void jumpToCardSource(this.app, card);
         });
-
-        if (this.plugin.settings.childCardsEnabled && !card.childOf && card.type !== 'image') {
-            const childButton = bar.createEl('button', {
-                cls: 'fakecard-review-edit',
-                text: '+ Child',
-                attr: { title: 'Pause this card and study it through a simpler stand-in' },
-            });
-            childButton.addEventListener('click', (event) => this.chooseChildType(card, event));
+        if (this.plugin.settings.childCardsEnabled && !card.childOf) {
+            // Always present, but only highlighted once the recent reviews add
+            // up to the failing score: before that the click explains the
+            // trade-off and waits for a confirmation.
+            const childButton = iconButton(
+                'git-branch',
+                tt('Pause this card and study it through a simpler stand-in'),
+                (event) => { void this.requestChildCard(card, event); },
+            );
+            void this.markChildArmed(childButton, card);
         }
-
-        const editButton = bar.createEl('button', {
-            cls: 'fakecard-review-edit',
-            text: '✎ Edit',
-        });
-        editButton.addEventListener('click', () => {
+        iconButton('pencil', tt('Edit this card'), () => {
             this.openEditor(card);
         });
 
@@ -194,72 +233,56 @@ export class ReviewView extends ItemView {
             this.startAnswerTimeHint(bar, card);
         }
 
+        // The card itself: centred while it is short, scrolling normally once
+        // a long answer does not fit.
+        const body = container.createDiv({ cls: 'fakecard-review-body' });
+        this.attachHoverPreview(body, card);
+
         if (!this.revealed) {
             // Front. Q&A questions are centred; cloze fronts keep the text
             // flow; image cards draw the picture with the first group masked.
-            const frontEl = container.createDiv({ cls: 'fakecard-review-front' });
+            const frontEl = body.createDiv({ cls: 'fakecard-review-front' });
             if (card.type === 'qa') frontEl.addClass('fakecard-qa-front');
             this.renderCardBody(frontEl, card, false);
 
-            // Offered on the question face, before the answer is revealed:
-            // once the answer is on screen the decision is already made.
-            if (this.plugin.settings.childCardsEnabled && card.type !== 'image') {
-                void this.showChildHint(
-                    container.createDiv({ cls: 'fakecard-review-hint-slot' }),
-                    card,
-                );
-            }
-
-            const button = container.createEl('button', {
-                cls: 'fakecard-review-show',
-                text: 'Show answer',
-            });
-            button.addEventListener('click', () => {
-                this.revealed = true;
-                this.render();
-            });
-            // Space also reveals.
-            this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => {
-                if (event.code === 'Space' && !this.revealed) {
-                    event.preventDefault();
-                    this.revealed = true;
-                    this.render();
-                }
-            }, { once: true });
+            // Outside the scrolling body, in the slot the rating row will
+            // occupy: the button keeps its place when the card flips instead
+            // of travelling up and down the pane with the question.
+            const footer = container.createDiv({ cls: 'fakecard-review-footer' });
+            const button = footer.createEl('button', { cls: 'fakecard-review-show' });
+            button.createSpan({ text: tt('Show answer') });
+            button.createSpan({ cls: 'fakecard-rate-key', text: tt('Space') });
+            button.addEventListener('click', () => this.reveal());
             return;
         }
 
         if (card.type === 'qa') {
             // Q&A keeps both sides: question above, answer below.
-            const frontEl = container.createDiv({ cls: 'fakecard-review-front fakecard-qa-front' });
+            const frontEl = body.createDiv({ cls: 'fakecard-review-front fakecard-qa-front' });
             this.renderCardBody(frontEl, card, false);
-            container.createEl('hr');
-            const backEl = container.createDiv({ cls: 'fakecard-review-back' });
+            const backEl = body.createDiv({ cls: 'fakecard-review-back' });
             this.renderCardBody(backEl, card, true);
         } else {
             // Cloze and image cards reveal in place - the same block shows the
             // answer, there is no separate answer side.
-            const bodyEl = container.createDiv({ cls: 'fakecard-review-front' });
+            const bodyEl = body.createDiv({ cls: 'fakecard-review-front' });
             this.renderCardBody(bodyEl, card, true);
         }
 
-        if (this.plugin.settings.childCardsEnabled && card.type !== 'image') {
-            void this.showChildHint(
-                container.createDiv({ cls: 'fakecard-review-hint-slot' }),
-                card,
-            );
-        }
-
-        // Rating buttons.
+        // Rating buttons: one cell each, with the shortcut under the label.
         const ratings = container.createDiv({ cls: 'fakecard-review-ratings' });
-        const options: Array<[Rating, string, string]> = [
-            [Rating.Again, 'Again', 'fakecard-again'],
-            [Rating.Hard, 'Hard', 'fakecard-hard'],
-            [Rating.Good, 'Good', 'fakecard-good'],
-            [Rating.Easy, 'Easy', 'fakecard-easy'],
+        const keys = this.ratingKeys();
+        const options: Array<[Rating, string, string, string]> = [
+            [Rating.Again, tt('Again'), 'fakecard-again', keys.again],
+            [Rating.Hard, tt('Hard'), 'fakecard-hard', keys.hard],
+            [Rating.Good, tt('Good'), 'fakecard-good', keys.good],
+            [Rating.Easy, tt('Easy'), 'fakecard-easy', keys.easy],
         ];
-        for (const [rating, label, cls] of options) {
-            const button = ratings.createEl('button', { cls, text: label });
+        for (const [rating, label, cls, key] of options) {
+            const button = ratings.createEl('button', { cls: `fakecard-rate ${cls}` });
+            button.createSpan({ cls: 'fakecard-rate-label', text: label });
+            const hint = keyLabel(key);
+            if (hint) button.createSpan({ cls: 'fakecard-rate-key', text: tt(hint) });
             button.addEventListener('click', () => {
                 void this.rate(rating);
             });
@@ -271,6 +294,9 @@ export class ReviewView extends ItemView {
             this.renderImageBody(el, card, revealed);
             return;
         }
+        // Same class the reading view uses, so headings, lists and spacing look
+        // like the note the card came from.
+        el.addClass('markdown-rendered');
         void MarkdownRenderer.render(
             this.app,
             revealed ? this.backText(card) : this.frontText(card),
@@ -337,33 +363,99 @@ export class ReviewView extends ItemView {
     }
 
     /**
-     * Offer the two shapes a child card can take. The parent's own text seeds
-     * the panel, so the user trims instead of retyping - same idea as the
-     * True Recall chooser, minus the image type (a masked image has no text to
-     * trim, so it has no prefilled child).
+     * How badly the card has been failing lately. Every Hard adds 1 and every
+     * Again adds `childAgainScore`; any Good or Easy ends the run.
      */
-    private chooseChildType(parent: CardRecord, event: MouseEvent): void {
+    private async childFailingScore(card: CardRecord): Promise<number> {
+        const streak = Math.max(1, this.plugin.settings.childHardStreak);
+        // Wide window on purpose: an imported Anki history is often months old
+        // and must still count towards the failing streak.
+        const logs = await this.plugin.reviews.recentForCard(card.id, streak, 365);
+        return hardStreakScore(
+            logs.map((log) => log.rating),
+            this.plugin.settings.childAgainScore,
+        );
+    }
+
+    /** Colour the button once the card has failed often enough to deserve one. */
+    private async markChildArmed(button: HTMLButtonElement, card: CardRecord): Promise<void> {
+        const target = Math.max(1, this.plugin.settings.childHardStreak);
+        const score = await this.childFailingScore(card);
+        if (score < target || !button.isConnected) return;
+
+        button.addClass('is-armed');
+        setTooltip(button, tt('This card keeps failing - build a child card now'));
+    }
+
+    /**
+     * The button is always available, but building a child pauses the parent.
+     * Below the failing threshold that is a decision, not a misclick: explain
+     * it and wait for Continue before the type menu opens.
+     */
+    private async requestChildCard(parent: CardRecord, event: MouseEvent): Promise<void> {
+        if (!this.plugin.settings.childCardsEnabled) return;
+        const at = { x: event.clientX, y: event.clientY };
+        const target = Math.max(1, this.plugin.settings.childHardStreak);
+        const score = await this.childFailingScore(parent);
+
+        if (score >= target) {
+            this.chooseChildType(parent, at);
+            return;
+        }
+
+        new ChildCardPromptModal(this.app, score, target, () => {
+            this.chooseChildType(parent, at);
+        }).open();
+    }
+
+    /**
+     * Offer the shapes a child card can take. The parent's own text seeds the
+     * panel, so the user trims instead of retyping. An image parent can hand
+     * its picture to a new occlusion card.
+     */
+    private chooseChildType(parent: CardRecord, at: { x: number; y: number }): void {
         if (!this.plugin.settings.childCardsEnabled) return;
         const menu = new Menu();
         menu.addItem((item) => item
-            .setTitle('Q&A child card')
+            .setTitle(tt('Q&A child card'))
             .setIcon('file-text')
             .onClick(() => this.openChildPanel(parent, 'qa')));
         menu.addItem((item) => item
-            .setTitle('Cloze child card')
+            .setTitle(tt('Cloze child card'))
             .setIcon('text-cursor-input')
             .onClick(() => this.openChildPanel(parent, 'cloze')));
-        menu.showAtMouseEvent(event);
+        // Every card can get an image child: a text card just starts from an
+        // empty panel and takes the picture from the clipboard or a file.
+        menu.addItem((item) => item
+            .setTitle(tt('Image occlusion child card'))
+            .setIcon('image')
+            .onClick(() => this.openChildPanel(parent, 'image')));
+        menu.showAtPosition(at);
     }
 
     /**
      * Open a panel prefilled from the parent. The new card is linked through
      * childOf and never touches the parent's own text.
      */
-    private openChildPanel(parent: CardRecord, type: 'qa' | 'cloze'): void {
+    private openChildPanel(parent: CardRecord, type: 'qa' | 'cloze' | 'image'): void {
         const onSaved = (): void => {
             void this.attachChild(parent);
         };
+
+        if (type === 'image') {
+            // An empty path opens the panel in "pick an image" mode: the
+            // parent has no picture, so the user pastes or imports one.
+            new ImagePanelModal(
+                this.app,
+                this.plugin,
+                parent.image?.path ?? '',
+                parent.source.path,
+                undefined,
+                onSaved,
+                parent.id,
+            ).open();
+            return;
+        }
 
         if (type === 'cloze') {
             const seed = parent.type === 'cloze' && parent.clozeText
@@ -404,29 +496,126 @@ export class ReviewView extends ItemView {
 
         parent.suspended = true;
         await this.plugin.store.save(parent);
-        new Notice('Child card created - parent paused.');
+        new Notice(tt('Child card created - parent paused.'));
         await this.reload();
     }
 
     /**
-     * Show the "build a child card" button when the recent reviews of this
-     * card add up to the configured failing score. Sits above the rating bar
-     * on the question face: a hint after the rating arrives too late.
+     * Obsidian's hover preview is raised by Markdown views: they listen for the
+     * pointer over an internal link and send a `hover-link` workspace event to
+     * the core Page preview plugin. This view renders its own markdown, so
+     * nothing raised that event - normal links and fakelink's virtual links
+     * both navigated on click but never showed a popover.
+     *
+     * Ctrl/Cmd+hover over a link raises the same preview here, but only after
+     * the pointer rests on it. The first version hooked `mousemove`, so every
+     * sweep across a card with Ctrl held popped whatever link it crossed.
+     * Pressing Ctrl while the pointer already sits on a link counts as well:
+     * that produces no mouse event, so the dwell watches the keyboard too.
      */
-    private async showChildHint(slot: HTMLElement, card: CardRecord): Promise<void> {
-        const streak = Math.max(1, this.plugin.settings.childHardStreak);
-        const againScore = this.plugin.settings.childAgainScore;
-        const logs = await this.plugin.reviews.recentForCard(card.id, streak);
-        if (!hasHardStreak(logs.map((log) => log.rating), streak, againScore)) return;
-        // The view may have moved on while the history was being read.
-        if (!slot.isConnected || this.cards[this.index]?.id !== card.id) return;
+    private attachHoverPreview(el: HTMLElement, card: CardRecord): void {
+        this.hoverSourcePath = card.source.path || this.app.workspace.getActiveFile()?.path || '';
+        this.hoverParent = el;
 
-        const hint = slot.createEl('button', {
-            cls: 'fakecard-review-child-hint',
-            text: 'Card keeps failing - build a child card',
-            attr: { title: 'Pause this card and study it through a simpler stand-in' },
+        const linkAt = (event: MouseEvent): HTMLElement | null =>
+            (event.target as HTMLElement | null)?.closest?.<HTMLElement>('a.internal-link') ?? null;
+
+        el.addEventListener('mouseover', (event: MouseEvent) => {
+            const link = linkAt(event);
+            if (link) this.startHoverDwell(link, event);
         });
-        hint.addEventListener('click', (event) => this.chooseChildType(card, event));
+        el.addEventListener('mouseout', (event: MouseEvent) => {
+            const link = linkAt(event);
+            if (!link) return;
+            const next = event.relatedTarget as HTMLElement | null;
+            if (next && link.contains(next)) return;
+            this.endHoverDwell();
+        });
+        // The body scrolls on its own: a still pointer can leave a link that
+        // slides away underneath it without any mouse event.
+        el.addEventListener('scroll', () => this.endHoverDwell(), { passive: true });
+    }
+
+    /** Pointer arrived on a link: start (or keep) the dwell that may preview. */
+    private startHoverDwell(link: HTMLElement, event: MouseEvent): void {
+        this.hoverModifier = event.ctrlKey || event.metaKey;
+        this.hoverEvent = event;
+        if (link === this.hoverLink) return;
+        this.clearHoverTimer();
+        this.hoverLink = link;
+        this.hoverPreviewed = null;
+        this.scheduleHoverPreview(400);
+    }
+
+    private scheduleHoverPreview(delay: number): void {
+        this.clearHoverTimer();
+        this.hoverTimer = window.setTimeout(() => {
+            this.hoverTimer = null;
+            this.showHoverPreview();
+        }, delay);
+    }
+
+    private showHoverPreview(): void {
+        const link = this.hoverLink;
+        const event = this.hoverEvent;
+        if (!link || !event || !this.hoverModifier) return;
+        if (this.hoverPreviewed === link) return;
+
+        const linktext = link.getAttribute('data-href') ?? link.getAttribute('href');
+        if (!linktext) return;
+
+        this.hoverPreviewed = link;
+        this.app.workspace.trigger('hover-link', {
+            event,
+            source: 'preview',
+            hoverParent: this.hoverParent ?? link,
+            targetEl: link,
+            linktext,
+            sourcePath: this.hoverSourcePath,
+        });
+    }
+
+    /** Ctrl/Cmd pressed or released while the pointer is already resting. */
+    private onHoverModifierKey(event: KeyboardEvent): void {
+        // Key events can target the document itself; only a modal or menu in
+        // front of the card should keep Ctrl quiet.
+        const target = event.target as HTMLElement | null;
+        if (target?.closest?.('.modal-container') || target?.closest?.('.menu')) return;
+
+        const held = event.ctrlKey || event.metaKey;
+
+        // Ctrl+<key> is a shortcut (undo, reveal, rating), not a hover: drop a
+        // preview that is still waiting for its dwell instead of popping it
+        // over the card mid-shortcut.
+        if (held && event.type === 'keydown' && event.key !== 'Control' && event.key !== 'Meta') {
+            this.clearHoverTimer();
+            return;
+        }
+
+        const wasHeld = this.hoverModifier;
+        this.hoverModifier = held;
+        if (held === wasHeld) return;
+
+        if (held) {
+            // Short dwell: the pointer is already parked, so this press is the
+            // hover. Long enough that Ctrl+S or Ctrl+Z over a link stay quiet.
+            if (this.hoverLink && this.hoverPreviewed !== this.hoverLink) this.scheduleHoverPreview(150);
+        } else {
+            this.clearHoverTimer();
+        }
+    }
+
+    private clearHoverTimer(): void {
+        if (this.hoverTimer === null) return;
+        window.clearTimeout(this.hoverTimer);
+        this.hoverTimer = null;
+    }
+
+    private endHoverDwell(): void {
+        this.clearHoverTimer();
+        this.hoverLink = null;
+        this.hoverPreviewed = null;
+        this.hoverEvent = null;
     }
 
     /**
@@ -452,7 +641,10 @@ export class ReviewView extends ItemView {
             if (this.revealed) return;
             const elapsed = Math.floor((Date.now() - shownAt - hiddenTotal) / 1000);
             if (elapsed < budget) return;
-            const text = `⏱ Over suggested time: ${formatClock(elapsed)} / ${formatClock(budget)}`;
+            const text = ttf('⏱ Over suggested time: {elapsed} / {budget}', {
+                elapsed: formatClock(elapsed),
+                budget: formatClock(budget),
+            });
             if (hint) {
                 hint.setText(text);
                 return;
@@ -460,7 +652,7 @@ export class ReviewView extends ItemView {
             hint = bar.createDiv({
                 cls: 'fakecard-review-answer-time',
                 text,
-                attr: { title: 'Based on answer length and this card\'s rating history' },
+                attr: { title: tt("Based on answer length and this card's rating history") },
             });
             bar.after(hint);
         };
@@ -496,24 +688,28 @@ export class ReviewView extends ItemView {
      * After rating a child: a run of Good ratings graduates it; once every
      * child of the parent has graduated, the parent comes back.
      */
-    private async checkChild(child: CardRecord): Promise<void> {
-        if (!child.childOf) return;
+    private async checkChild(child: CardRecord): Promise<{ id: string; json: string } | null> {
+        if (!child.childOf) return null;
 
         const streak = Math.max(1, this.plugin.settings.childGoodStreak);
         const logs = await this.plugin.reviews.recentForCard(child.id, streak);
-        if (!isGraduatable(logs.map((log) => log.rating), streak)) return;
+        if (!isGraduatable(logs.map((log) => log.rating), streak)) return null;
 
         child.graduated = true;
         await this.plugin.store.save(child);
 
         const all = await this.plugin.store.list();
         const siblings = all.filter((card) => card.childOf === child.childOf);
-        if (siblings.length === 0 || !siblings.every((card) => card.graduated)) return;
+        if (siblings.length === 0 || !siblings.every((card) => card.graduated)) return null;
 
         const parent = all.find((card) => card.id === child.childOf);
-        if (!parent) return;
+        if (!parent) return null;
+        // Snapshot before the parent is touched: undoing the child's rating
+        // must put the parent back to paused if it was.
+        const snapshot = { id: parent.id, json: JSON.stringify(parent) };
         parent.suspended = false;
         await this.plugin.store.save(parent);
+        return snapshot;
     }
 
     /** Open the manual editor for the card being reviewed. */
@@ -532,6 +728,12 @@ export class ReviewView extends ItemView {
         const card = this.cards[this.index];
         if (!card) return;
 
+        // Snapshot before anything mutates, so Ctrl+Z can put it back.
+        const entry: UndoEntry = {
+            index: this.index,
+            snapshots: [{ id: card.id, json: JSON.stringify(card) }],
+        };
+
         const scheduler = fsrs();
         const fsrsCard: FsrsCard = card.fsrs ?? createEmptyCard();
         const scheduling = scheduler.next(fsrsCard, new Date(), rating as Grade);
@@ -549,8 +751,14 @@ export class ReviewView extends ItemView {
             wasNew,
             durationMs: this.cardShownAt > 0 ? Date.now() - this.cardShownAt : undefined,
         });
+        entry.reviewLog = { cardId: card.id, at: card.updated };
 
-        if (card.childOf) await this.checkChild(card);
+        if (card.childOf) {
+            const parent = await this.checkChild(card);
+            if (parent) entry.snapshots.push(parent);
+        }
+
+        this.undoStack.push(entry);
 
         this.index++;
         this.revealed = false;
@@ -558,14 +766,106 @@ export class ReviewView extends ItemView {
         this.render();
     }
 
+    /**
+     * Take back the last rating: the card returns to the screen with its old
+     * schedule, and the review-log entry is removed so the daily limits and the
+     * stats do not count a rating that no longer happened.
+     */
+    private async undo(): Promise<void> {
+        const entry = this.undoStack.pop();
+        if (!entry) {
+            new Notice(tt('Nothing to undo.'));
+            return;
+        }
+
+        for (const snapshot of entry.snapshots) {
+            const record = JSON.parse(snapshot.json) as CardRecord;
+            const at = this.cards.findIndex((card) => card.id === record.id);
+            if (at >= 0) this.cards[at] = record;
+            await this.plugin.store.save(record);
+        }
+
+        if (entry.reviewLog) {
+            await this.plugin.reviews.remove(entry.reviewLog.cardId, entry.reviewLog.at);
+        }
+
+        this.index = Math.min(entry.index, Math.max(0, this.cards.length - 1));
+        // Back to the question, not the answer: the point of undoing a rating
+        // is to read the card again and rate it differently.
+        this.revealed = false;
+        this.cardShownAt = Date.now();
+        this.clearAnswerTimeHint();
+        this.render();
+        new Notice(tt('Rating undone.'));
+    }
+
+    /** Ratings use the configured shortcuts; digits work on the numpad too. */
+    private ratingKeys(): RatingKeys {
+        const settings = this.plugin.settings;
+        return {
+            again: settings.ratingKeyAgain,
+            hard: settings.ratingKeyHard,
+            good: settings.ratingKeyGood,
+            easy: settings.ratingKeyEasy,
+        };
+    }
+
+    private onKeyDown(event: KeyboardEvent): void {
+        if (this.loading || this.cards.length === 0) return;
+
+        // Typing in the deck name field or an edit panel must not rate cards.
+        const target = event.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+        if (event.altKey) return;
+
+        const mod = event.ctrlKey || event.metaKey;
+        if (mod) {
+            if (!event.shiftKey && event.key.toLowerCase() === 'z') {
+                event.preventDefault();
+                void this.undo();
+            }
+            return;
+        }
+
+        if (!this.revealed) {
+            // Space reveals the answer first; the rating keys stay quiet until
+            // the answer is on screen.
+            if (event.code === 'Space' || event.key === 'Enter') {
+                event.preventDefault();
+                this.reveal();
+            }
+            return;
+        }
+
+        const keys = this.ratingKeys();
+        const bindings: Array<[Rating, string]> = [
+            [Rating.Again, keys.again],
+            [Rating.Hard, keys.hard],
+            [Rating.Good, keys.good],
+            [Rating.Easy, keys.easy],
+        ];
+        for (const [rating, key] of bindings) {
+            if (!matchesKey(event, key)) continue;
+            event.preventDefault();
+            void this.rate(rating);
+            return;
+        }
+    }
+
+    private reveal(): void {
+        if (this.revealed) return;
+        this.revealed = true;
+        this.render();
+    }
+
     private renderDone(container: HTMLElement): void {
-        container.createEl('h2', { text: 'Review finished' });
+        container.createEl('h2', { text: tt('Review finished') });
         const reviewed = this.cards.filter((card) => (card.reviews ?? 0) > 0).length;
-        container.createEl('p', { text: `${reviewed} card(s) in the library.` });
-        const again = container.createEl('button', { text: 'Review again' });
+        container.createEl('p', { text: ttf('{count} card(s) in the library.', { count: reviewed }) });
+        const again = container.createEl('button', { text: tt('Review again') });
         again.addEventListener('click', () => {
             void this.reload();
-            new Notice('Reloaded.');
+            new Notice(tt('Reloaded.'));
         });
     }
 
@@ -573,6 +873,15 @@ export class ReviewView extends ItemView {
         this.clearAnswerTimeHint();
         this.contentEl.empty();
     }
+}
+
+/** Card state captured before a rating, so Ctrl+Z can put it back. */
+interface UndoEntry {
+    index: number;
+    /** Every card the rating touched, as JSON taken before the change. */
+    snapshots: Array<{ id: string; json: string }>;
+    /** The review-log row to drop when the rating is undone. */
+    reviewLog?: { cardId: string; at: string };
 }
 
 /** `m:ss`, for the answer-time hint. */

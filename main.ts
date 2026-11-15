@@ -4,6 +4,7 @@ import { clozeGroups, renderCloze, selectionToClozeText } from './src/cloze';
 import { ClozePanelModal } from './src/clozePanel';
 import type { ExamPlanConfig } from './src/examPlan';
 import { buildExamPlan as buildExamPlanImpl, legacyExamPlan } from './src/examPlan';
+import { tt, ttf } from './src/i18n';
 import { ImagePanelModal } from './src/imagePanel';
 import {
     importApkgFile as importApkgFileImpl,
@@ -65,7 +66,7 @@ export default class FakeCardPlugin extends Plugin {
         // ----- Generation from notes -----
         this.addCommand({
             id: 'generate-qa-from-note',
-            name: 'Generate Q&A cards from the whole note',
+            name: tt('Generate Q&A cards from the whole note'),
             callback: () => {
                 void this.generateFromNote('qa');
             },
@@ -73,7 +74,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'generate-cloze-from-note',
-            name: 'Generate cloze cards from the whole note',
+            name: tt('Generate cloze cards from the whole note'),
             callback: () => {
                 void this.generateFromNote('cloze');
             },
@@ -81,7 +82,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'generate-from-selection',
-            name: 'Generate cards from the selected lines',
+            name: tt('Generate cards from the selected lines'),
             callback: () => {
                 void this.generateFromSelection();
             },
@@ -91,7 +92,7 @@ export default class FakeCardPlugin extends Plugin {
         this.registerView(REVIEW_VIEW_TYPE, (leaf) => new ReviewView(leaf, this));
         this.registerView(BROWSE_VIEW_TYPE, (leaf) => new BrowseView(leaf, this));
         this.registerView(STATS_VIEW_TYPE, (leaf) => new StatsView(leaf, this));
-        this.addRibbonIcon('bar-chart-2', 'fakecard: statistics', () => {
+        this.addRibbonIcon('bar-chart-2', tt('fakecard: statistics'), () => {
             void this.openStats();
         });
 
@@ -123,35 +124,35 @@ export default class FakeCardPlugin extends Plugin {
         });
         this.addCommand({
             id: 'review',
-            name: 'Start reviewing',
+            name: tt('Start reviewing'),
             callback: () => {
                 void this.openReview();
             },
         });
         this.addCommand({
             id: 'browse-cards',
-            name: 'Browse and edit cards',
+            name: tt('Browse and edit cards'),
             callback: () => {
                 void this.openBrowse();
             },
         });
         this.addCommand({
             id: 'new-image-card',
-            name: 'New image occlusion card (from clipboard)',
+            name: tt('New image occlusion card (from clipboard)'),
             callback: () => {
                 void this.newImageCard();
             },
         });
         this.addCommand({
             id: 'occlusion-from-cursor',
-            name: 'Make occlusion card from the image at the cursor',
+            name: tt('Make occlusion card from the image at the cursor'),
             callback: () => {
                 void this.occlusionFromCursor();
             },
         });
         this.addCommand({
             id: 'statistics',
-            name: 'Open statistics',
+            name: tt('Open statistics'),
             callback: () => {
                 void this.openStats();
             },
@@ -160,7 +161,7 @@ export default class FakeCardPlugin extends Plugin {
         // ----- Manual panels -----
         this.addCommand({
             id: 'new-card',
-            name: 'New card (manual)',
+            name: tt('New card (manual)'),
             callback: () => {
                 void this.newCard();
             },
@@ -171,7 +172,7 @@ export default class FakeCardPlugin extends Plugin {
         // ----- External AI import (no built-in model) -----
         this.addCommand({
             id: 'import-from-clipboard',
-            name: 'Import cards from clipboard (JSON)',
+            name: tt('Import cards from clipboard (JSON)'),
             callback: () => {
                 void this.importFromClipboard();
             },
@@ -179,7 +180,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'import-apkg',
-            name: 'Import cards from Anki (.apkg)',
+            name: tt('Import cards from Anki (.apkg)'),
             callback: () => {
                 this.importApkgFile();
             },
@@ -187,7 +188,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'export-cards',
-            name: 'Export all cards (JSON)',
+            name: tt('Export all cards (JSON)'),
             callback: () => {
                 void this.exportCards();
             },
@@ -195,7 +196,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'clean-orphans',
-            name: 'Clean up orphan cards (source note deleted)',
+            name: tt('Clean up orphan cards (source note deleted)'),
             callback: () => {
                 void this.cleanOrphans();
             },
@@ -203,7 +204,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'clean-graduated',
-            name: 'Remove graduated child cards',
+            name: tt('Remove graduated child cards'),
             callback: () => {
                 void this.cleanGraduated();
             },
@@ -211,7 +212,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'reschedule-for-exam',
-            name: 'Build an exam plan (spread cards until the exam)',
+            name: tt('Build an exam plan (spread cards until the exam)'),
             callback: () => {
                 void this.buildExamPlan();
             },
@@ -219,10 +220,10 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'open-library',
-            name: 'Open the card library folder',
+            name: tt('Open the card library folder'),
             callback: () => {
                 void this.store.ensure();
-                new Notice(`Card library: ${this.settings.libraryFolder}`);
+                new Notice(ttf('Card library: {path}', { path: this.settings.libraryFolder }));
             },
         });
 
@@ -242,14 +243,14 @@ export default class FakeCardPlugin extends Plugin {
 
             menu.addSeparator();
             menu.addItem((item) => item
-                .setTitle('fakecard: new Q&A card from selection')
+                .setTitle(tt('fakecard: new Q&A card from selection'))
                 .setIcon('help-circle')
                 .onClick(() => {
                     const { front, back } = splitHeadingSelection(selection);
                     new QaPanelModal(this.app, this, file.path, undefined, back, undefined, front).open();
                 }));
             menu.addItem((item) => item
-                .setTitle('fakecard: new cloze card from selection')
+                .setTitle(tt('fakecard: new cloze card from selection'))
                 .setIcon('layers')
                 .onClick(() => {
                     new ClozePanelModal(
@@ -286,19 +287,19 @@ export default class FakeCardPlugin extends Plugin {
         this.registerEvent(this.app.workspace.on('file-menu', (menu: Menu, file) => {
             if (!(file instanceof TFile) || file.extension !== 'md') return;
             menu.addItem((item) => item
-                .setTitle('fakecard: generate Q&A cards')
+                .setTitle(tt('fakecard: generate Q&A cards'))
                 .setIcon('help-circle')
                 .onClick(() => {
                     void this.generateFromFile(file, 'qa');
                 }));
             menu.addItem((item) => item
-                .setTitle('fakecard: generate cloze cards')
+                .setTitle(tt('fakecard: generate cloze cards'))
                 .setIcon('layers')
                 .onClick(() => {
                     void this.generateFromFile(file, 'cloze');
                 }));
             menu.addItem((item) => item
-                .setTitle('fakecard: new card')
+                .setTitle(tt('fakecard: new card'))
                 .setIcon('edit')
                 .onClick(() => {
                     void this.newCard();
@@ -346,6 +347,8 @@ export default class FakeCardPlugin extends Plugin {
         const loaded = (await this.loadData()) as Partial<FakeCardSettings> | null;
         this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
         if (!Array.isArray(this.settings.examPlans)) this.settings.examPlans = [];
+        // A data file edited by hand may carry anything; only two layouts exist.
+        if (this.settings.reviewLayout !== 'wide') this.settings.reviewLayout = 'center';
         // The old single exam date becomes the first plan, so an update does
         // not lose the countdown the user already had.
         if (this.settings.examPlans.length === 0) {
@@ -400,7 +403,7 @@ export default class FakeCardPlugin extends Plugin {
     async generateFromNote(kind: 'qa' | 'cloze'): Promise<void> {
         const file = this.app.workspace.getActiveFile();
         if (!file) {
-            new Notice('Open a note first.');
+            new Notice(tt('Open a note first.'));
             return;
         }
         await this.generateFromFile(file, kind);
@@ -415,7 +418,7 @@ export default class FakeCardPlugin extends Plugin {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         const editor = view?.editor;
         if (!view || !editor || !view.file) {
-            new Notice('Open a note first.');
+            new Notice(tt('Open a note first.'));
             return;
         }
         const from = editor.getCursor('from').line;
@@ -474,14 +477,14 @@ export default class FakeCardPlugin extends Plugin {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         const editor = view?.editor;
         if (!view || !editor || !view.file) {
-            new Notice('Open a note first.');
+            new Notice(tt('Open a note first.'));
             return;
         }
         const selection = editor.getSelection();
         const text = selection || editor.getLine(editor.getCursor().line);
         const path = this.imagePathFromMarkdown(text, view.file.path);
         if (!path) {
-            new Notice('No image on this line. Put the cursor on an ![[image]] line, or select the image embed.');
+            new Notice(tt('No image on this line. Put the cursor on an ![[image]] line, or select the image embed.'));
             return;
         }
         new ImagePanelModal(this.app, this, path, view.file.path).open();
@@ -507,33 +510,51 @@ export default class FakeCardPlugin extends Plugin {
     async newImageCard(imagePath?: string): Promise<void> {
         const path = imagePath ?? await this.clipboardImagePath();
         if (!path) {
-            new Notice('Put an image on the clipboard first, or right-click an image in a note.');
+            new Notice(tt('Put an image on the clipboard first, or right-click an image in a note.'));
             return;
         }
         new ImagePanelModal(this.app, this, path, this.app.workspace.getActiveFile()?.path ?? '').open();
     }
 
-    private async clipboardImagePath(): Promise<string | null> {
+    /**
+     * Read an image from the system clipboard and copy it into the library.
+     * Returns null when the clipboard holds no image (or the browser refuses
+     * permission - the caller offers Ctrl+V and a file picker instead).
+     */
+    async clipboardImagePath(): Promise<string | null> {
         try {
             const items = await navigator.clipboard.read();
             for (const item of items) {
                 const type = item.types.find((entry) => entry.startsWith('image/'));
                 if (!type) continue;
                 const blob = await item.getType(type);
-                const buffer = await blob.arrayBuffer();
-                const ext = type.split('/')[1] ?? 'png';
-                const dir = normalizePath(`${this.settings.libraryFolder}/images`);
-                if (!this.app.vault.getAbstractFileByPath(dir)) {
-                    await this.app.vault.createFolder(dir);
-                }
-                const path = normalizePath(`${dir}/${Date.now()}.${ext}`);
-                await this.app.vault.createBinary(path, buffer);
-                return path;
+                return await this.writeLibraryImage(await blob.arrayBuffer(), type.split('/')[1] ?? 'png');
             }
         } catch {
             // No clipboard permission or no image - handled by the caller.
         }
         return null;
+    }
+
+    /** Copy a picked image file into the library. Null when it cannot be written. */
+    async importImageFile(file: File): Promise<string | null> {
+        try {
+            const ext = (file.name.split('.').pop() ?? 'png').toLowerCase();
+            return await this.writeLibraryImage(await file.arrayBuffer(), ext);
+        } catch {
+            return null;
+        }
+    }
+
+    private async writeLibraryImage(buffer: ArrayBuffer, ext: string): Promise<string> {
+        const dir = normalizePath(`${this.settings.libraryFolder}/images`);
+        if (!this.app.vault.getAbstractFileByPath(dir)) {
+            await this.app.vault.createFolder(dir);
+        }
+        const safeExt = ext.replace(/[^a-z0-9]/gi, '') || 'png';
+        const path = normalizePath(`${dir}/${Date.now()}.${safeExt}`);
+        await this.app.vault.createBinary(path, buffer);
+        return path;
     }
 
     /**
@@ -654,14 +675,14 @@ export default class FakeCardPlugin extends Plugin {
     async handleProtocol(params: Record<string, string>): Promise<void> {
         const raw = params.data ?? params.cards;
         if (!raw) {
-            new Notice('fakecard: missing "data" parameter.');
+            new Notice(tt('fakecard: missing "data" parameter.'));
             return;
         }
         try {
             const count = await importCardJsonImpl(this, raw);
-            new Notice(`Imported ${count} card(s).`);
+            new Notice(ttf('Imported {count} card(s).', { count }));
         } catch {
-            new Notice('fakecard: the data is not valid card JSON.');
+            new Notice(tt('fakecard: the data is not valid card JSON.'));
         }
     }
 
@@ -758,7 +779,9 @@ class CardTypeModal extends Modal {
         app: App,
         private plugin: FakeCardPlugin,
         private sourcePath: string,
-        private selection: string,
+        // Not `selection`: Obsidian's Modal already uses that name for the DOM
+        // selection it restores on close, and `open()` overwrites the value.
+        private selectionText: string,
     ) {
         super(app);
     }
@@ -766,8 +789,8 @@ class CardTypeModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.createEl('h2', { text: 'New card' });
-        contentEl.createEl('p', { cls: 'fakecard-help', text: 'Pick a card type. The manual panel opens next.' });
+        contentEl.createEl('h2', { text: tt('New card') });
+        contentEl.createEl('p', { cls: 'fakecard-help', text: tt('Pick a card type. The manual panel opens next.') });
 
         const list = contentEl.createDiv({ cls: 'fakecards-preview' });
 
@@ -779,24 +802,24 @@ class CardTypeModal extends Modal {
             item.addEventListener('click', onClick);
         };
 
-        row('Q&A', 'Question on the front, answer on the back.', () => {
+        row(tt('Q&A'), tt('Question on the front, answer on the back.'), () => {
             this.close();
-            const { front, back } = splitHeadingSelection(this.selection);
+            const { front, back } = splitHeadingSelection(this.selectionText);
             new QaPanelModal(this.app, this.plugin, this.sourcePath, undefined, back, undefined, front).open();
         });
 
-        row('Cloze', 'Anki {{c1::...}} holes, one or more groups.', () => {
+        row(tt('Cloze'), tt('Anki {{c1::...}} holes, one or more groups.'), () => {
             this.close();
             new ClozePanelModal(
                 this.app,
                 this.plugin,
                 this.sourcePath,
                 undefined,
-                selectionToClozeText(this.selection),
+                selectionToClozeText(this.selectionText),
             ).open();
         });
 
-        row('Image occlusion', 'Draw mask groups on an image (from the clipboard, or right-click any image).', () => {
+        row(tt('Image occlusion'), tt('Draw mask groups on an image (from the clipboard, or right-click any image).'), () => {
             this.close();
             void this.plugin.newImageCard();
         });
@@ -820,7 +843,7 @@ class CardPreviewModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.createEl('h2', { text: `Preview ${this.drafts.length} card(s)` });
+        contentEl.createEl('h2', { text: ttf('Preview {count} card(s)', { count: this.drafts.length }) });
 
         const selected = new Set<number>(this.drafts.map((_, index) => index));
         const list = contentEl.createDiv({ cls: 'fakecards-preview' });
@@ -839,14 +862,14 @@ class CardPreviewModal extends Modal {
             const body = row.createDiv({ cls: 'fakecards-preview-body' });
             body.createDiv({
                 cls: 'fakecards-preview-type',
-                text: draft.type === 'qa' ? 'Q&A' : 'Cloze',
+                text: draft.type === 'qa' ? tt('Q&A') : tt('Cloze'),
             });
             body.createDiv({ cls: 'fakecards-preview-front', text: draft.front });
             body.createDiv({ cls: 'fakecards-preview-back', text: draft.back });
         });
 
         new Setting(contentEl).addButton((button) => button
-            .setButtonText('Create cards')
+            .setButtonText(tt('Create cards'))
             .setCta()
             .onClick(async () => {
                 let created = 0;
@@ -856,7 +879,7 @@ class CardPreviewModal extends Modal {
                     for (const card of cards) await this.plugin.store.save(card);
                     created += cards.length;
                 }
-                new Notice(`Created ${created} card(s).`);
+                new Notice(ttf('Created {count} card(s).', { count: created }));
                 this.close();
             }));
     }

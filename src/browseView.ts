@@ -5,6 +5,7 @@ import { ClozePanelModal } from './clozePanel';
 import { QaPanelModal } from './qaPanel';
 import { CardPreviewDialog } from './cardPreview';
 import { ConfirmDialog } from './confirm';
+import { tt, ttf } from './i18n';
 import { matchesQuery, SearchContext } from './search';
 import { jumpToCardSource } from './sourceJump';
 import { renderViewNav } from './viewNav';
@@ -41,7 +42,7 @@ export class BrowseView extends ItemView {
     }
 
     getDisplayText(): string {
-        return 'fakecard: browse';
+        return tt('Browse');
     }
 
     getIcon(): string {
@@ -92,7 +93,7 @@ export class BrowseView extends ItemView {
             await this.plugin.store.save(card);
         }
         this.checked.clear();
-        new Notice('Cards moved.');
+        new Notice(tt('Cards moved.'));
         await this.reload();
     }
 
@@ -125,7 +126,7 @@ export class BrowseView extends ItemView {
         for (const deck of ['all', ...this.decks]) {
             const option = deckSelect.createEl('option');
             option.value = deck;
-            option.textContent = deck === 'all' ? 'All decks' : deck;
+            option.textContent = deck === 'all' ? tt('All decks') : deck;
         }
         deckSelect.value = this.deckFilter;
         deckSelect.addEventListener('change', () => {
@@ -135,7 +136,7 @@ export class BrowseView extends ItemView {
 
         const search = bar.createEl('input', { cls: 'fakecard-browse-search' });
         search.type = 'search';
-        search.placeholder = 'Search… (deck:方剂 tag:麻黄 is:due is:child -tag:x prop:due<7)';
+        search.placeholder = tt('Search… (deck:deckname tag:tag is:due is:child -tag:x prop:due<7)');
         search.value = this.query;
         search.addEventListener('input', () => {
             this.query = search.value;
@@ -150,13 +151,13 @@ export class BrowseView extends ItemView {
         if (this.checked.size > 0) {
             bar.createSpan({
                 cls: 'fakecard-browse-count',
-                text: `${this.checked.size} selected`,
+                text: ttf('{count} selected', { count: this.checked.size }),
             });
 
             const moveSelect = bar.createEl('select', { cls: 'dropdown' });
             const placeholder = moveSelect.createEl('option');
             placeholder.value = '';
-            placeholder.textContent = 'Move to…';
+            placeholder.textContent = tt('Move to…');
             for (const deck of this.decks) {
                 const option = moveSelect.createEl('option');
                 option.value = deck;
@@ -166,22 +167,22 @@ export class BrowseView extends ItemView {
                 if (moveSelect.value) void this.moveChecked(moveSelect.value);
             });
 
-            bar.createEl('button', { text: 'Delete selected' }).addEventListener('click', () => {
+            bar.createEl('button', { text: tt('Delete selected') }).addEventListener('click', () => {
                 new ConfirmDialog(
                     this.app,
-                    `Delete ${this.checked.size} card(s)?`,
-                    'Delete',
+                    ttf('Delete {count} card(s)?', { count: this.checked.size }),
+                    tt('Delete'),
                     async () => {
                         for (const id of this.checked) await this.plugin.store.remove(id);
                         this.checked.clear();
-                        new Notice('Cards deleted.');
+                        new Notice(tt('Cards deleted.'));
                         await this.reload();
                     },
                 ).open();
             });
         }
 
-        bar.createEl('button', { text: 'New card' }).addEventListener('click', () => {
+        bar.createEl('button', { text: tt('New card') }).addEventListener('click', () => {
             void this.plugin.newCard();
         });
 
@@ -200,7 +201,7 @@ export class BrowseView extends ItemView {
         for (const [label, preset] of presets) {
             const chip = chips.createEl('button', {
                 cls: `fakecard-chip${this.query === preset ? ' is-active' : ''}`,
-                text: label,
+                text: tt(label),
             });
             chip.addEventListener('click', () => {
                 this.query = preset;
@@ -213,13 +214,13 @@ export class BrowseView extends ItemView {
         // Left: table.
         const listEl = body.createDiv({ cls: 'fakecard-browse-list' });
         if (this.filtered.length === 0) {
-            listEl.createEl('p', { text: 'No card matches.' });
+            listEl.createEl('p', { text: tt('No card matches.') });
         } else {
             const table = listEl.createEl('table', { cls: 'fakecard-browse-table' });
             const head = table.createEl('tr');
             head.createEl('th', { text: '' });
             for (const label of ['Front', 'Type', 'Deck', 'Reviews']) {
-                head.createEl('th', { text: label });
+                head.createEl('th', { text: tt(label) });
             }
             for (const card of this.filtered) {
                 const row = table.createEl('tr', { cls: 'fakecard-browse-row' });
@@ -236,8 +237,8 @@ export class BrowseView extends ItemView {
                     this.render();
                 });
 
-                const baseType = card.type === 'cloze' ? 'Cloze' : card.type === 'image' ? 'Image' : 'Q&A';
-                const state = card.graduated ? ' · graduated' : card.suspended ? ' · paused' : card.childOf ? ' · child' : '';
+                const baseType = card.type === 'cloze' ? tt('Cloze') : card.type === 'image' ? tt('Image') : tt('Q&A');
+                const state = card.graduated ? ` · ${tt('graduated')}` : card.suspended ? ` · ${tt('paused')}` : card.childOf ? ` · ${tt('child')}` : '';
                 row.createEl('td', { text: card.front.slice(0, 60) });
                 row.createEl('td', { text: `${baseType}${state}` });
                 row.createEl('td', { text: card.deck ?? 'default' });
@@ -253,38 +254,38 @@ export class BrowseView extends ItemView {
         const previewEl = body.createDiv({ cls: 'fakecard-browse-preview' });
         const selected = this.filtered.find((card) => card.id === this.selectedId);
         if (!selected) {
-            previewEl.createEl('p', { text: 'Select a card to preview it.' });
+            previewEl.createEl('p', { text: tt('Select a card to preview it.') });
             return;
         }
 
         const actions = previewEl.createDiv({ cls: 'fakecard-browse-actions' });
-        actions.createEl('button', { text: '👁 Preview' }).addEventListener('click', () => {
+        actions.createEl('button', { text: tt('👁 Preview') }).addEventListener('click', () => {
             new CardPreviewDialog(this.app, selected, this.plugin.settings.maskAllGroups).open();
         });
-        actions.createEl('button', { text: '↗ Source' }).addEventListener('click', () => {
+        actions.createEl('button', { text: tt('↗ Source') }).addEventListener('click', () => {
             void jumpToCardSource(this.app, selected);
         });
-        actions.createEl('button', { text: '✎ Edit' }).addEventListener('click', () => {
+        actions.createEl('button', { text: tt('✎ Edit') }).addEventListener('click', () => {
             this.openEditor(selected);
         });
-        actions.createEl('button', { text: '🗑 Delete' }).addEventListener('click', () => {
+        actions.createEl('button', { text: tt('🗑 Delete') }).addEventListener('click', () => {
             new ConfirmDialog(
                 this.app,
-                `Delete this card?\n\n${selected.front.slice(0, 120)}`,
-                'Delete',
+                `${tt('Delete this card?')}\n\n${selected.front.slice(0, 120)}`,
+                tt('Delete'),
                 async () => {
                     await this.plugin.store.remove(selected.id);
-                    new Notice('Card deleted.');
+                    new Notice(tt('Card deleted.'));
                     await this.reload();
                 },
             ).open();
         });
 
-        previewEl.createDiv({ cls: 'fakecard-preview-label', text: 'Front' });
+        previewEl.createDiv({ cls: 'fakecard-preview-label', text: tt('Front') });
         const frontEl = previewEl.createDiv({ cls: 'fakecard-card-view' });
         this.renderPreview(frontEl, selected, false);
 
-        previewEl.createDiv({ cls: 'fakecard-preview-label', text: 'Back' });
+        previewEl.createDiv({ cls: 'fakecard-preview-label', text: tt('Back') });
         const backEl = previewEl.createDiv({ cls: 'fakecard-card-view' });
         this.renderPreview(backEl, selected, true);
     }

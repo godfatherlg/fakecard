@@ -1,4 +1,5 @@
 import { setIcon, WorkspaceLeaf } from 'obsidian';
+import { tt } from './i18n';
 import type FakeCardPlugin from '../main';
 
 /** The three main-area pages, in the order the nav bar shows them. */
@@ -32,7 +33,7 @@ export function renderViewNav(
             attr: isActive ? { 'aria-selected': 'true', role: 'tab' } : { 'aria-selected': 'false', role: 'tab' },
         });
         setIcon(button.createSpan({ cls: 'fakecard-nav-icon' }), item.icon);
-        button.createSpan({ cls: 'fakecard-nav-label', text: item.label });
+        button.createSpan({ cls: 'fakecard-nav-label', text: tt(item.label) });
         button.addEventListener('click', () => {
             if (isActive) return;
             void plugin.navigateTo(item.page, leaf);

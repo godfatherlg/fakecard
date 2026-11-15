@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.7';
+export const WHATS_NEW_VERSION = '1.0.8';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,20 +25,24 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The ribbon icon now opens Statistics, and a Statistics / Browse / Review strip switches between the three pages in place - no duplicate tabs.',
-        zh: '功能区图标现在打开统计界面，顶部一行 Statistics / Browse / Review 在三个页面之间原地切换，不会重复开标签。',
+        en: 'Anki imports now carry the full review history: every rating lands in the daily log, so the heatmap, the retention numbers and the child-card streak all see it. Duplicates ask whether to use the Anki schedule or keep the current one.',
+        zh: 'Anki 导入会带上完整复习历史：每一条评分都写进按日日志，热力图、留存率和子卡失败连击都能读到。重复卡会询问使用 Anki 进度还是保留当前进度。',
     },
     {
-        en: 'Exam plans are reworked: several plans at once, each with a countdown in days, ticked decks and a share, plus a live "cards per day" estimate before you build.',
-        zh: '考试计划重做：可以同时建多个计划，每个有自己的剩余天数、勾选的牌组和比例，生成前就能看到每天多少张。',
+        en: 'Review settings grew two pages: Again / Hard / Good / Easy can each be bound to a key (Space and digits work), and the card sits in a centred column or spans the full pane.',
+        zh: '复习设置多了两项：Again / Hard / Good / Easy 可以各自绑定按键（空格和数字都行），卡片可选居中一栏或铺满窗格。',
     },
     {
-        en: 'The suggested answer time is now configurable: base seconds, seconds per 40 characters of answer, and how strongly the card history moves it.',
-        zh: '建议作答时间可以调了：基础秒数、答案每 40 字增加的秒数、以及评分历史的影响权重。',
+        en: 'A card that keeps failing now offers a child card right in review, showing the recent failing score - Q&A, cloze or image occlusion - and the parent is paused. Ratings can be undone.',
+        zh: '反复失败的卡会在复习界面直接提示建子卡，并显示最近的失败分数——问答、填空或图片遮挡都可以，父卡自动暂停。评分可以撤销。',
     },
     {
-        en: 'Child cards take two new settings: the Hard streak threshold (2-10) and how much an Again counts towards a failing run (0-3).',
-        zh: '子卡新增两个设置：Hard 连击阈值（2–10）和 Again 在失败连击里的记分（0–3）。',
+        en: 'The heatmap is rebuilt GitHub-style: 7 rows, horizontal scrolling, drag to pan, arrows to page through, and it covers the whole history instead of the last 90 days.',
+        zh: '热力图按 GitHub 风格重做：7 行、横向滚动、可拖动、两侧箭头翻页，显示全部历史而不是固定 90 天。',
+    },
+    {
+        en: 'The answer button and the four rating buttons use pale fills with matching text instead of full-strength colour blocks.',
+        zh: '「显示答案」和四个评分按钮改成淡底同色系文字，不再是大块饱和色。',
     },
 ];
 
