@@ -1,71 +1,113 @@
-# 1.0.6
+# 1.0.7
 
 ## 中文
 
-### 默认卡片库文件夹改为 `fakecard`
+### 统计页成为入口
 
-新建的卡片库现在放在 vault 的 `fakecard/` 文件夹（原来是 `Fake Cards/`）。
+左侧功能区图标不再直接进 Browse，而是打开**统计**界面。统计页和浏览页顶部多了一行 `Statistics / Browse / Review`，在三个界面之间切换：
 
-- 全新安装、或在保存过设置之前就升级的安装，会直接使用新默认值
-- 已经在 `data.json` 里保存过 `libraryFolder` 的安装行为不变：插件照旧读写原来那个文件夹，不会自动移动或改名任何文件。想切换的话，把设置里的「卡片库文件夹」改成 `fakecard`，或先用文件管理器把 `Fake Cards/` 重命名为 `fakecard/` 再改设置
+- 已经有同名标签时直接跳过去并刷新，不会开出第二个相同标签
+- 没有时原地替换当前标签，所以来回点不会堆一排页签
+- 正在进行的复习在自己的标签里，不会被导航顶掉
+- 命令面板照旧可以单独打开任意一页：**Open statistics** / **Browse and edit cards** / **Start reviewing**
 
-### 修复：打开插件设置页时整窗卡死
+### 考试计划重做：多个计划、天数、牌组勾选、每日数量预估
 
-症状：进入 fakecard 的设置标签页后整个窗口无响应，切标签、按 Esc 都没反应，只能强杀进程。
+**多个计划**：设置 → 考试计划 里可以一次建多个计划（一科一个）。每个计划有自己的名称、剩余天数、牌组和参与比例，右上角 `×` 删除。命令 **Build an exam plan** 在有多个计划时会先弹菜单让你选一个。
 
-原因是 `src/settings.ts` 里这一行：
+**用天数代替日期**：「还有多久考试」直接填天数（默认 30），不用再算日期：
 
-```ts
-void this.plugin.store.loadDecks().then((decks) => area.setValue(decks.join('\n')));
-```
+- 填 `0` 表示今天考，卡片全部排在今天
+- 数字按自然日计算，填多少就是多少，不会因为当前时刻而漂移；每天自动递减
+- 旧版保存过的考试日期在升级后自动变成第一个计划，不会丢配置
+- 考试当天过后，该计划自动消失（设置页先隐藏，下次打开复习时正式移除），卡片回到常规 FSRS 排程，数据全部保留
 
-箭头函数是表达式体，返回了 `area.setValue(...)` 的返回值，也就是文本组件本身。Obsidian 的声明式设置里 `Setting` 和它创建的组件都带一个 `then` 方法（`then(t){ return t(this), this }`），于是这个 Promise 用「带 `then` 的对象」去 resolve；按规范解析时会再调用它的 `then`，它又把自己 resolve 出去——微任务无限自我调度，主线程再也回不到事件循环，界面因此彻底冻死。设置页一渲染就会执行这段代码，所以一进去就卡。
+**牌组改为勾选**：直接列出库里已有的牌组，勾哪个就纳入哪个；一个都不勾表示全部牌组。
 
-修复：回调改成语句体、只做 DOM 赋值不返回值，并补上 `.catch()`。牌组下拉框里同样的写法一并加固。设置页在 28 个设置项全部渲染的情况下打开耗时 6ms（修复前是无限挂起）。
+**比例下方实时显示负荷**：拖动滑块、改天数或改牌组后，下面立刻算出这个计划每天要复习多少张：
 
-### 新增：更新后的「更新内容」弹窗
+- `≈ 每天 2 张，共 3 天`
+- `选中的 6 张里有 6 张排在考试之后，会被铺到考前（每日上限 200）`
+- 超过每日复习上限时追加一行红字提醒降低比例
 
-升级到新版本后，第一次启动会弹一次更新说明，按钮可以跳到这一版的 GitHub 发布页。
+生成前照旧自动备份到 `fakecard/backup/exam-plan-<计划 id>-<时间>.json`。
 
-- 只在版本真的变了时弹一次；全新安装不弹（对没有历史可言的安装没有意义）
-- 文案随 Obsidian 的界面语言在中文与英文之间切换，内容内置在插件里，不联网、离线可用
+### 建议作答时间可以调了
+
+复习时「已用 / 建议」的预估改成 True Recall 那版算法：基础秒数 + 答案阅读时间，再按这张卡的评分历史加权。设置里多出三项：
+
+- **作答时间：基础秒数**（默认 10，范围 5–120）
+- **作答时间：每 40 字增加的秒数**（默认 10，设为 0 忽略答案长度）
+- **作答时间：评分历史权重 %**（默认 -20：反复失败的卡更早提示，避免过度纠结；正数则相反）
+
+只有卡片停留超过建议时长后才显示计时，提前显示反而会增加压力。
+
+### 子卡失败判定可调
+
+把子卡的连击判定抽成了纯函数，并开放两个设置：
+
+- **Hard 连击阈值**：2–10（默认 4），即最近多少次 Hard 及以上算「卡住了」
+- **Again 记分**：0–3（默认 2），Again 在一次失败连击里算几分，设为 0 则 Again 不再推动阈值
 
 ### 测试提示
 
-- 设置页应能正常打开，牌组文本框显示当前的牌组列表
-- 从 1.0.5 升级（`data.json` 里已有 `lastSeenVersion`）时才会看到更新弹窗；想复测可以删掉 `data.json` 里的 `lastSeenVersion`，或把它改成旧版本号
+- 点功能区应进入统计页；点 Browse / Review 原地切换，标签数量保持 1
+- 设置里建两个计划（比如一个 3 天、一个 10 天），勾选一个牌组，看预估是否随滑块变化；点「生成」后检查卡片被均匀铺到考前
+- 从 1.0.6 升级时，旧的考试日期应该自动出现在计划列表里
+- 复习一张卡停留超过建议时长后，计时才出现
 
 ## English
 
-### The default card library folder is now `fakecard`
+### Statistics is now the entry point
 
-A new library lives in the vault's `fakecard/` folder (it used to be `Fake Cards/`).
+The ribbon icon opens **Statistics** instead of Browse, and both Statistics and Browse now carry a `Statistics / Browse / Review` strip at the top:
 
-- A fresh install, or an install that had never saved settings, picks up the new default directly
-- Installs that already store `libraryFolder` in `data.json` behave exactly as before: the plugin keeps reading and writing that same folder, and nothing is moved or renamed for you. To switch, set "Card library folder" to `fakecard`, or rename `Fake Cards/` to `fakecard/` in your file manager first and then update the setting
+- An already-open tab of that page is revealed and refreshed instead of opening a second one
+- Otherwise the current tab is replaced, so clicking back and forth never piles up tabs
+- A review session in its own tab is not displaced by the navigation
+- The command palette still opens any page on its own: **Open statistics** / **Browse and edit cards** / **Start reviewing**
 
-### Fixed: the whole window froze when opening the plugin settings tab
+### Exam plans reworked: several plans, countdowns in days, ticked decks, a live daily estimate
 
-Symptom: entering the fakecard settings tab made the entire window unresponsive - switching tabs and Esc did nothing, only killing the process helped.
+**Several plans**: Settings → Exam plan now holds any number of plans (one per subject). Each has its own name, countdown, decks and share, and a `×` to delete it. The command **Build an exam plan** asks which plan to build when more than one exists.
 
-The cause was this line in `src/settings.ts`:
+**Days instead of a date**: "Days until the exam" is a plain number (default 30), so there is no date to work out:
 
-```ts
-void this.plugin.store.loadDecks().then((decks) => area.setValue(decks.join('\n')));
-```
+- `0` means the exam is today and every card lands today
+- The number is calendar-based, so what you typed is what you see; it decreases by itself every day
+- A single exam date saved by an older version is migrated into the first plan on upgrade, nothing is lost
+- Once the exam day is over the plan disappears (hidden in Settings, removed for good the next time review opens) and its cards return to the normal FSRS schedule with all their data intact
 
-The arrow function has an expression body, so it returned whatever `area.setValue(...)` returns - the text component itself. In Obsidian's declarative settings both `Setting` and the components it creates carry a `then` method (`then(t){ return t(this), this }`), so the promise was resolved with a thenable: resolving it calls that `then`, which resolves itself again, and the microtask queue schedules itself forever. The main thread never returns to the event loop, hence the frozen UI. That render callback runs as soon as the tab is drawn, which is why opening the tab was enough.
+**Decks are ticked now**: the decks you already have are listed; tick the ones the plan covers, tick none for every deck.
 
-Fix: the callback is now a statement body that only assigns to the DOM and returns nothing, with a `.catch()` added. The same pattern in the deck dropdown was hardened too. The tab now opens in 6ms with all 28 rows rendered (it used to hang indefinitely).
+**The load is shown under the share slider**: dragging the slider, changing the countdown or ticking a deck immediately recomputes what the plan means per day:
 
-### New: a "what is new" dialog after each update
+- `≈ 2 card(s) per day, over 3 day(s)`
+- `6 of the 6 selected cards are due after the exam and get spread out (daily cap 200)`
+- When it exceeds the daily review limit, a red line suggests lowering the share
 
-The first start after an upgrade shows the release notes once, with a button that opens this version's GitHub release page.
+Building still writes a backup to `fakecard/backup/exam-plan-<plan id>-<time>.json` first.
 
-- It appears once and only when the version really changed; it is skipped on a fresh install, where notes about past releases mean nothing
-- The text follows Obsidian's UI language (English or Chinese), ships inside the plugin and needs no network access
+### The suggested answer time is configurable
+
+The "used / suggested" timer in review now uses the True Recall algorithm: a base budget plus reading time for the answer, weighted by the card's rating history. Three new settings:
+
+- **Answer time: base seconds** (default 10, range 5–120)
+- **Answer time: seconds per 40 characters** (default 10; 0 ignores answer length)
+- **Answer time: rating history weight (%)** (default -20, so cards you keep failing are flagged earlier instead of making you dwell on them; use a positive value for the opposite)
+
+The timer only appears once a card stays past its suggested time - showing it earlier turns it into pressure.
+
+### Child-card failure scoring is configurable
+
+The child-card streak logic now lives in pure helpers, and two settings are exposed:
+
+- **Hard streak threshold**: 2–10 (default 4) - how many recent Hard-or-worse ratings count as "stuck"
+- **Again score**: 0–3 (default 2) - what an Again contributes to a failing run; 0 makes Again part of the run but never push the threshold on its own
 
 ### Please test
 
-- The settings tab should open normally and the decks box should show the current deck list
-- The dialog only shows when upgrading from 1.0.5 (where `data.json` already has `lastSeenVersion`); to re-test, delete `lastSeenVersion` from `data.json` or set it to an older version
+- The ribbon icon should open Statistics; Browse / Review should switch in place and keep the tab count at 1
+- Create two plans (say 3 days and 10 days), tick a deck, and check the estimate follows the slider; press Build and confirm cards are spread over the days before the exam
+- Upgrading from 1.0.6 should show the old exam date as the first plan
+- The review timer should only appear after a card stays past its suggested time

@@ -2,7 +2,8 @@ import { App, Editor, FileSystemAdapter, MarkdownFileInfo, MarkdownView, Menu, M
 import type { CardImage, CardRecord } from './src/card';
 import { clozeGroups, renderCloze, selectionToClozeText } from './src/cloze';
 import { ClozePanelModal } from './src/clozePanel';
-import { buildExamPlan as buildExamPlanImpl } from './src/examPlan';
+import type { ExamPlanConfig } from './src/examPlan';
+import { buildExamPlan as buildExamPlanImpl, legacyExamPlan } from './src/examPlan';
 import { ImagePanelModal } from './src/imagePanel';
 import {
     importApkgFile as importApkgFileImpl,
@@ -24,6 +25,7 @@ import { DEFAULT_SETTINGS, FakeCardSettings, FakeCardSettingTab } from './src/se
 import { findSourceTarget } from './src/sourceLocate';
 import { syncClozeGroup as syncClozeGroupImpl } from './src/sourceSync';
 import { CardStore } from './src/store';
+import type { FakeCardPage } from './src/viewNav';
 import { WHATS_NEW_VERSION, WhatsNewModal } from './src/whatsNew';
 
 export default class FakeCardPlugin extends Plugin {
@@ -89,8 +91,8 @@ export default class FakeCardPlugin extends Plugin {
         this.registerView(REVIEW_VIEW_TYPE, (leaf) => new ReviewView(leaf, this));
         this.registerView(BROWSE_VIEW_TYPE, (leaf) => new BrowseView(leaf, this));
         this.registerView(STATS_VIEW_TYPE, (leaf) => new StatsView(leaf, this));
-        this.addRibbonIcon('table', 'fakecard: browse cards', () => {
-            void this.openBrowse();
+        this.addRibbonIcon('bar-chart-2', 'fakecard: statistics', () => {
+            void this.openStats();
         });
 
         // Reading view: show a small badge next to the block a card came from.
@@ -209,7 +211,7 @@ export default class FakeCardPlugin extends Plugin {
 
         this.addCommand({
             id: 'reschedule-for-exam',
-            name: 'Build the exam plan (spread cards until the exam)',
+            name: 'Build an exam plan (spread cards until the exam)',
             callback: () => {
                 void this.buildExamPlan();
             },
@@ -343,6 +345,17 @@ export default class FakeCardPlugin extends Plugin {
     async loadSettings() {
         const loaded = (await this.loadData()) as Partial<FakeCardSettings> | null;
         this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
+        if (!Array.isArray(this.settings.examPlans)) this.settings.examPlans = [];
+        // The old single exam date becomes the first plan, so an update does
+        // not lose the countdown the user already had.
+        if (this.settings.examPlans.length === 0) {
+            const migrated = legacyExamPlan(
+                this.settings.examDate ?? '',
+                this.settings.examDecks ?? '',
+                this.settings.examPlanRatio ?? 100,
+            );
+            if (migrated) this.settings.examPlans = [migrated];
+        }
     }
 
     async saveSettings() {
@@ -586,6 +599,32 @@ export default class FakeCardPlugin extends Plugin {
         if (view instanceof StatsView) await view.reload();
     }
 
+    /**
+     * Switch the page a fakecard tab shows (the nav strip below Statistics /
+     * Browse). An already-open page is revealed and refreshed instead, so a
+     * review session living in its own tab survives navigation.
+     */
+    async navigateTo(page: FakeCardPage, from: WorkspaceLeaf): Promise<void> {
+        const type = page === 'stats'
+            ? STATS_VIEW_TYPE
+            : page === 'browse'
+                ? BROWSE_VIEW_TYPE
+                : REVIEW_VIEW_TYPE;
+
+        const existing = this.app.workspace.getLeavesOfType(type)[0] ?? null;
+        if (existing && existing !== from) {
+            void this.app.workspace.revealLeaf(existing);
+            const view = existing.view;
+            if (view instanceof StatsView) await view.reload();
+            else if (view instanceof BrowseView) await view.reload();
+            else if (view instanceof ReviewView) await view.reload();
+            return;
+        }
+
+        // Replace the current tab: the nav is one surface, not a tab factory.
+        await from.setViewState({ type, active: true });
+    }
+
     // ----- External import -----
 
     async importFromClipboard(): Promise<void> {
@@ -596,8 +635,8 @@ export default class FakeCardPlugin extends Plugin {
         return cleanOrphansImpl(this);
     }
 
-    async buildExamPlan(): Promise<void> {
-        return buildExamPlanImpl(this);
+    async buildExamPlan(plan?: ExamPlanConfig): Promise<void> {
+        return buildExamPlanImpl(this, plan);
     }
 
     async cleanGraduated(): Promise<void> {

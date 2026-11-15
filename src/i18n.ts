@@ -25,8 +25,10 @@ const EN = {
     'creation.childCards.desc': 'Pause a card that keeps failing and study it through easier stand-ins. Children graduate after a Good streak; when every child has graduated, the parent comes back.',
     'creation.goodStreak.name': 'Good streak to graduate a child',
     'creation.goodStreak.desc': 'Consecutive Good or Easy ratings a child needs before it graduates.',
-    'creation.hardStreak.name': 'Hard streak before a hint',
-    'creation.hardStreak.desc': 'Consecutive Hard ratings on a child card before review suggests simplifying it.',
+    'creation.hardStreak.name': 'Failing score before a hint',
+    'creation.hardStreak.desc': 'Hard adds 1 point, Again adds the score below; once the current failing run reaches this score, review offers to build a simpler card from it. A Good or Easy ends the run.',
+    'creation.againScore.name': 'Score an Again adds',
+    'creation.againScore.desc': 'Points an Again rating adds to the failing score (Hard always adds 1). 0 keeps Again in the run without adding points.',
 
     'review.heading': 'Review',
     'review.newPerDay.name': 'New cards per day',
@@ -34,24 +36,33 @@ const EN = {
     'review.maxPerDay.name': 'Maximum reviews per day',
     'review.maxPerDay.desc': 'Upper bound on cards shown in a single day.',
     'review.answerTime.name': 'Show suggested answer time',
-    'review.answerTime.desc': 'Review shows an estimated time for the current card: a base budget plus reading time for the answer, adjusted by how hard the card has been.',
+    'review.answerTime.desc': 'Once a card passes its suggested time, review shows how long it has been on screen. The budget is a base plus reading time for the answer, adjusted by the card\'s rating history.',
     'review.answerBase.name': 'Answer time: base seconds',
     'review.answerBase.desc': 'Seconds allowed for a short answer before reading time is added.',
+    'review.answerChunk.name': 'Answer time: seconds per 40 characters',
+    'review.answerChunk.desc': 'Reading time added for every 40 characters of answer, on top of the base. 0 ignores answer length.',
+    'review.answerWeight.name': 'Answer time: rating history weight (%)',
+    'review.answerWeight.desc': 'Positive gives cards you keep failing more time (slow recall). Negative nudges them earlier (counters overthinking). 0 ignores rating history.',
 
     'display.heading': 'Card display',
     'display.maskAll.name': 'Mask all groups on the front',
     'display.maskAll.desc': 'On: every group of a cloze or image card is hidden on the front (the answer side always reveals everything). Off: only the group this card asks is hidden, the other groups stay visible.',
 
     'exam.heading': 'Exam plan',
-    'exam.date.name': 'Exam date',
-    'exam.date.desc': 'Target date (YYYY-MM-DD). The exam plan spreads the selected cards across the days until then, so nothing lands after the exam. Once the date passes, the plan is dropped automatically and cards return to the normal FSRS schedule.',
-    'exam.decks.name': 'Exam plan: decks',
-    'exam.decks.desc': 'Comma separated deck names to include (empty = every deck). Cards from these decks are still ordered by difficulty, so the hardest ones enter the plan first.',
-    'exam.ratio.name': 'Exam plan: share of cards',
-    'exam.ratio.desc': 'How many cards join the plan, hardest first. 100% = every card; lower means fewer cards per day, at the cost of coverage.',
-    'exam.build.name': 'Build the exam plan now',
-    'exam.build.desc': 'Applies the settings above: pulls cards due after the exam into the remaining days and writes a backup first.',
-    'exam.build.button': 'Build plan',
+    'exam.plans.name': 'Exam plans',
+    'exam.plans.desc': 'Each plan has its own countdown, decks and share, so several exams can be planned side by side (one per subject, for example). Building a plan only reschedules the cards in its own decks. A plan disappears once its exam day is over; the cards stay and go back to the normal FSRS schedule.',
+    'exam.plans.empty': 'No exam plans yet.',
+    'exam.plans.add': 'Add an exam plan',
+    'exam.plan.days': 'Days until the exam',
+    'exam.plan.daysUnit': 'days',
+    'exam.plan.decks': 'Decks',
+    'exam.plan.ratio': 'Share of cards',
+    'exam.plan.build': 'Build',
+    'exam.plan.delete': 'Delete this plan',
+    'exam.estimate.line': '≈ {perDay} card(s) per day, over {days} day(s)',
+    'exam.estimate.detail': '{moved} of the {selected} selected cards are due after the exam and get spread out (daily cap {cap}).',
+    'exam.estimate.empty': 'No reviewed cards in these decks yet.',
+    'exam.estimate.overloaded': 'More cards than the daily review limit allows - lower the share.',
 
     'io.heading': 'Import and export',
     'io.external.name': 'External AI / tools',
@@ -96,8 +107,10 @@ const ZH: Record<UiTextKey, string> = {
     'creation.childCards.desc': '反复出错的卡片先暂停，改用更容易的替代卡片学习。子卡片连续评 Good 后毕业；全部毕业后原卡片自动恢复。',
     'creation.goodStreak.name': '子卡片毕业所需的 Good 连续次数',
     'creation.goodStreak.desc': '子卡片需要连续获得 Good 或 Easy 的次数。',
-    'creation.hardStreak.name': '触发提示所需的 Hard 连续次数',
-    'creation.hardStreak.desc': '子卡片连续评为 Hard 达到此次数后，复习时会建议简化它。',
+    'creation.hardStreak.name': '触发提示所需的失败分',
+    'creation.hardStreak.desc': 'Hard 记 1 分，Again 记下面设置的分数；最近这一轮失败累计达到此分数时，复习时会给出一张更简单卡片的建卡入口。任意 Good 或 Easy 都会结束这一轮。',
+    'creation.againScore.name': 'Again 记几分',
+    'creation.againScore.desc': 'Again 在失败分里折算的分数（Hard 固定记 1 分）。设为 0 时 Again 仍算在失败连续中，但不加分。',
 
     'review.heading': '复习',
     'review.newPerDay.name': '每天新卡数量',
@@ -105,24 +118,33 @@ const ZH: Record<UiTextKey, string> = {
     'review.maxPerDay.name': '每天复习上限',
     'review.maxPerDay.desc': '单日最多展示的卡片数量。',
     'review.answerTime.name': '显示建议作答时间',
-    'review.answerTime.desc': '复习时给出当前卡片的预估用时：基础时间加上答案的阅读时间，并按这张卡以往的难度调整。',
+    'review.answerTime.desc': '卡片超过预估用时后，复习界面会显示它已经在屏幕上停留了多久。预估由基础时间加上答案的阅读时间，再按这张卡的评分历史调整。',
     'review.answerBase.name': '作答时间：基础秒数',
     'review.answerBase.desc': '加上阅读时间之前，简短回答可用的秒数。',
+    'review.answerChunk.name': '作答时间：每 40 字增加的秒数',
+    'review.answerChunk.desc': '在基础时间之上，答案每 40 个字符追加的阅读时间。设为 0 表示完全不考虑答案长度。',
+    'review.answerWeight.name': '作答时间：评分历史权重（%）',
+    'review.answerWeight.desc': '正数给反复失败的卡片更多时间（慢慢回忆）。负数让这类卡片更早提示（避免过度纠结）。0 表示不考虑历史。',
 
     'display.heading': '卡片显示',
     'display.maskAll.name': '正面遮住所有分组',
     'display.maskAll.desc': '开：填空题或图片卡的正面遮住所有分组（答案面始终全部显示）。关：只遮住本卡片所问的分组，其他分组保持可见。',
 
     'exam.heading': '考试计划',
-    'exam.date.name': '考试日期',
-    'exam.date.desc': '目标日期（YYYY-MM-DD）。考试计划会把选中的卡片分摊到考前各天，不会有卡片排到考试之后。日期过去后计划自动取消，卡片回到常规 FSRS 排程。',
-    'exam.decks.name': '考试计划：牌组',
-    'exam.decks.desc': '要纳入的牌组名，用逗号分隔（留空表示全部牌组）。这些牌组内的卡片仍按难度排序，最难的先进入计划。',
-    'exam.ratio.name': '考试计划：参与卡片比例',
-    'exam.ratio.desc': '有多少卡片加入计划，从最难的开始。100% 表示全部卡片；比例越低每天卡片越少，但覆盖的内容也更少。',
-    'exam.build.name': '立即生成考试计划',
-    'exam.build.desc': '应用上面的设置：把考试之后到期的卡片拉回考前的剩余天数，并先写入一份备份。',
-    'exam.build.button': '生成计划',
+    'exam.plans.name': '考试计划',
+    'exam.plans.desc': '每个计划有自己的剩余天数、牌组和参与比例，可以同时存在多个（比如按科目分开）。生成某个计划只会重排它自己牌组里的卡片。考试当天过后计划自动消失，卡片保留并回到常规 FSRS 排程。',
+    'exam.plans.empty': '还没有考试计划。',
+    'exam.plans.add': '添加考试计划',
+    'exam.plan.days': '还有多久考试',
+    'exam.plan.daysUnit': '天',
+    'exam.plan.decks': '牌组',
+    'exam.plan.ratio': '参与比例',
+    'exam.plan.build': '生成',
+    'exam.plan.delete': '删除这个计划',
+    'exam.estimate.line': '≈ 每天 {perDay} 张，共 {days} 天',
+    'exam.estimate.detail': '选中的 {selected} 张里有 {moved} 张排在考试之后，会被铺到考前（每日上限 {cap}）。',
+    'exam.estimate.empty': '这些牌组里还没有可排的卡。',
+    'exam.estimate.overloaded': '数量超过每日复习上限，建议降低比例。',
 
     'io.heading': '导入与导出',
     'io.external.name': '外部 AI / 工具',
@@ -155,6 +177,13 @@ function detectLang(): Lang {
 /** Settings text for the current Obsidian language. */
 export function t(key: UiTextKey): string {
     return detectLang() === 'zh' ? ZH[key] : EN[key];
+}
+
+/** Same as `t`, with `{name}` placeholders filled in. */
+export function tf(key: UiTextKey, vars: Record<string, string | number>): string {
+    return t(key).replace(/\{(\w+)\}/g, (match, name: string) => (
+        name in vars ? String(vars[name]) : match
+    ));
 }
 
 /**

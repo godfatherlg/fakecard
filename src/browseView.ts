@@ -7,6 +7,7 @@ import { CardPreviewDialog } from './cardPreview';
 import { ConfirmDialog } from './confirm';
 import { matchesQuery, SearchContext } from './search';
 import { jumpToCardSource } from './sourceJump';
+import { renderViewNav } from './viewNav';
 import type FakeCardPlugin from '../main';
 
 export const BROWSE_VIEW_TYPE = 'fakecard-browse';
@@ -115,6 +116,7 @@ export class BrowseView extends ItemView {
         const container = this.contentEl;
         container.empty();
         container.addClass('fakecard-browse');
+        renderViewNav(container, this.plugin, this.leaf, 'browse');
 
         // Toolbar.
         const bar = container.createDiv({ cls: 'fakecard-browse-bar' });

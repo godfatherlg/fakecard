@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf } from 'obsidian';
 import { State } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import type { ReviewLog } from './reviews';
+import { renderViewNav } from './viewNav';
 import type FakeCardPlugin from '../main';
 
 export const STATS_VIEW_TYPE = 'fakecard-stats';
@@ -54,6 +55,7 @@ export class StatsView extends ItemView {
         const container = this.contentEl;
         container.empty();
         container.addClass('fakecard-stats');
+        renderViewNav(container, this.plugin, this.leaf, 'stats');
 
         if (this.loading) {
             container.createEl('p', { text: 'Loading…' });

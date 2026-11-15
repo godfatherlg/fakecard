@@ -15,8 +15,8 @@ Features:
 - FSRS scheduling (`ts-fsrs`) with four grades
 - Daily queue: due cards first, with separate caps for new cards and reviews
 - Multi-group cloze and image cards, every group scheduled on its own
-- Child cards: a card you keep failing is paused and studied through easier stand-ins; the parent comes back once they graduate
-- Exam plan: spreads the selected cards over the days before an exam, hardest first
+- Child cards: a card you keep failing offers to build a simpler stand-in from its own text (Hard adds 1 point, Again adds the configured score); the parent is paused only once the child exists and comes back when every child graduates
+- Exam plans: several countdowns at once, each with ticked decks and a share, plus a live "cards per day" estimate before you build
 - Statistics: today, rating distribution, true retention, maturity, heatmap, due forecast, hard cards
 - Anki import (`.apkg`): basic, cloze and image-occlusion notes plus their media
 - Read-only towards your notes: any card can jump back to the exact spot it came from
@@ -30,7 +30,7 @@ Quick start:
 
 1. Put a `*` marker in a heading (`## Ginkgo biloba *`); the heading is the question and the text below it is the answer. Run **Generate Q&A cards from the whole note**.
 2. Highlight text inside a list block; every `==highlight==` becomes a cloze deletion. Run **Generate cloze cards from the whole note**.
-3. Review with **Start reviewing** or the ribbon icon; grade with Again / Hard / Good / Easy (space bar shows the answer).
+3. The ribbon icon opens **Statistics**, which links to **Browse** and **Review** the way the True Recall dashboard does; grade with Again / Hard / Good / Easy (space bar shows the answer).
 
 The settings tab follows the Obsidian language and switches between English and Chinese automatically.
 
@@ -48,7 +48,7 @@ The rest of this document is in Chinese.
 - **每日队列**：到期优先 + 新卡/复习双上限
 - **多组卡片**：一张挖空/图片卡按组拆分，每组独立调度
 - **子卡**：卡住了就拆成更简单的替身，全部毕业父卡自动恢复
-- **考试计划**：按难度排序，把卡片均匀铺到考试前的每一天
+- **考试计划**：可建多个倒计时，勾选牌组 + 比例，生成前先看到每天多少张
 - **统计**：今日、评分分布、真实保持率、成熟度、热力图、到期预测、难卡
 - **Anki 导入**（`.apkg`）：Basic / Cloze / 图片蒙板 + 媒体文件
 - **读而不写**：卡片可跳回原笔记位置（按内容实时定位），阅读模式显示来源徽标
@@ -124,15 +124,21 @@ obsidian://fakecard?data=<URL 编码的 JSON>
 
 可选字段：`sourcePath`（关联笔记）、`sourceText`（定位片段）。`==高亮==` 也会自动转成挖空。
 
+## 入口与导航
+
+左侧 ribbon 图标打开**统计**界面，页面顶部一行 `Statistics / Browse / Review` 在三个界面之间切换（已有同名标签会直接跳过去，不会开一堆标签）。命令面板里也可以单独打开任意一个：**Open statistics** / **Browse and edit cards** / **Start reviewing**。
+
 ## 复习
 
-命令 **Start reviewing** 或左侧 ribbon 图标 → 主区域打开复习界面。
+命令 **Start reviewing** 或统计页顶部的 **Review** → 主区域打开复习界面。
 
 - 问答卡：问题 → Show answer → 答案
 - 挖空/图片卡：**原地揭示**，没有单独的答案块
 - 四档评分：Again / Hard / Good / Easy
 - 空格键显示答案
-- 工具栏：牌组筛选、进度、建议答题时长、考试倒计时、`+ Child`、`↗ Source`、`✎ Edit`
+- 工具栏：牌组筛选、进度、考试倒计时、`+ Child`、`↗ Source`、`✎ Edit`
+- 建议时长：卡片**超过**建议时间后才显示「已用 / 建议」，提前显示反而变成计时压力；切到别的窗口的时间不计入
+- 建子卡：Hard 记 1 分、Again 按设置记分（默认 2），累计到阈值（默认 4）时评分栏上方出现「Card keeps failing - build a child card」，可选 Q&A 或挖空子卡，内容从父卡预填；**子卡真的保存后**父卡才挂起，取消面板不会留下挂着的父卡
 
 ## 浏览与筛选
 
@@ -167,14 +173,16 @@ obsidian://fakecard?data=<URL 编码的 JSON>
 
 ## 考试计划
 
-设置里填考试日期后：
+设置 → **考试计划** 里可以同时建**多个计划**（一科一个），每个计划有自己的名称、剩余天数、牌组和比例：
 
-- 命令 **Build the exam plan**（或设置页按钮）
-- 只纳入指定牌组（留空 = 全部），**按难度从高到低**排序
-- 滑块控制参与比例（10%~100%），越少每天越轻松
-- 到期日在考试之后的卡，会被均匀铺到考试前的每一天，**不超过每日复习上限**
-- 修改前自动备份
-- **考试日期过后自动清除**，回到正常 FSRS 调度，数据全部保留
+- **还有多久考试**填天数（默认 30，填 0 表示今天考），不用填日期；数字每天自动递减，考完当天该计划自动消失
+- **牌组**是勾选，一个都不勾 = 全部牌组
+- 比例滑块下方实时显示这个计划会产生的负荷：`≈ 每天 N 张，共 D 天`，以及「选中的 X 张里有 Y 张排在考试之后」（超过每日上限会变红提示）
+- 点计划上的 **生成** 按钮，或命令 **Build an exam plan**（有多个计划时会让你选一个）
+- 只统计该计划牌组里未挂起、未毕业的卡，**按难度从高到低**排序后取比例部分
+- 到期日在考试之后的卡，会被均匀铺到考前每一天，**不超过每日复习上限**
+- 生成前自动备份到 `fakecard/backup/exam-plan-<id>-<时间>.json`
+- **考试当天过后计划自动移除**，卡片回到正常 FSRS 调度，数据全部保留
 
 ## 数据与隐私
 
@@ -201,7 +209,7 @@ obsidian://fakecard?data=<URL 编码的 JSON>
 | Export all cards (JSON) | 导出 |
 | Clean up orphan cards | 清理来源已删的卡 |
 | Remove graduated child cards | 清理已毕业子卡 |
-| Build the exam plan | 生成考试计划 |
+| Build an exam plan | 生成考试计划（多个计划时选择） |
 | Make occlusion card from the image at the cursor | 光标处图片制卡 |
 
 ## 第三方

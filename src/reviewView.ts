@@ -1,10 +1,12 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf } from 'obsidian';
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import { suggestedAnswerSeconds } from './answerTime';
+import { hasHardStreak, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ClozePanelModal } from './clozePanel';
+import { daysLeft, nextExamPlan, pruneExpiredExamPlans } from './examPlan';
 import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
 import type FakeCardPlugin from '../main';
@@ -29,6 +31,10 @@ export class ReviewView extends ItemView {
     private decks: string[] = ['default'];
     /** When the current card was first shown, for the review duration. */
     private cardShownAt = 0;
+    /** Interval that reveals the answer-time hint; cleared on every render. */
+    private hintTimer: number | null = null;
+    /** Handler that keeps the hint's clock from running while hidden. */
+    private hintVisibilityHandler: (() => void) | null = null;
 
     constructor(leaf: WorkspaceLeaf, private plugin: FakeCardPlugin) {
         super(leaf);
@@ -53,15 +59,13 @@ export class ReviewView extends ItemView {
     async reload(): Promise<void> {
         this.loading = true;
 
-        // The exam is over: drop the date and go back to the long-term plan.
-        // Card data (stability, difficulty, history) is never touched.
-        if (this.plugin.settings.examDate) {
-            const examEnd = new Date(`${this.plugin.settings.examDate}T23:59:59`).getTime();
-            if (Number.isFinite(examEnd) && examEnd < Date.now()) {
-                this.plugin.settings.examDate = '';
-                await this.plugin.saveSettings();
-                new Notice('Exam date has passed - back to the long-term review plan.');
-            }
+        // Plans whose exam day is over are dropped; card data (stability,
+        // difficulty, history) is never touched, cards just go back to FSRS.
+        const expired = await pruneExpiredExamPlans(this.plugin);
+        if (expired > 0) {
+            new Notice(expired === 1
+                ? 'The exam day has passed - that plan was removed and its cards are back on the long-term schedule.'
+                : `${expired} exam plans have passed and were removed. Their cards are back on the long-term schedule.`);
         }
 
         this.decks = await this.plugin.store.loadDecks();
@@ -106,6 +110,7 @@ export class ReviewView extends ItemView {
 
     private render(): void {
         const container = this.contentEl;
+        this.clearAnswerTimeHint();
         container.empty();
         container.addClass('fakecard-review');
 
@@ -147,26 +152,16 @@ export class ReviewView extends ItemView {
             text: `${this.index + 1} / ${this.cards.length}`,
         });
 
-        if (this.plugin.settings.answerTimeHint) {
+        // Countdown of the exam finishing first; plans with a later date still
+        // show up in Settings.
+        const nextPlan = nextExamPlan(this.plugin.settings.examPlans ?? []);
+        if (nextPlan) {
+            const days = daysLeft(nextPlan.date);
             bar.createSpan({
                 cls: 'fakecard-review-time',
-                text: `⏱ ~${suggestedAnswerSeconds(card, this.plugin.settings.answerTimeBase)}s`,
-                attr: { title: 'Suggested answer time, based on the answer length and this card\'s history' },
+                text: days === 0 ? '📅 today' : `📅 ${days}d`,
+                attr: { title: days === 0 ? `${nextPlan.name}: exam today` : `${nextPlan.name}: days until the exam` },
             });
-        }
-
-        if (this.plugin.settings.examDate) {
-            const examEnd = new Date(`${this.plugin.settings.examDate}T23:59:59`).getTime();
-            if (Number.isFinite(examEnd)) {
-                const days = Math.ceil((examEnd - Date.now()) / 86400000);
-                if (days > 0) {
-                    bar.createSpan({
-                        cls: 'fakecard-review-time',
-                        text: `📅 ${days}d`,
-                        attr: { title: 'Days until the exam date' },
-                    });
-                }
-            }
         }
 
         const sourceButton = bar.createEl('button', {
@@ -178,28 +173,15 @@ export class ReviewView extends ItemView {
             void jumpToCardSource(this.app, card);
         });
 
-        if (this.plugin.settings.childCardsEnabled && !card.childOf) {
+        if (this.plugin.settings.childCardsEnabled && !card.childOf && card.type !== 'image') {
             const childButton = bar.createEl('button', {
                 cls: 'fakecard-review-edit',
                 text: '+ Child',
-                attr: { title: 'Pause this card and study it through an easier stand-in' },
+                attr: { title: 'Pause this card and study it through a simpler stand-in' },
             });
-            childButton.addEventListener('click', () => this.createChild(card));
+            childButton.addEventListener('click', (event) => this.chooseChildType(card, event));
         }
 
-        // Child card that keeps getting Hard: suggest simplifying it.
-        if (card.childOf) {
-            const streak = Math.max(1, this.plugin.settings.childHardStreak);
-            const hardGrade: number = Rating.Hard;
-            void this.plugin.reviews.recentForCard(card.id, streak).then((logs) => {
-                if (logs.length < streak || !logs.every((log) => log.rating === hardGrade)) return;
-                const hint = container.createDiv({
-                    cls: 'fakecard-review-hint',
-                    text: `⚠️ ${streak} Hard ratings in a row - consider simplifying this child card.`,
-                });
-                container.insertBefore(hint, container.firstChild);
-            });
-        }
         const editButton = bar.createEl('button', {
             cls: 'fakecard-review-edit',
             text: '✎ Edit',
@@ -208,12 +190,25 @@ export class ReviewView extends ItemView {
             this.openEditor(card);
         });
 
+        if (this.plugin.settings.answerTimeHint) {
+            this.startAnswerTimeHint(bar, card);
+        }
+
         if (!this.revealed) {
             // Front. Q&A questions are centred; cloze fronts keep the text
             // flow; image cards draw the picture with the first group masked.
             const frontEl = container.createDiv({ cls: 'fakecard-review-front' });
             if (card.type === 'qa') frontEl.addClass('fakecard-qa-front');
             this.renderCardBody(frontEl, card, false);
+
+            // Offered on the question face, before the answer is revealed:
+            // once the answer is on screen the decision is already made.
+            if (this.plugin.settings.childCardsEnabled && card.type !== 'image') {
+                void this.showChildHint(
+                    container.createDiv({ cls: 'fakecard-review-hint-slot' }),
+                    card,
+                );
+            }
 
             const button = container.createEl('button', {
                 cls: 'fakecard-review-show',
@@ -246,6 +241,13 @@ export class ReviewView extends ItemView {
             // answer, there is no separate answer side.
             const bodyEl = container.createDiv({ cls: 'fakecard-review-front' });
             this.renderCardBody(bodyEl, card, true);
+        }
+
+        if (this.plugin.settings.childCardsEnabled && card.type !== 'image') {
+            void this.showChildHint(
+                container.createDiv({ cls: 'fakecard-review-hint-slot' }),
+                card,
+            );
         }
 
         // Rating buttons.
@@ -335,41 +337,159 @@ export class ReviewView extends ItemView {
     }
 
     /**
-     * Pause the parent and open a prefilled panel for a stand-in card. The
-     * child is linked through childOf and never touches the parent's text.
+     * Offer the two shapes a child card can take. The parent's own text seeds
+     * the panel, so the user trims instead of retyping - same idea as the
+     * True Recall chooser, minus the image type (a masked image has no text to
+     * trim, so it has no prefilled child).
      */
-    private createChild(parent: CardRecord): void {
+    private chooseChildType(parent: CardRecord, event: MouseEvent): void {
         if (!this.plugin.settings.childCardsEnabled) return;
+        const menu = new Menu();
+        menu.addItem((item) => item
+            .setTitle('Q&A child card')
+            .setIcon('file-text')
+            .onClick(() => this.openChildPanel(parent, 'qa')));
+        menu.addItem((item) => item
+            .setTitle('Cloze child card')
+            .setIcon('text-cursor-input')
+            .onClick(() => this.openChildPanel(parent, 'cloze')));
+        menu.showAtMouseEvent(event);
+    }
 
+    /**
+     * Open a panel prefilled from the parent. The new card is linked through
+     * childOf and never touches the parent's own text.
+     */
+    private openChildPanel(parent: CardRecord, type: 'qa' | 'cloze'): void {
         const onSaved = (): void => {
-            void this.reload();
+            void this.attachChild(parent);
         };
 
-        if (parent.type === 'cloze' && parent.clozeText) {
+        if (type === 'cloze') {
+            const seed = parent.type === 'cloze' && parent.clozeText
+                ? parent.clozeText
+                : parent.back;
             new ClozePanelModal(
                 this.app,
                 this.plugin,
                 parent.source.path,
                 undefined,
-                parent.clozeText,
+                seed,
                 onSaved,
                 parent.id,
             ).open();
-        } else {
-            new QaPanelModal(
-                this.app,
-                this.plugin,
-                parent.source.path,
-                undefined,
-                parent.back,
-                onSaved,
-                parent.front,
-                parent.id,
-            ).open();
+            return;
         }
 
+        new QaPanelModal(
+            this.app,
+            this.plugin,
+            parent.source.path,
+            undefined,
+            parent.back,
+            onSaved,
+            parent.front,
+            parent.id,
+        ).open();
+    }
+
+    /**
+     * Pause the parent once a child really exists. A panel that was dismissed
+     * without saving must not leave the parent suspended with nothing to
+     * study it through.
+     */
+    private async attachChild(parent: CardRecord): Promise<void> {
+        const all = await this.plugin.store.list();
+        if (!all.some((card) => card.childOf === parent.id)) return;
+
         parent.suspended = true;
-        void this.plugin.store.save(parent);
+        await this.plugin.store.save(parent);
+        new Notice('Child card created - parent paused.');
+        await this.reload();
+    }
+
+    /**
+     * Show the "build a child card" button when the recent reviews of this
+     * card add up to the configured failing score. Sits above the rating bar
+     * on the question face: a hint after the rating arrives too late.
+     */
+    private async showChildHint(slot: HTMLElement, card: CardRecord): Promise<void> {
+        const streak = Math.max(1, this.plugin.settings.childHardStreak);
+        const againScore = this.plugin.settings.childAgainScore;
+        const logs = await this.plugin.reviews.recentForCard(card.id, streak);
+        if (!hasHardStreak(logs.map((log) => log.rating), streak, againScore)) return;
+        // The view may have moved on while the history was being read.
+        if (!slot.isConnected || this.cards[this.index]?.id !== card.id) return;
+
+        const hint = slot.createEl('button', {
+            cls: 'fakecard-review-child-hint',
+            text: 'Card keeps failing - build a child card',
+            attr: { title: 'Pause this card and study it through a simpler stand-in' },
+        });
+        hint.addEventListener('click', (event) => this.chooseChildType(card, event));
+    }
+
+    /**
+     * Show how long the card has been on screen once it passes its suggested
+     * time. Nothing appears before that: the point is to break a long
+     * hesitation, not to put a stopwatch on every card. Time spent with the
+     * window hidden does not count.
+     */
+    private startAnswerTimeHint(bar: HTMLElement, card: CardRecord): void {
+        const budget = suggestedAnswerSeconds(card, this.plugin.settings.answerTimeBase, {
+            secondsPerChunk: this.plugin.settings.answerTimeSecondsPerChunk,
+            historyWeight: this.plugin.settings.answerTimeHistoryWeight,
+        });
+        // Measuring from when the card was first shown (not from this render)
+        // keeps the clock honest across a reveal, which rebuilds the view.
+        const shownAt = this.cardShownAt || Date.now();
+        let hiddenTotal = 0;
+        let hiddenAt: number | null = null;
+        let hint: HTMLElement | null = null;
+
+        const tick = (): void => {
+            // Once the answer is on screen the wait is over: stop nagging.
+            if (this.revealed) return;
+            const elapsed = Math.floor((Date.now() - shownAt - hiddenTotal) / 1000);
+            if (elapsed < budget) return;
+            const text = `⏱ Over suggested time: ${formatClock(elapsed)} / ${formatClock(budget)}`;
+            if (hint) {
+                hint.setText(text);
+                return;
+            }
+            hint = bar.createDiv({
+                cls: 'fakecard-review-answer-time',
+                text,
+                attr: { title: 'Based on answer length and this card\'s rating history' },
+            });
+            bar.after(hint);
+        };
+
+        const onVisibility = (): void => {
+            if (activeDocument.hidden) {
+                hiddenAt = Date.now();
+                return;
+            }
+            if (hiddenAt !== null) {
+                hiddenTotal += Date.now() - hiddenAt;
+                hiddenAt = null;
+            }
+            tick();
+        };
+
+        activeDocument.addEventListener('visibilitychange', onVisibility);
+        this.hintVisibilityHandler = onVisibility;
+        this.hintTimer = window.setInterval(tick, 500);
+    }
+
+    /** Stop the hint's clock; called on every render and when the view closes. */
+    private clearAnswerTimeHint(): void {
+        if (this.hintTimer !== null) window.clearInterval(this.hintTimer);
+        this.hintTimer = null;
+        if (this.hintVisibilityHandler) {
+            activeDocument.removeEventListener('visibilitychange', this.hintVisibilityHandler);
+            this.hintVisibilityHandler = null;
+        }
     }
 
     /**
@@ -381,7 +501,7 @@ export class ReviewView extends ItemView {
 
         const streak = Math.max(1, this.plugin.settings.childGoodStreak);
         const logs = await this.plugin.reviews.recentForCard(child.id, streak);
-        if (logs.length < streak || !logs.every((log) => log.rating >= 3)) return;
+        if (!isGraduatable(logs.map((log) => log.rating), streak)) return;
 
         child.graduated = true;
         await this.plugin.store.save(child);
@@ -450,6 +570,13 @@ export class ReviewView extends ItemView {
     }
 
     async onClose(): Promise<void> {
+        this.clearAnswerTimeHint();
         this.contentEl.empty();
     }
+}
+
+/** `m:ss`, for the answer-time hint. */
+function formatClock(totalSeconds: number): string {
+    const safe = Math.max(0, Math.floor(totalSeconds));
+    return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
 }

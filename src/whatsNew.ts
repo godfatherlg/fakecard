@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.6';
+export const WHATS_NEW_VERSION = '1.0.7';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,20 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The default card library folder is now "fakecard" instead of "Fake Cards". Existing installs keep the path stored in their settings, so nothing is moved or renamed for you.',
-        zh: '默认的卡片库文件夹从 "Fake Cards" 改为 "fakecard"。已有安装仍使用设置里保存的路径，不会自动移动或改名任何文件。',
+        en: 'The ribbon icon now opens Statistics, and a Statistics / Browse / Review strip switches between the three pages in place - no duplicate tabs.',
+        zh: '功能区图标现在打开统计界面，顶部一行 Statistics / Browse / Review 在三个页面之间原地切换，不会重复开标签。',
     },
     {
-        en: 'Fixed the freeze that made the whole window unresponsive while opening the plugin settings tab.',
-        zh: '修复了打开插件设置标签页时整窗卡死、完全无响应的问题。',
+        en: 'Exam plans are reworked: several plans at once, each with a countdown in days, ticked decks and a share, plus a live "cards per day" estimate before you build.',
+        zh: '考试计划重做：可以同时建多个计划，每个有自己的剩余天数、勾选的牌组和比例，生成前就能看到每天多少张。',
+    },
+    {
+        en: 'The suggested answer time is now configurable: base seconds, seconds per 40 characters of answer, and how strongly the card history moves it.',
+        zh: '建议作答时间可以调了：基础秒数、答案每 40 字增加的秒数、以及评分历史的影响权重。',
+    },
+    {
+        en: 'Child cards take two new settings: the Hard streak threshold (2-10) and how much an Again counts towards a failing run (0-3).',
+        zh: '子卡新增两个设置：Hard 连击阈值（2–10）和 Again 在失败连击里的记分（0–3）。',
     },
 ];
 

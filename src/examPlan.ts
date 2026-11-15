@@ -1,71 +1,228 @@
-import { normalizePath, Notice } from 'obsidian';
+import { Menu, normalizePath, Notice } from 'obsidian';
+import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 
 const DAY_MS = 86400000;
 
+/** Days a plan may cover; 0 means the exam is today. */
+export const EXAM_PLAN_MIN_DAYS = 0;
+export const EXAM_PLAN_MAX_DAYS = 730;
+/** Share of the eligible cards a plan may take. */
+export const EXAM_PLAN_MIN_RATIO = 10;
+export const EXAM_PLAN_MAX_RATIO = 100;
+export const EXAM_PLAN_RATIO_STEP = 10;
+
 /**
- * Exam plan: spread the selected cards over the days until the exam.
+ * One exam plan. Several can exist side by side (one per subject, say), each
+ * with its own decks, share and countdown.
  *
- * - Only the decks listed in settings (all when the list is empty).
- * - Hardest cards first (FSRS difficulty), limited by the share setting.
- * - Any selected card due after the exam is pulled into the remaining window
- *   and spread evenly (the same number per day), so every day's load stays
- *   flat instead of everything landing at the end.
- * - Cards already due before the exam keep their FSRS schedule, which already
- *   makes hard cards come back more often.
- * - Never more than the daily review cap per day; warn when the window cannot
- *   hold the selected cards at all.
+ * The date is stored as a real day so the countdown keeps running; the UI
+ * only ever shows and edits "days left", never the calendar date.
  */
-export async function buildExamPlan(plugin: FakeCardPlugin): Promise<void> {
-    const exam = plugin.settings.examDate.trim();
-    if (!exam) {
-        new Notice('Set an exam date first (Settings -> FakeCard -> Exam date).');
-        return;
-    }
-    const examEnd = new Date(`${exam}T23:59:59`).getTime();
-    const now = Date.now();
-    if (!Number.isFinite(examEnd) || examEnd <= now) {
-        new Notice('The exam date is invalid or in the past.');
-        return;
-    }
+export interface ExamPlanConfig {
+    id: string;
+    name: string;
+    /** YYYY-MM-DD. Edited in the UI as a number of days. */
+    date: string;
+    /** Decks in this plan; empty = every deck. */
+    decks: string[];
+    /** Share of the eligible cards that join, 10-100. */
+    ratio: number;
+}
 
+export interface ExamPlanEstimate {
+    /** Reviewed, unsuspended cards in the plan's decks. */
+    eligible: number;
+    /** How many of those the share selects (hardest first). */
+    selected: number;
+    /** Selected cards whose FSRS due date lands after the exam. */
+    moved: number;
+    /** Days available before the exam. */
+    days: number;
+    /** Cards per day the build would produce. */
+    perDay: number;
+    /** Daily review cap in effect. */
+    cap: number;
+    overloaded: boolean;
+}
+
+function pad(value: number): string {
+    return value < 10 ? `0${value}` : String(value);
+}
+
+/** Local calendar day for a Date, as YYYY-MM-DD. */
+function dayKey(date: Date): string {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function newExamPlanId(): string {
+    return `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/**
+ * Calendar days between today and a plan's date: 0 = exam today, 3 = three
+ * more days to study, negative once the day has passed. Counting calendar
+ * days (not elapsed hours) keeps the number the user typed stable.
+ */
+export function daysLeft(date: string): number {
+    const target = new Date(`${date}T00:00:00`);
+    if (!Number.isFinite(target.getTime())) return -1;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((target.getTime() - today.getTime()) / DAY_MS);
+}
+
+/** Calendar date that is `days` from today, as YYYY-MM-DD. */
+export function dateFromDays(days: number): string {
+    const target = new Date();
+    target.setHours(0, 0, 0, 0);
+    target.setDate(target.getDate() + Math.max(EXAM_PLAN_MIN_DAYS, Math.round(days)));
+    return dayKey(target);
+}
+
+export function clampDays(days: number): number {
+    if (!Number.isFinite(days)) return 1;
+    return Math.min(EXAM_PLAN_MAX_DAYS, Math.max(EXAM_PLAN_MIN_DAYS, Math.round(days)));
+}
+
+export function clampRatio(ratio: number): number {
+    const rounded = Math.round(ratio / EXAM_PLAN_RATIO_STEP) * EXAM_PLAN_RATIO_STEP;
+    return Math.min(EXAM_PLAN_MAX_RATIO, Math.max(EXAM_PLAN_MIN_RATIO, rounded));
+}
+
+/** Plans whose exam day has not passed yet (the exam day itself still counts). */
+export function activeExamPlans(plans: ExamPlanConfig[]): ExamPlanConfig[] {
+    return plans.filter((plan) => daysLeft(plan.date) >= 0);
+}
+
+/**
+ * Drop finished plans. Data on the cards themselves is never touched - they
+ * simply go back to the normal FSRS schedule.
+ */
+export async function pruneExpiredExamPlans(plugin: FakeCardPlugin): Promise<number> {
+    const plans = plugin.settings.examPlans ?? [];
+    const kept = activeExamPlans(plans);
+    if (kept.length === plans.length) return 0;
+    plugin.settings.examPlans = kept;
+    await plugin.saveSettings();
+    return plans.length - kept.length;
+}
+
+/** The plan finishing first, used for the review-view countdown. */
+export function nextExamPlan(plans: ExamPlanConfig[]): ExamPlanConfig | null {
+    const active = activeExamPlans(plans);
+    if (active.length === 0) return null;
+    return active.slice().sort((a, b) => daysLeft(a.date) - daysLeft(b.date))[0];
+}
+
+/** New plan with sensible defaults, used by the "add" button. */
+export function createExamPlan(index: number): ExamPlanConfig {
+    return {
+        id: newExamPlanId(),
+        name: `Exam ${index}`,
+        date: dateFromDays(30),
+        decks: [],
+        ratio: 100,
+    };
+}
+
+/**
+ * Old single-plan settings (`examDate` / `examDecks` / `examPlanRatio`)
+ * carried over as the first plan, so an update does not lose the countdown.
+ */
+export function legacyExamPlan(exam: string, decks: string, ratio: number): ExamPlanConfig | null {
+    const date = exam.trim();
+    if (!date || daysLeft(date) < 0) return null;
+    return {
+        id: newExamPlanId(),
+        name: 'Exam',
+        date,
+        decks: decks.split(/[,，\s]+/).map((name) => name.trim()).filter((name) => name.length > 0),
+        ratio: clampRatio(ratio),
+    };
+}
+
+function planDeckNames(plan: ExamPlanConfig): string[] {
+    return plan.decks.map((deck) => deck.trim()).filter((deck) => deck.length > 0);
+}
+
+/** Reviewed, unsuspended cards in the plan's decks, hardest first. */
+async function collectCards(plugin: FakeCardPlugin, plan: ExamPlanConfig): Promise<CardRecord[]> {
     const cards = await plugin.store.list();
-    const deckNames = plugin.settings.examDecks
-        .split(/[,，\s]+/)
-        .map((name) => name.trim())
-        .filter((name) => name.length > 0);
-
-    // Only the chosen decks (all when the list is empty), then hardest first
-    // so the difficult cards enter the plan before the easy ones.
-    const eligible = cards
+    const decks = planDeckNames(plan);
+    return cards
         .filter((card) => card.fsrs && !card.suspended && !card.graduated)
-        .filter((card) => deckNames.length === 0
-            || deckNames.includes(card.deck ?? 'default'))
+        .filter((card) => decks.length === 0 || decks.includes(card.deck ?? 'default'))
         .sort((a, b) => (b.fsrs!.difficulty ?? 0) - (a.fsrs!.difficulty ?? 0));
+}
 
-    if (eligible.length === 0) {
-        new Notice(deckNames.length > 0
-            ? `No reviewed cards in: ${deckNames.join(', ')}.`
+interface ExamPlanWork {
+    estimate: ExamPlanEstimate;
+    /** Cards that the build would reschedule. */
+    outside: CardRecord[];
+    /** Upper bound in ms (23:59:59 of the plan day). */
+    examEnd: number;
+}
+
+async function planWork(plugin: FakeCardPlugin, plan: ExamPlanConfig): Promise<ExamPlanWork> {
+    const examEnd = new Date(`${plan.date}T23:59:59`).getTime();
+    const eligible = await collectCards(plugin, plan);
+    const ratio = clampRatio(plan.ratio) / 100;
+    const selected = eligible.length === 0
+        ? 0
+        : Math.max(1, Math.round(eligible.length * ratio));
+    const chosen = eligible.slice(0, selected);
+    const outside = chosen.filter((card) => new Date(card.fsrs!.due).getTime() > examEnd);
+
+    // The same number the user typed: "3 days left" spreads over 3 days
+    // (today included), and "0 days" crams everything into today.
+    const days = Math.max(1, daysLeft(plan.date));
+    const cap = Math.max(1, plugin.settings.maxReviewsPerDay);
+    const perDay = outside.length === 0
+        ? 0
+        : Math.min(cap, Math.max(1, Math.ceil(outside.length / days)));
+
+    return {
+        estimate: {
+            eligible: eligible.length,
+            selected,
+            moved: outside.length,
+            days,
+            perDay,
+            cap,
+            overloaded: outside.length > cap * days,
+        },
+        outside,
+        examEnd,
+    };
+}
+
+/** What the build would do, without touching anything - drives the settings text. */
+export async function estimateExamPlan(
+    plugin: FakeCardPlugin,
+    plan: ExamPlanConfig,
+): Promise<ExamPlanEstimate> {
+    const { estimate } = await planWork(plugin, plan);
+    return estimate;
+}
+
+async function applyExamPlan(plugin: FakeCardPlugin, plan: ExamPlanConfig): Promise<void> {
+    const { estimate, outside } = await planWork(plugin, plan);
+
+    if (estimate.eligible === 0) {
+        new Notice(planDeckNames(plan).length > 0
+            ? `No reviewed cards in: ${planDeckNames(plan).join(', ')}.`
             : 'No reviewed cards to plan yet.');
         return;
     }
-
-    const ratio = Math.min(100, Math.max(10, plugin.settings.examPlanRatio)) / 100;
-    const take = Math.max(1, Math.round(eligible.length * ratio));
-    const selected = eligible.slice(0, take);
-
-    // Cards that already fall after the exam are the ones we move.
-    const outside = selected.filter((card) => new Date(card.fsrs!.due).getTime() > examEnd);
     if (outside.length === 0) {
         new Notice('Every selected card is already due before the exam.');
         return;
     }
 
-    const days = Math.max(1, Math.ceil((examEnd - now) / DAY_MS));
-    // Never schedule more per day than the daily review cap.
-    const cap = Math.max(1, plugin.settings.maxReviewsPerDay);
-    const perDay = Math.min(cap, Math.max(1, Math.ceil(outside.length / days)));
-    const overloaded = outside.length > cap * days;
+    const days = Math.max(1, daysLeft(plan.date));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     // Backup before touching scheduling.
     const dir = normalizePath(`${plugin.settings.libraryFolder}/backup`);
@@ -73,29 +230,69 @@ export async function buildExamPlan(plugin: FakeCardPlugin): Promise<void> {
         await plugin.app.vault.createFolder(dir);
     }
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const path = normalizePath(`${dir}/exam-plan-${stamp}.json`);
+    const path = normalizePath(`${dir}/exam-plan-${plan.id}-${stamp}.json`);
     await plugin.app.vault.create(path, JSON.stringify(outside, null, 2));
 
     // Spread evenly over the window: day 0, day 1, ... then wrap.
     for (let i = 0; i < outside.length; i++) {
         const card = outside[i];
         if (!card.fsrs) continue;
-        const dayIndex = Math.floor(i / perDay);
+        const dayIndex = Math.floor(i / estimate.perDay);
         const offsetDays = Math.min(days - 1, Math.max(0, dayIndex));
-        card.fsrs.due = new Date(now + offsetDays * DAY_MS + 9 * 3600000);
+        // 09:00 of that day: a card placed on today is due immediately when
+        // the morning has already passed.
+        card.fsrs.due = new Date(today.getTime() + offsetDays * DAY_MS + 9 * 3600000);
         card.updated = new Date().toISOString();
         await plugin.store.save(card);
     }
 
     new Notice(
-        `Exam plan: ${take}/${eligible.length} card(s) selected, `
-        + `${outside.length} moved to ~${perDay}/day over ${days} days. Backup: ${path}`,
+        `${plan.name}: ${estimate.selected}/${estimate.eligible} card(s) selected, `
+        + `${outside.length} moved to ~${estimate.perDay}/day over ${days} days. Backup: ${path}`,
     );
-    if (overloaded) {
+    if (estimate.overloaded) {
         new Notice(
             `Warning: ${outside.length} cards over ${days} days is more than `
-            + `${cap}/day. Lower the share, or raise the daily review limit.`,
+            + `${estimate.cap}/day. Lower the share, or raise the daily review limit.`,
             10000,
         );
     }
+}
+
+/**
+ * Build one plan, or let the user pick when several exist. Called from the
+ * settings screen (with a plan) and from the command (without one).
+ */
+export async function buildExamPlan(
+    plugin: FakeCardPlugin,
+    plan?: ExamPlanConfig,
+): Promise<void> {
+    if (plan) {
+        await applyExamPlan(plugin, plan);
+        return;
+    }
+
+    const plans = activeExamPlans(plugin.settings.examPlans ?? []);
+    if (plans.length === 0) {
+        new Notice('Add an exam plan first (Settings -> FakeCard -> Exam plan).');
+        return;
+    }
+    if (plans.length === 1) {
+        await applyExamPlan(plugin, plans[0]);
+        return;
+    }
+
+    const menu = new Menu();
+    for (const entry of plans) {
+        menu.addItem((item) => item
+            .setTitle(`${entry.name} - ${daysLeft(entry.date)} day(s) left`)
+            .onClick(() => {
+                void applyExamPlan(plugin, entry);
+            }));
+    }
+    // Pinned to the main window: the command can be fired while the settings
+    // popout holds focus, and the menu would open in that window otherwise.
+    const doc = plugin.app.workspace.containerEl.ownerDocument;
+    const width = doc.defaultView?.innerWidth ?? 0;
+    menu.showAtPosition({ x: Math.round(width / 2), y: 120 }, doc);
 }
