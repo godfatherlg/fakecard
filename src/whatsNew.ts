@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.12';
+export const WHATS_NEW_VERSION = '1.0.13';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Today\'s queue now sits in the status bar: due, new and learning, colour-coded like an Anki deck row. Click it to open the review view.',
-        zh: '今日队列搬到了状态栏：到期、新卡、学习中，配色同 Anki 牌组行。点一下即打开复习界面。',
+        en: 'Cards are edited in Obsidian\'s own editor now: the pencil opens that side of the card as a note, with live preview, links and math - and the cloze body gets a toolbar for wrapping the selection.',
+        zh: '卡片改用 Obsidian 自己的编辑器编辑：点铅笔会把这一面作为笔记打开，有真渲染、内链和公式；填空正文还带一条包裹选中的工具条。',
     },
     {
-        en: 'The review header counts cards in a pill now - the card you are on is large and dark, the total sits small behind it.',
-        zh: '复习界面的张数改成胶囊：当前这张大号加粗，总数小而浅地跟在后面。',
+        en: 'Wrapping a multi-line selection puts one hole per line, so lists keep their numbers, and the source line under a card jumps to the block it came from.',
+        zh: '跨行包裹时逐行成洞，列表编号不再被吞掉；翻到答案后卡片底部多一行「来源」，点了跳到源笔记那一块。',
     },
     {
-        en: 'Card text can be selected and copied while reviewing (questions and answers alike). The card still cannot be edited - the pencil opens the edit panel for that.',
-        zh: '复习时题目和答案都能选中、复制了。卡片本身仍然不可编辑，要改还是点铅笔进编辑面板。',
+        en: 'The browse view was rebuilt: deck and tags are edited inline and save at once, and cloze or image cards reveal in place instead of printing the same text twice.',
+        zh: '浏览视图重做了：牌组、标签行内直接改并即时保存，填空与图片卡就地揭示答案，不再把同一段文字印两遍。',
     },
 ];
 
