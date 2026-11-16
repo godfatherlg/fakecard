@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.13';
+export const WHATS_NEW_VERSION = '1.0.14';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Cards are edited in Obsidian\'s own editor now: the pencil opens that side of the card as a note, with live preview, links and math - and the cloze body gets a toolbar for wrapping the selection.',
-        zh: '卡片改用 Obsidian 自己的编辑器编辑：点铅笔会把这一面作为笔记打开，有真渲染、内链和公式；填空正文还带一条包裹选中的工具条。',
+        en: 'Cards whose first line is a three-digit list item ("298. …") no longer lose their first digit: lists inside a card get their own indent instead of being drawn outside the visible area.',
+        zh: '以三位数列表开头的卡片（「298. …」）不再被裁掉最前面那位数字：卡片内的列表有了自己的缩进，编号完整显示。',
     },
     {
-        en: 'Wrapping a multi-line selection puts one hole per line, so lists keep their numbers, and the source line under a card jumps to the block it came from.',
-        zh: '跨行包裹时逐行成洞，列表编号不再被吞掉；翻到答案后卡片底部多一行「来源」，点了跳到源笔记那一块。',
-    },
-    {
-        en: 'The browse view was rebuilt: deck and tags are edited inline and save at once, and cloze or image cards reveal in place instead of printing the same text twice.',
-        zh: '浏览视图重做了：牌组、标签行内直接改并即时保存，填空与图片卡就地揭示答案，不再把同一段文字印两遍。',
+        en: 'The extra "source" line under the card is gone. The source is back where it always was - a block link at the end of the answer, "《note》· block N", which jumps to the block in the note.',
+        zh: '卡片底部那行额外的「来源」撤掉了。来源回到它本来的位置——答案末尾的一条块链接「《笔记名》·第 N 块」，点了跳到笔记里对应那一块。',
     },
 ];
 

@@ -299,19 +299,6 @@ export class ReviewView extends ItemView {
             this.renderCardBody(bodyEl, card, true);
         }
 
-        // The note this card came from, as a line of its own - the same source
-        // link the cards had before the import. Only once the answer is up:
-        // showing it on the question side hints at nothing.
-        if (card.source.path) {
-            const name = card.source.path.split('/').pop()?.replace(/\.md$/, '') ?? card.source.path;
-            const source = container.createDiv({ cls: 'fakecard-review-source' });
-            setTooltip(source, tt('Open the note this card came from'));
-            source.setText(ttf('Source: {name}', { name }));
-            source.addEventListener('click', () => {
-                void jumpToCardSource(this.app, card);
-            });
-        }
-
         // Rating buttons: one cell each, with the shortcut under the label.
         const ratings = container.createDiv({ cls: 'fakecard-review-ratings' });
         const keys = this.ratingKeys();

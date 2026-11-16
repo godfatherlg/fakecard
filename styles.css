@@ -361,6 +361,19 @@
   -webkit-user-select: text;
 }
 
+/* Obsidian renders lists with `padding-inline-start: 0` and draws the markers
+   outside the box, relying on the reading view's margin to hold them. A card
+   pane has less room, so a three-digit marker ("298.") ended up outside the
+   visible area and was clipped to "98." - give lists their own indent. */
+.fakecard-review-body ol,
+.fakecard-review-body ul,
+.fakecard-card-view ol,
+.fakecard-card-view ul,
+.fakecard-field-preview-body ol,
+.fakecard-field-preview-body ul {
+  padding-inline-start: 2.4em;
+}
+
 /* Headings inside a card should not dwarf the card itself. */
 .fakecard-review .markdown-rendered h1 {
   font-size: 1.5em;
@@ -1221,18 +1234,23 @@ body.theme-dark .fakecard-image-mask-label {
   max-width: 14em;
 }
 
-/* The note a card came from, under the answered card. */
+/* The block a card came from, under the answered card: a link, outside the
+   answer itself - the same line the tr cards carried. */
 .fakecard-review-source {
   margin-top: 10px;
-  font-size: 0.78em;
-  color: var(--text-muted);
+  font-size: 0.8em;
+  color: var(--text-accent, var(--text-muted));
   text-align: center;
   cursor: pointer;
 }
 
 .fakecard-review-source:hover {
-  color: var(--text-normal);
   text-decoration: underline;
+}
+
+.fakecard-review-source-arrow {
+  margin-left: 4px;
+  opacity: 0.7;
 }
 
 /* Q&A preview: the question and the answer, with a rule between them. */

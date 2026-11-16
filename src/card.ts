@@ -9,6 +9,12 @@ export interface CardSource {
     path: string;
     /** Heading the card came from, when the rule was a marked heading. */
     heading?: string;
+    /**
+     * Ordinal of the block inside the note, in document order - what the
+     * importer calls "第 N 块". Cards that share a block (cloze groups) share
+     * the number.
+     */
+    block?: number;
     /** Text snapshot at creation time, for re-finding the source later. */
     snapshot?: string;
     /**

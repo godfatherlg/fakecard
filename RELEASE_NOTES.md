@@ -1,83 +1,53 @@
-# 1.0.13
+# 1.0.14
 
 ## 中文
 
-### 新功能：用 Obsidian 自己的编辑器编辑卡片
+### 修复：卡片的列表编号被裁掉一位
 
-点复习界面或浏览视图的 ✎，卡片这一面会作为一个临时笔记在分栏里打开，用的就是 Obsidian 的编辑器：`**`、`==`、`[[内链]]`、公式、图片全部按笔记的样子渲染，`[[` 有补全，其它插件也照常工作。停止输入 600ms 后回写进卡片，关掉分栏就删除临时文件（`fakecard/editing/`），崩溃残留由启动时清理。
+以三位数开头的卡片（`298. …`）在复习界面里会显示成 `98. …`：Obsidian 把有序列表的编号画在内容框之外，靠阅读视图的大边距容纳，而卡片区域的边距更窄，三位数的标记就超出了可视范围。
 
-- 问答卡：题目与答案各一个文件
-- 填空卡：正文，外加顶部一条工具条（包裹选中 / 新建分组 / 移除挖空）
-- 跨行选中时**逐行包裹**：`1. {{c1::…}}`，列表编号与缩进留在花括号外面，列表不会被包坏
-- 图片蒙版卡：编辑 `![[图片]]` 引用
-- 文件名就是卡片 id，所以那个能改标题的位置被隐藏，顶栏只标明「题目 / 答案 / 填空正文」
-- 编辑完回到卡片仍是原来那一面，不会翻回问题面
+现在卡片区域（复习、浏览预览、面板预览）里的列表有自己的缩进，编号完整显示。一位数、两位数列表不受影响，只是整体略向右一点。
 
-### 优化：浏览视图右栏重做
+### 调整：撤掉卡片底部那行「来源」
 
-- 牌组、标签改成行内编辑，改完立刻保存，「卡片信息」面板不再需要
-- 问答卡：正面一块 + 分隔线 + 背面一块
-- 填空卡、图片卡：只渲染一块，用「显示答案 / 收起答案」就地揭示，不再把同一段文字印两遍
-- 删掉了「👁 预览」按钮和它背后的预览弹窗——右栏本身就是预览
+1.0.13 在卡片底部加了一行「来源：笔记名」。这次改回更接近原来的做法：来源以**块链接**的形式写进卡片答案正文本身，形如
 
-### 新功能：卡片下方显示来源
+```
+[《最后一遍疯狂刷题：科目二心理学单选题》·第 28 块](obsidian://adv-uri?…)
+```
 
-复习翻到答案后，卡片底部多一行「来源：笔记名」，点它跳到源笔记里这张卡所在的那一块。图片卡没有可回溯的文字，不显示。
-
-### 新功能：搜索命中在答案里时给出上下文
-
-列表只显示正面，所以搜到只存在于答案里的词时，正面下面会多一行小字标出命中位置。
-
-### 修复
-
-- Anki 导入的「正确次数」改用枚举比较（`Rating.Good`），行为不变，消除枚举比较告警
-- 导入的 232 张卡片补回了 `source.path`：之前为空，导致「↗ 来源」和阅读视图的卡片徽章都失效
+- 230 张卡已带上这条链接（问答卡在答案面，填空卡在正文末尾）
+- 链接由 fakelink 接管 `obsidian://adv-uri`，点击可跳回源笔记的对应块
+- 原来底部那行提示已删除，不会再出现两份来源
 
 ### 请测试
 
-- 复习一张填空卡 → 点 ✎ → 右侧出现笔记；选中几行点「包裹选中」，确认列表结构还在
-- 关掉那个分栏，`fakecard/editing/` 应被清空，卡片内容已更新
-- 浏览视图：改牌组/标签是否立即生效；填空卡点「显示答案」是否就地揭示
-- 翻到答案面，底部「来源」行能否跳到源笔记的对应块
-- 搜索一个只在答案里出现的词，列表里是否出现「命中在答案：…」
+- 复习一张以三位数编号开头的填空卡（如 298 题），确认编号完整显示为 `298.`
+- 答案面末尾应有一条蓝色的 `《笔记名》·第 N 块` 链接，点击能跳回源笔记对应位置
+- 问答卡的答案面同样有这条链接，问题面没有
 
 ## English
 
-### New: edit a card in Obsidian's own editor
+### Fixed: a card's list number lost its first digit
 
-The pencil in the review view or the browse view opens that side of the card as a scratch note in a split - Obsidian's editor, with live preview: `**`, `==`, `[[links]]`, math, images, `[[` completion and every other plugin all behave as they do in a note. Typing flows back into the card 600 ms after you stop, and the scratch note is deleted when the split closes (`fakecard/editing/`); anything a crash leaves behind is swept on startup.
+Cards that start with a three-digit number (`298. …`) were shown as `98. …` in the review view: Obsidian draws ordered-list markers outside the content box and relies on the reading view's margins to hold them, while a card pane has much less room - the marker ended up outside the visible area.
 
-- Q&A cards: one file for the question, one for the answer
-- Cloze cards: the body, plus a toolbar at the top (wrap selection / new group / remove)
-- A multi-line selection is wrapped **line by line** - `1. {{c1::…}}` - so list numbers and indentation stay outside the braces and the list keeps its shape
-- Image cards: the `![[image]]` reference
-- The file name is the card id, so the editable title is hidden; the bar at the top just says Question / Answer / Cloze text
-- After editing you come back to the same side, not to the question
+Lists inside a card (review, browse preview, panel preview) now have their own indent, so the number is printed in full. One- and two-digit lists are unaffected apart from a slightly wider indent.
 
-### Improved: the browse view's right pane was rebuilt
+### Changed: the "source" line under the card is gone
 
-- Deck and tags are edited inline and saved at once; the card-info panel is gone
-- Q&A: front, a rule, back
-- Cloze and image cards: a single block with a "show answer" switch - the same text was being printed twice
-- The "preview" button and the dialog behind it are gone: the pane is the preview
+1.0.13 added a "Source: note name" line below the card. This release goes back to what the cards used to carry: the source is a **block link** written into the answer text itself, like
 
-### New: the source line under a card
+```
+[《最后一遍疯狂刷题：科目二心理学单选题》·第 28 块](obsidian://adv-uri?…)
+```
 
-Once the answer is up, the card carries a line "Source: note name"; clicking it jumps to the block the card came from. Image cards have no text to trace back, so they show nothing.
-
-### New: search says when the match was in the answer
-
-The list only prints the front, so a card found through a word that lives in its answer now shows a small second line with the surrounding text.
-
-### Fixed
-
-- Anki import counts a correct review through the enum (`Rating.Good`) instead of a bare number - same behaviour, no more enum-comparison warning
-- 232 imported cards got their `source.path` back: it was empty, which had left "open source" and the reading-view badges dead
+- 230 cards now carry that link (Q&A in the answer, cloze at the end of the body)
+- fakelink handles `obsidian://adv-uri`, so clicking jumps back to the block in the source note
+- the extra line below the card is removed - there are no two copies of the same source any more
 
 ### Please test
 
-- Review a cloze card → press the pencil → the note opens on the right; select a few lines and press "wrap selection", the list must keep its numbering
-- Close that split: `fakecard/editing/` should be empty and the card already updated
-- Browse: does changing deck / tags take effect immediately; does "show answer" reveal a cloze card in place
-- With the answer revealed, does the source line jump to the right block in the source note
-- Search a word that only exists in an answer: the list should show "matched in the answer: …"
+- Review a cloze card that starts with a three-digit number (e.g. 298) and check the number is complete
+- The answer should end with a blue `《note》· block N` link that jumps to the right place in the note
+- A Q&A card has the same link on its answer side, and none on the question side

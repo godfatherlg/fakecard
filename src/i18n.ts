@@ -385,7 +385,7 @@ const UI_ZH: Record<string, string> = {
     'Cloze text': '填空正文',
     'matched in the answer: {text}': '命中在答案：{text}',
     'Hide answer': '收起答案',
-    'Source: {name}': '来源：{name}',
+
 
     // Image panel.
     'Edit image card': '编辑图片卡',
