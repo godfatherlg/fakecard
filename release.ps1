@@ -37,6 +37,39 @@ function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 function Fail($msg) { Write-Host "ABORT: $msg" -ForegroundColor Red; exit 1 }
 function Assert-Ok($what) { if ($LASTEXITCODE -ne 0) { Fail "$what failed (exit code $LASTEXITCODE)" } }
 
+# GitHub serves release assets from release-assets.githubusercontent.com, which
+# some local DNS setups resolve to 127.0.0.1 (a stale "GitHub accelerator" entry
+# is the usual cause). git and the API still work then, because they go to
+# github.com, but `gh release download` dies on "connection refused" - after the
+# release has already been published. The Windows proxy resolves names itself,
+# so hand the download the system proxy when there is one.
+function Enable-SystemProxy {
+    $key = Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue
+    if (-not $key -or $key.ProxyEnable -ne 1 -or -not $key.ProxyServer) { return $false }
+    $server = $key.ProxyServer
+    if ($server -notmatch '://') { $server = "http://$server" }
+    $env:HTTP_PROXY = $server
+    $env:HTTPS_PROXY = $server
+    Write-Host "using the system proxy for asset downloads: $server" -ForegroundColor DarkGray
+    return $true
+}
+
+# The three files a vault needs, straight from the published release: the vault
+# then holds exactly what the workflow built, not a local build that happens to
+# have the same version number. Retried through the proxy once, because the
+# direct attempt is the one that fails on a poisoned asset host.
+function Save-ReleaseAssets([string] $dir, [string] $version) {
+    $patterns = @('--pattern', 'main.js', '--pattern', 'manifest.json', '--pattern', 'styles.css')
+    $attempt = 0
+    while ($attempt -lt 2) {
+        $attempt++
+        gh release download $version --repo $script:Repo @patterns --dir $dir --clobber 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { return $true }
+        if ($attempt -eq 1 -and -not (Enable-SystemProxy)) { return $false }
+    }
+    return $false
+}
+
 Step 'Checking the working tree'
 $dirty = git status --porcelain
 Assert-Ok 'git status'
@@ -116,22 +149,22 @@ if (-not $SkipVault) {
     Step "Deploying the published assets into $Vault"
     if (-not (Test-Path -LiteralPath $Vault)) {
         Write-Host "vault folder not found, skipping: $Vault" -ForegroundColor Yellow
-    } else {
-        gh release download $next --repo $Repo --pattern main.js --pattern manifest.json --pattern styles.css --dir $Vault --clobber
-        Assert-Ok 'gh release download'
+    } elseif (Save-ReleaseAssets $Vault $next) {
         Write-Host "deployed - reload the plugin in Obsidian to pick up $next"
+    } else {
+        Fail "could not download the assets into $Vault - the release itself is fine, grab them by hand from https://github.com/$Repo/releases/tag/$next"
     }
 
     Step "Deploying into the test vault ($TestVault)"
-    if (Test-Path -LiteralPath $TestVault) {
-        gh release download $next --repo $Repo --pattern main.js --pattern manifest.json --pattern styles.css --dir $TestVault --clobber
-        Assert-Ok 'gh release download (test vault)'
+    if (-not (Test-Path -LiteralPath $TestVault)) {
+        Write-Host "test vault not found, skipping: $TestVault" -ForegroundColor Yellow
+    } elseif (Save-ReleaseAssets $TestVault $next) {
         Write-Host "installed into the test vault." -ForegroundColor Yellow
         Write-Host "NOW RELOAD THAT VAULT AND OPEN THE FAKECARD SETTINGS TAB:" -ForegroundColor Yellow
         Write-Host "  it must open instantly, and the 'what is new' dialog should" -ForegroundColor Yellow
         Write-Host "  appear once (it is skipped when data.json has no lastSeenVersion)." -ForegroundColor Yellow
     } else {
-        Write-Host "test vault not found, skipping: $TestVault" -ForegroundColor Yellow
+        Fail "could not download the assets into $TestVault - grab them by hand from https://github.com/$Repo/releases/tag/$next"
     }
 }
 
