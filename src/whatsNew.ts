@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.15';
+export const WHATS_NEW_VERSION = '1.0.16';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The 📇 "this block has cards" badge no longer shows up inside a card: it belongs to the note\'s reading view, and review was picking it up because a card is rendered with its source note\'s path.',
-        zh: '卡片里不再冒出 📇「这一段有卡片」角标：它本来只属于笔记的阅读视图，复习时因为用了源笔记路径而被误注入到卡片上。',
+        en: 'No new features: two adjustments for the community plugin review. The scratch note behind an edit now goes to the trash instead of being deleted outright, so your "Deleted files" setting applies.',
+        zh: '这一版没有新功能，只有两处按社区插件评审要求做的调整：编辑卡片时的临时笔记改为进回收站，不再直接删除，你的「删除文件」设置会生效。',
     },
     {
-        en: 'Clicking that badge in a note now lands on the card itself: the browse view clears its filters, selects the row and scrolls it into view instead of opening on the first row.',
-        zh: '在笔记里点这个角标现在会直接定位到那张卡：浏览视图会清空筛选、选中该行并滚动到视野里，不再停在第一行。',
+        en: 'The cloze toolbar is created through Obsidian\'s DOM helper now. Nothing about it should look or behave differently.',
+        zh: '填空工具条改用 Obsidian 提供的 DOM helper 创建，外观和行为都与之前一致。',
     },
 ];
 

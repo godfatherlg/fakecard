@@ -161,7 +161,9 @@ export class TempEditor {
             if (this.sessions.has(child.path)) continue;
             if (child.stat.mtime > cutoff) continue;
             try {
-                await this.app.vault.delete(child);
+                // Trash rather than delete: it honours the user's deletion
+                // preference, and a scratch note is disposable either way.
+                await this.app.fileManager.trashFile(child);
             } catch {
                 // Locked or already gone - the next startup tries again.
             }
@@ -184,8 +186,7 @@ export class TempEditor {
         view.containerEl.addClass('fakecard-scratch');
         session.shell = view.containerEl;
 
-        const bar = document.createElement('div');
-        bar.className = 'fakecard-editor-toolbar';
+        const bar = createDiv({ cls: 'fakecard-editor-toolbar' });
         bar.createSpan({
             cls: 'fakecard-editor-title',
             text: session.field === 'clozeText'
@@ -403,7 +404,7 @@ export class TempEditor {
             }
             if (removeFile) {
                 try {
-                    await this.app.vault.delete(file);
+                    await this.app.fileManager.trashFile(file);
                 } catch {
                     // The startup sweep owns it now.
                 }
