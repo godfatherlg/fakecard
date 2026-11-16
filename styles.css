@@ -80,6 +80,65 @@
   margin-bottom: 2px;
 }
 
+/* Field label and the "edit in a real editor" switch share one line. */
+.fakecard-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fakecard-field-head .fakecard-field-label {
+  margin: 6px 0 2px;
+}
+
+.fakecard-field-editor {
+  height: auto;
+  padding: 0 6px;
+  font-size: 0.8em;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.fakecard-field-editor:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* What the field renders to, under the field. Hidden while the text is plain:
+   there is nothing to show that the textarea is not already showing. */
+.fakecard-field-preview {
+  display: none;
+  margin: 2px 0 10px;
+  padding: 4px 10px 6px;
+  border-left: 2px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  border-radius: var(--radius-s, 4px);
+  font-size: var(--font-text-size, 16px);
+  line-height: 1.6;
+}
+
+.fakecard-field-preview.is-visible {
+  display: block;
+}
+
+.fakecard-field-preview-label {
+  font-size: 0.7em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 2px;
+}
+
+.fakecard-field-preview-body > :first-child {
+  margin-top: 0;
+}
+
+.fakecard-field-preview-body > :last-child {
+  margin-bottom: 0;
+}
+
 .fakecard-preview {
   margin-top: 8px;
 }
@@ -1121,6 +1180,125 @@ body.theme-dark .fakecard-image-mask-label {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+/* Where a search term hit, when it was in the answer rather than the front. */
+.fakecard-match-hint {
+  font-size: 0.78em;
+  opacity: 0.62;
+  margin-top: 2px;
+}
+
+/* Deck and tags: card metadata, edited inline and saved at once. */
+.fakecard-browse-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-bottom: 8px;
+}
+
+.fakecard-meta-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fakecard-meta-field .fakecard-preview-label {
+  margin: 0;
+}
+
+.fakecard-meta-field input,
+.fakecard-meta-field select {
+  height: auto;
+  padding: 2px 6px;
+  font-size: 0.85em;
+}
+
+/* The deck name must not be clipped: "default" is exactly what gets cut. */
+.fakecard-meta-field select {
+  min-width: 8em;
+  max-width: 14em;
+}
+
+/* The note a card came from, under the answered card. */
+.fakecard-review-source {
+  margin-top: 10px;
+  font-size: 0.78em;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.fakecard-review-source:hover {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+
+/* Q&A preview: the question and the answer, with a rule between them. */
+.fakecard-preview-divider {
+  margin: 2px 0 12px;
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* One button per editable field: these open the text in Obsidian's editor. */
+.fakecard-browse-editors {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 10px;
+}
+
+/* While a card field is open the note is named after a card id: showing that
+   twice (as a title you could rename) has no value. The header bar says which
+   field this is instead. */
+.fakecard-scratch .inline-title,
+.fakecard-scratch .view-header-title {
+  display: none;
+}
+
+/* Field name and cloze tools: a row of its own above the text, centred - part
+   of the layout, never floating over the card or under the status bar. */
+.fakecard-editor-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.fakecard-editor-title {
+  font-size: 0.75em;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 0 2px;
+}
+
+.fakecard-editor-toolbar button {
+  height: auto;
+  padding: 2px 12px;
+  font-size: 0.78em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  background: var(--background-primary);
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.fakecard-editor-toolbar button:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Wide enough for "c1" plus the arrow: the narrow dropdown used to clip it. */
+.fakecard-editor-toolbar select {
+  height: 24px;
+  min-width: 4.5em;
+  padding: 0 6px;
+  font-size: 0.78em;
 }
 
 .fakecard-card-view {

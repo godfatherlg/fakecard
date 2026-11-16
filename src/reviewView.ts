@@ -14,6 +14,7 @@ import { RatingKeys, keyLabel, matchesKey } from './keys';
 import { buildReviewQueue, ReviewQueue } from './queue';
 import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
+import type { EditableField } from './tempEdit';
 import type FakeCardPlugin from '../main';
 
 export const REVIEW_VIEW_TYPE = 'fakecard-review';
@@ -111,6 +112,12 @@ export class ReviewView extends ItemView {
         });
     }
 
+    /**
+     * Rebuild the queue - a new session: first card, question side.
+     *
+     * An edit does not come through here: the card is repainted in place by
+     * `refreshCurrentCard`, so fixing an answer never flips the card back.
+     */
     async reload(): Promise<void> {
         this.loading = true;
 
@@ -246,8 +253,10 @@ export class ReviewView extends ItemView {
             );
             void this.markChildArmed(childButton, card);
         }
-        iconButton('pencil', tt('Edit this card'), () => {
-            this.openEditor(card);
+        // One door: the text opens in Obsidian's own editor, on the side being
+        // read. An image card has only its embed as text, and that opens too.
+        iconButton('pencil', tt('Edit the text in the editor'), () => {
+            void this.editTextInEditor(card);
         });
 
         if (this.plugin.settings.answerTimeHint) {
@@ -290,6 +299,19 @@ export class ReviewView extends ItemView {
             this.renderCardBody(bodyEl, card, true);
         }
 
+        // The note this card came from, as a line of its own - the same source
+        // link the cards had before the import. Only once the answer is up:
+        // showing it on the question side hints at nothing.
+        if (card.source.path) {
+            const name = card.source.path.split('/').pop()?.replace(/\.md$/, '') ?? card.source.path;
+            const source = container.createDiv({ cls: 'fakecard-review-source' });
+            setTooltip(source, tt('Open the note this card came from'));
+            source.setText(ttf('Source: {name}', { name }));
+            source.addEventListener('click', () => {
+                void jumpToCardSource(this.app, card);
+            });
+        }
+
         // Rating buttons: one cell each, with the shortcut under the label.
         const ratings = container.createDiv({ cls: 'fakecard-review-ratings' });
         const keys = this.ratingKeys();
@@ -308,6 +330,24 @@ export class ReviewView extends ItemView {
                 void this.rate(rating);
             });
         }
+    }
+
+    /**
+     * Repaint the card on screen after it was edited elsewhere (the editor
+     * split). The queue position and the side being read are left alone - a
+     * card is painted, not restarted.
+     */
+    refreshCurrentCard(): void {
+        const current = this.cards[this.index];
+        if (!current) return;
+        void this.plugin.store.list().then((all) => {
+            const fresh = all.find((entry) => entry.id === current.id);
+            if (!fresh) return;
+            const at = this.cards.findIndex((entry) => entry.id === fresh.id);
+            if (at < 0) return;
+            this.cards[at] = fresh;
+            this.render();
+        });
     }
 
     private renderCardBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
@@ -733,16 +773,16 @@ export class ReviewView extends ItemView {
         return snapshot;
     }
 
-    /** Open the manual editor for the card being reviewed. */
-    private openEditor(card: CardRecord): void {
-        const onSaved = () => {
-            void this.reload();
-        };
-        if (card.type === 'cloze') {
-            new ClozePanelModal(this.app, this.plugin, card.source.path, card, undefined, onSaved).open();
-        } else {
-            new QaPanelModal(this.app, this.plugin, card.source.path, card, undefined, onSaved).open();
-        }
+    /**
+     * Open the field that is on screen in Obsidian's own editor: the question,
+     * the answer, or the cloze body. Image cards have no text field - their
+     * content is the picture and the masks drawn over it.
+     */
+    private async editTextInEditor(card: CardRecord): Promise<void> {
+        const field: EditableField = card.type === 'cloze'
+            ? 'clozeText'
+            : (this.revealed ? 'back' : 'front');
+        await this.plugin.tempEdit.open(card, field);
     }
 
     private async rate(rating: Rating): Promise<void> {

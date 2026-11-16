@@ -64,6 +64,11 @@ export class CardStore {
         }
     }
 
+    /** The library folder itself, for anything stored beside `cards/`. */
+    get folder(): string {
+        return this.libraryFolder;
+    }
+
     private get cardsFolder(): string {
         return normalizePath(`${this.libraryFolder}/cards`);
     }

@@ -558,7 +558,9 @@ export async function importApkg(
                 // revlog is the honest count; the card row covers exports that
                 // carry an interval but no log.
                 reviews: history.length > 0 ? history.length : source?.reps ?? 0,
-                correct: history.filter((review) => review.ease >= 3).length,
+                // Same rule as the review view: Good and Easy count, Again and
+                // Hard do not. Compared through the enum, not the literal 3.
+                correct: history.filter((review) => review.ease >= Rating.Good).length,
                 suspended: source?.queue === -1,
             });
         };

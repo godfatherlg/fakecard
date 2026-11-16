@@ -28,6 +28,7 @@ import { DEFAULT_SETTINGS, FakeCardSettings, FakeCardSettingTab } from './src/se
 import { findSourceTarget } from './src/sourceLocate';
 import { syncClozeGroup as syncClozeGroupImpl } from './src/sourceSync';
 import { CardStore } from './src/store';
+import { TempEditor } from './src/tempEdit';
 import type { FakeCardPage } from './src/viewNav';
 import { WHATS_NEW_VERSION, WhatsNewModal } from './src/whatsNew';
 
@@ -35,6 +36,8 @@ export default class FakeCardPlugin extends Plugin {
     settings: FakeCardSettings;
     store: CardStore;
     reviews: ReviewStore;
+    /** Card fields being edited in a real editor split, see `tempEdit.ts`. */
+    tempEdit!: TempEditor;
 
 
     /** Debounce handle for refreshing views after a settings change. */
@@ -43,6 +46,8 @@ export default class FakeCardPlugin extends Plugin {
     private statusEl: HTMLElement | null = null;
     /** Debounce handle for the status bar: every rating recomputes it. */
     private statusTimer: number | null = null;
+    /** Debounce handle for repainting views after an in-editor card edit. */
+    private cardRefreshTimer: number | null = null;
     /** Timer that opens the "what is new" dialog after an update. */
     private whatsNewTimer: number | null = null;
     /** Set by onunload, so delayed startup work does not run after unloading. */
@@ -52,6 +57,7 @@ export default class FakeCardPlugin extends Plugin {
         await this.loadSettings();
         this.store = new CardStore(this.app, this.settings.libraryFolder);
         this.reviews = new ReviewStore(this.app, this.settings.libraryFolder);
+        this.tempEdit = new TempEditor(this);
         // Warm the per-note index so the reading-view badges can be injected
         // synchronously (post processors cannot await).
         await this.store.list();
@@ -111,7 +117,12 @@ export default class FakeCardPlugin extends Plugin {
         this.statusEl.addEventListener('click', () => {
             void this.openReview();
         });
-        this.app.workspace.onLayoutReady(() => this.refreshStatusBar());
+        this.app.workspace.onLayoutReady(() => {
+            this.refreshStatusBar();
+            // Scratch notes from a crashed editing session, now that the vault
+            // is up (see TempEditor.sweep).
+            void this.tempEdit.sweep();
+        });
 
         // Reading view: show a small badge next to the block a card came from.
         // The note file is never modified - this only injects an element into
@@ -359,6 +370,9 @@ export default class FakeCardPlugin extends Plugin {
         if (this.whatsNewTimer !== null) window.clearTimeout(this.whatsNewTimer);
         if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
         if (this.statusTimer !== null) window.clearTimeout(this.statusTimer);
+        if (this.cardRefreshTimer !== null) window.clearTimeout(this.cardRefreshTimer);
+        // Persist any open editor draft and drop its scratch file.
+        void this.tempEdit?.flushAll();
         // A pending paint must not write into the old element after a reload.
         this.statusEl = null;
     }
@@ -460,6 +474,26 @@ export default class FakeCardPlugin extends Plugin {
             // Daily limits and the deck list live in the settings.
             this.refreshStatusBar();
         }, 250);
+    }
+
+    /**
+     * A card was saved by something other than the views - the editor split in
+     * `tempEdit.ts` writes straight into the JSON. Repaint what is on screen
+     * without rebuilding the review session: same card, same side.
+     */
+    notifyCardEdited(): void {
+        if (this.cardRefreshTimer !== null) window.clearTimeout(this.cardRefreshTimer);
+        this.cardRefreshTimer = window.setTimeout(() => {
+            this.cardRefreshTimer = null;
+            for (const leaf of this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)) {
+                const view = leaf.view;
+                if (view instanceof ReviewView) view.refreshCurrentCard();
+            }
+            for (const leaf of this.app.workspace.getLeavesOfType(BROWSE_VIEW_TYPE)) {
+                const view = leaf.view;
+                if (view instanceof BrowseView) void view.reload();
+            }
+        }, 300);
     }
 
     /** Recreate both stores after the library folder changes. */

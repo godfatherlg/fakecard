@@ -1,30 +1,31 @@
 import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from 'obsidian';
 import type { CardRecord } from './card';
 import { clozeGroups, renderClozeHtml } from './cloze';
-import { ClozePanelModal } from './clozePanel';
-import { QaPanelModal } from './qaPanel';
-import { CardPreviewDialog } from './cardPreview';
 import { ConfirmDialog } from './confirm';
 import { tt, ttf } from './i18n';
 import { matchesQuery, SearchContext } from './search';
 import { jumpToCardSource } from './sourceJump';
+import { parseTags } from './ui';
 import { renderViewNav } from './viewNav';
 import type FakeCardPlugin from '../main';
 
 export const BROWSE_VIEW_TYPE = 'fakecard-browse';
 
 /**
- * Anki-style Browse view: a searchable card list, a read-only preview of the
- * selected card, and an Edit button.
+ * Anki-style Browse view: a searchable card list and a preview of the selected
+ * card.
  *
  * Search matches the front, the back, the cloze body and the source path.
- * The preview is always read-only; editing opens the same manual panels the
- * review view uses, so both entry points stay consistent.
+ * The preview is read-only. Deck and tags are edited inline and saved at once;
+ * the text opens in Obsidian's own editor, so the card looks there exactly like
+ * it will in review.
  */
 export class BrowseView extends ItemView {
     private cards: CardRecord[] = [];
     private filtered: CardRecord[] = [];
     private selectedId: string | null = null;
+    /** Cloze / image preview: whether the masks are lifted. */
+    private previewRevealed = false;
     private query = '';
     private deckFilter = 'all';
     private decks: string[] = ['default'];
@@ -239,11 +240,17 @@ export class BrowseView extends ItemView {
 
                 const baseType = card.type === 'cloze' ? tt('Cloze') : card.type === 'image' ? tt('Image') : tt('Q&A');
                 const state = card.graduated ? ` · ${tt('graduated')}` : card.suspended ? ` · ${tt('paused')}` : card.childOf ? ` · ${tt('child')}` : '';
-                row.createEl('td', { text: card.front.slice(0, 60) });
+                // Front only - but a card found by a word that lives in its
+                // answer would look like a wrong hit, so say where it matched.
+                const frontCell = row.createEl('td');
+                frontCell.createDiv({ text: card.front.slice(0, 60) });
+                const hint = this.matchHint(card);
+                if (hint) frontCell.createDiv({ cls: 'fakecard-match-hint', text: hint });
                 row.createEl('td', { text: `${baseType}${state}` });
                 row.createEl('td', { text: card.deck ?? 'default' });
                 row.createEl('td', { text: String(card.reviews ?? 0) });
                 row.addEventListener('click', () => {
+                    if (this.selectedId !== card.id) this.previewRevealed = false;
                     this.selectedId = card.id;
                     this.render();
                 });
@@ -259,14 +266,8 @@ export class BrowseView extends ItemView {
         }
 
         const actions = previewEl.createDiv({ cls: 'fakecard-browse-actions' });
-        actions.createEl('button', { text: tt('👁 Preview') }).addEventListener('click', () => {
-            new CardPreviewDialog(this.app, selected, this.plugin.settings.maskAllGroups).open();
-        });
         actions.createEl('button', { text: tt('↗ Source') }).addEventListener('click', () => {
             void jumpToCardSource(this.app, selected);
-        });
-        actions.createEl('button', { text: tt('✎ Edit') }).addEventListener('click', () => {
-            this.openEditor(selected);
         });
         actions.createEl('button', { text: tt('🗑 Delete') }).addEventListener('click', () => {
             new ConfirmDialog(
@@ -281,13 +282,82 @@ export class BrowseView extends ItemView {
             ).open();
         });
 
-        previewEl.createDiv({ cls: 'fakecard-preview-label', text: tt('Front') });
-        const frontEl = previewEl.createDiv({ cls: 'fakecard-card-view' });
-        this.renderPreview(frontEl, selected, false);
+        // Deck and tags are metadata, not text: they are edited right here and
+        // saved on the spot, so a card never needs a dialog for them.
+        const meta = previewEl.createDiv({ cls: 'fakecard-browse-meta' });
 
-        previewEl.createDiv({ cls: 'fakecard-preview-label', text: tt('Back') });
-        const backEl = previewEl.createDiv({ cls: 'fakecard-card-view' });
-        this.renderPreview(backEl, selected, true);
+        const deckField = meta.createDiv({ cls: 'fakecard-meta-field' });
+        deckField.createSpan({ cls: 'fakecard-preview-label', text: tt('Deck') });
+        const cardDeck = deckField.createEl('select', { cls: 'dropdown' });
+        for (const deck of new Set(['default', ...this.decks, selected.deck ?? 'default'])) {
+            const option = cardDeck.createEl('option');
+            option.value = deck;
+            option.textContent = deck;
+        }
+        cardDeck.value = selected.deck ?? 'default';
+        cardDeck.addEventListener('change', () => {
+            void this.saveMeta(selected, { deck: cardDeck.value });
+        });
+
+        const tagField = meta.createDiv({ cls: 'fakecard-meta-field' });
+        tagField.createSpan({ cls: 'fakecard-preview-label', text: tt('Tags') });
+        const tagsInput = tagField.createEl('input', { cls: 'fakecard-tags-input' });
+        tagsInput.type = 'text';
+        tagsInput.placeholder = tt('tag1, tag2');
+        tagsInput.value = (selected.tags ?? []).join(', ');
+        tagsInput.addEventListener('change', () => {
+            void this.saveMeta(selected, { tags: parseTags(tagsInput.value) });
+        });
+
+        // The text itself is edited in Obsidian's own editor, one button per
+        // field: live preview, links, math - everything a note gets.
+        const editors = previewEl.createDiv({ cls: 'fakecard-browse-editors' });
+        const addEditor = (field: 'front' | 'back' | 'clozeText', label: string): void => {
+            editors.createEl('button', { text: label }).addEventListener('click', () => {
+                void this.plugin.tempEdit.open(selected, field);
+            });
+        };
+        if (selected.type === 'cloze') {
+            addEditor('clozeText', tt('✎ Edit cloze text'));
+        } else if (selected.type === 'image') {
+            // The only text an image card has is the embed that points at the
+            // picture; the masks are drawn, not typed.
+            addEditor('front', tt('✎ Edit image link'));
+        } else {
+            addEditor('front', tt('✎ Edit question'));
+            addEditor('back', tt('✎ Edit answer'));
+        }
+
+        this.renderCardPreview(previewEl, selected);
+    }
+
+    /**
+     * The card the way review will show it.
+     *
+     * Q&A has two sides, so both are printed with a rule between them: one look
+     * tells you what is asked and what is answered. Cloze and image cards
+     * reveal in place, and their answer is the same content with nothing
+     * masked, so printing it twice says nothing - they get a switch instead.
+     */
+    private renderCardPreview(el: HTMLElement, card: CardRecord): void {
+        if (card.type === 'qa') {
+            const front = el.createDiv({ cls: 'fakecard-card-view' });
+            this.renderPreview(front, card, false);
+            el.createEl('hr', { cls: 'fakecard-preview-divider' });
+            const back = el.createDiv({ cls: 'fakecard-card-view' });
+            this.renderPreview(back, card, true);
+            return;
+        }
+
+        const view = el.createDiv({ cls: 'fakecard-card-view' });
+        this.renderPreview(view, card, this.previewRevealed);
+        el.createEl('button', {
+            cls: 'fakecard-card-preview-show',
+            text: this.previewRevealed ? tt('Hide answer') : tt('Show answer'),
+        }).addEventListener('click', () => {
+            this.previewRevealed = !this.previewRevealed;
+            this.render();
+        });
     }
 
     private renderPreview(el: HTMLElement, card: CardRecord, revealed: boolean): void {
@@ -349,15 +419,45 @@ export class BrowseView extends ItemView {
         return card.back;
     }
 
-    private openEditor(card: CardRecord): void {
-        const onSaved = () => {
-            void this.reload();
-        };
-        if (card.type === 'cloze') {
-            new ClozePanelModal(this.app, this.plugin, card.source.path, card, undefined, onSaved).open();
-        } else {
-            new QaPanelModal(this.app, this.plugin, card.source.path, card, undefined, onSaved).open();
-        }
+    /**
+     * What a search term hit, when it was not the front.
+     *
+     * The list prints the front only; a card matched through a word in its
+     * answer (or in a hidden cloze hole) would otherwise look like a bug.
+     */
+    private matchHint(card: CardRecord): string | null {
+        const terms = this.query
+            .split(/\s+/)
+            .filter((term) => term.length > 0 && !/^-?\w+:/.test(term))
+            .map((term) => term.replace(/^"|"$/g, '').replace(/^-/, '').trim().toLowerCase())
+            .filter((term) => term.length > 0);
+        if (terms.length === 0) return null;
+
+        const front = card.front.toLowerCase();
+        const rest = `${card.back}\n${card.clozeText ?? ''}`;
+        const lowered = rest.toLowerCase();
+        const hit = terms.find((term) => !front.includes(term) && lowered.includes(term));
+        if (!hit) return null;
+
+        const at = lowered.indexOf(hit);
+        const from = Math.max(0, at - 24);
+        const excerpt = rest.slice(from, at + hit.length + 32).replace(/\s+/g, ' ').trim();
+        return ttf('matched in the answer: {text}', { text: from > 0 ? `…${excerpt}` : excerpt });
+    }
+
+    /**
+     * Deck and tags save as soon as they change - there is no dialog left to
+     * hold them, and a metadata edit should not cost a trip to a modal.
+     */
+    private async saveMeta(card: CardRecord, patch: { deck?: string; tags?: string[] }): Promise<void> {
+        // Re-resolve: the row may be a render behind the stored card.
+        const live = (await this.plugin.store.list()).find((entry) => entry.id === card.id);
+        if (!live) return;
+        if (patch.deck !== undefined) live.deck = patch.deck;
+        if (patch.tags !== undefined) live.tags = patch.tags;
+        live.updated = new Date().toISOString();
+        await this.plugin.store.save(live);
+        this.plugin.refreshStatusBar();
     }
 
     async onClose(): Promise<void> {

@@ -122,6 +122,48 @@ export function wrapSelection(
     };
 }
 
+/** A replacement covering whole lines, for `wrapBlockLines`. */
+export interface BlockWrap {
+    text: string;
+    from: number;
+    to: number;
+}
+
+/** Markdown markers that must stay outside a hole for the block to keep its shape. */
+const BLOCK_PREFIX = /^[ \t]*(?:[-*+] |\d+[.)] |> ?|#{1,6} )/;
+
+/**
+ * Wrap a selection that spans several lines, one line at a time.
+ *
+ * A single hole around a list is not a hole: `{{c1::1. a\n2. b}}` puts the list
+ * markers inside the braces, so the list stops being a list and nothing renders
+ * as a hole either. Wrapping each line *after* its own list, quote or heading
+ * marker keeps every block intact, and all the pieces still ask in one group.
+ *
+ * Lines that are already a hole, table rows (braces inside a table break the
+ * table), and blank lines are left as they are.
+ */
+export function wrapBlockLines(
+    text: string,
+    from: number,
+    to: number,
+    group: number,
+): BlockWrap {
+    const lineFrom = text.lastIndexOf('\n', Math.max(0, from - 1)) + 1;
+    const newline = text.indexOf('\n', to);
+    const lineTo = newline < 0 ? text.length : newline;
+
+    const wrapped = text.slice(lineFrom, lineTo).split('\n').map((line) => {
+        if (line.trim().length === 0) return line;
+        if (parseCloze(line).length > 0) return line;
+        if (/^[ \t]*\|/.test(line)) return line;
+        const prefix = BLOCK_PREFIX.exec(line)?.[0] ?? /^[ \t]*/.exec(line)?.[0] ?? '';
+        return `${prefix}{{c${group}::${line.slice(prefix.length)}}}`;
+    }).join('\n');
+
+    return { text: wrapped, from: lineFrom, to: lineTo };
+}
+
 /**
  * Remove the token(s) that overlap the selection, leaving the plain text.
  * Used by the "remove cloze" button after the user selects around a hole.
