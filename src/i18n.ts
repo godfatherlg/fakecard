@@ -304,12 +304,19 @@ const UI_ZH: Record<string, string> = {
     'Select a card to preview it.': '选择一张卡片进行预览。',
     '👁 Preview': '👁 预览',
     '↗ Source': '↗ 来源',
-    '✎ Edit': '✎ 编辑',
+    '✎ Edit question': '✎ 编辑题目',
+    '✎ Edit answer': '✎ 编辑答案',
+    '✎ Edit cloze text': '✎ 编辑填空正文',
+    '✎ Edit image link': '✎ 编辑图片引用',
     '🗑 Delete': '🗑 删除',
     'Delete this card?': '删除这张卡片？',
     'Card deleted.': '卡片已删除。',
 
     // Card preview and source jump.
+    '↗ Edit in editor': '↗ 在编辑器里编辑',
+    'Edit the text in the editor': '在 Obsidian 编辑器里编辑这段文字',
+    'Could not open the editor: {message}': '无法打开编辑器：{message}',
+    'Preview': '预览',
     'Card preview': '卡片预览',
     'Source: {path}': '来源：{path}',
     '↗ Open at source': '↗ 在原文打开',
@@ -374,6 +381,11 @@ const UI_ZH: Record<string, string> = {
     'Select some text first.': '请先选中一些文字。',
     'The card body is empty.': '卡片正文为空。',
     'No hole found - wrap some text in {{c1::...}} first.': '没有找到挖空 - 请先用 {{c1::...}} 包裹文字。',
+    'No cloze hole at the cursor.': '光标处没有挖空。',
+    'Cloze text': '填空正文',
+    'matched in the answer: {text}': '命中在答案：{text}',
+    'Hide answer': '收起答案',
+    'Source: {name}': '来源：{name}',
 
     // Image panel.
     'Edit image card': '编辑图片卡',
