@@ -128,6 +128,10 @@ export default class FakeCardPlugin extends Plugin {
         // The note file is never modified - this only injects an element into
         // the rendered DOM.
         this.registerMarkdownPostProcessor((el, ctx) => {
+            // The badge says "this block has cards" and belongs to a NOTE. Inside
+            // our own views the markdown is a card being reviewed or previewed,
+            // where the chip is noise - and it showed on both sides of the card.
+            if (el.closest('.fakecard-review-body, .fakecard-card-view, .fakecard-field-preview-body')) return;
             const cards = this.store.cardsForPath(ctx.sourcePath);
             if (cards.length === 0) return;
             // Several mask groups can share one image - show one badge there.
@@ -146,7 +150,9 @@ export default class FakeCardPlugin extends Plugin {
                 badge.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    void this.openBrowse();
+                    // The badge marks one block: land on the card built from
+                    // it, not on the first row of the library.
+                    void this.openBrowse(card.id);
                 });
             }
         });
@@ -704,7 +710,7 @@ export default class FakeCardPlugin extends Plugin {
         if (view instanceof ReviewView) await view.reload();
     }
 
-    async openBrowse(): Promise<void> {
+    async openBrowse(cardId?: string): Promise<void> {
         let leaf: WorkspaceLeaf | null = this.app.workspace.getLeavesOfType(BROWSE_VIEW_TYPE)[0] ?? null;
         if (!leaf) {
             leaf = this.app.workspace.getLeaf('tab');
@@ -712,7 +718,9 @@ export default class FakeCardPlugin extends Plugin {
         }
         void this.app.workspace.revealLeaf(leaf);
         const view = leaf.view;
-        if (view instanceof BrowseView) await view.reload();
+        if (!(view instanceof BrowseView)) return;
+        await view.reload();
+        if (cardId) view.selectCard(cardId);
     }
 
     async openStats(): Promise<void> {

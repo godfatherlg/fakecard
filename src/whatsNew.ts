@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.14';
+export const WHATS_NEW_VERSION = '1.0.15';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Cards whose first line is a three-digit list item ("298. …") no longer lose their first digit: lists inside a card get their own indent instead of being drawn outside the visible area.',
-        zh: '以三位数列表开头的卡片（「298. …」）不再被裁掉最前面那位数字：卡片内的列表有了自己的缩进，编号完整显示。',
+        en: 'The 📇 "this block has cards" badge no longer shows up inside a card: it belongs to the note\'s reading view, and review was picking it up because a card is rendered with its source note\'s path.',
+        zh: '卡片里不再冒出 📇「这一段有卡片」角标：它本来只属于笔记的阅读视图，复习时因为用了源笔记路径而被误注入到卡片上。',
     },
     {
-        en: 'The extra "source" line under the card is gone. The source is back where it always was - a block link at the end of the answer, "《note》· block N", which jumps to the block in the note.',
-        zh: '卡片底部那行额外的「来源」撤掉了。来源回到它本来的位置——答案末尾的一条块链接「《笔记名》·第 N 块」，点了跳到笔记里对应那一块。',
+        en: 'Clicking that badge in a note now lands on the card itself: the browse view clears its filters, selects the row and scrolls it into view instead of opening on the first row.',
+        zh: '在笔记里点这个角标现在会直接定位到那张卡：浏览视图会清空筛选、选中该行并滚动到视野里，不再停在第一行。',
     },
 ];
 

@@ -114,6 +114,25 @@ export class BrowseView extends ItemView {
         this.render();
     }
 
+    /**
+     * Show one card: what a badge in a note does when it is clicked.
+     *
+     * The filters are cleared first - the card may not match the search or deck
+     * filter the view was last left in, and it would silently select the first
+     * row instead of the one asked for.
+     */
+    selectCard(cardId: string): void {
+        this.query = '';
+        this.deckFilter = 'all';
+        this.selectedId = cardId;
+        this.previewRevealed = false;
+        void this.reload().then(() => {
+            this.contentEl
+                .querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)
+                ?.scrollIntoView({ block: 'center' });
+        });
+    }
+
     private render(): void {
         const container = this.contentEl;
         container.empty();
@@ -225,6 +244,9 @@ export class BrowseView extends ItemView {
             }
             for (const card of this.filtered) {
                 const row = table.createEl('tr', { cls: 'fakecard-browse-row' });
+                // Used to bring the row into view when a badge in a note opens
+                // the card (selectCard).
+                row.setAttr('data-card-id', card.id);
                 if (card.id === this.selectedId) row.addClass('is-selected');
 
                 const checkCell = row.createEl('td');

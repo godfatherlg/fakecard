@@ -1,53 +1,49 @@
-# 1.0.14
+# 1.0.15
 
 ## 中文
 
-### 修复：卡片的列表编号被裁掉一位
+### 修复：卡片里冒出「这一段有卡片」的角标
 
-以三位数开头的卡片（`298. …`）在复习界面里会显示成 `98. …`：Obsidian 把有序列表的编号画在内容框之外，靠阅读视图的大边距容纳，而卡片区域的边距更窄，三位数的标记就超出了可视范围。
+那个 📇 本来只该出现在**笔记的阅读视图**里，标记“这一段生成过卡片”。但 `MarkdownRenderer` 也会触发 Markdown 后处理器，而复习时我们传给它的正是源笔记路径，于是角标被当成笔记内容注入了卡片，正面、反面各出现一次。
 
-现在卡片区域（复习、浏览预览、面板预览）里的列表有自己的缩进，编号完整显示。一位数、两位数列表不受影响，只是整体略向右一点。
+现在后处理器会先看自己渲染在哪个容器里：只要在复习正文、浏览预览或字段预览之内就直接返回，角标只留在真正的笔记里。
 
-### 调整：撤掉卡片底部那行「来源」
+### 修复：点角标只打开浏览视图，不指向那张卡
 
-1.0.13 在卡片底部加了一行「来源：笔记名」。这次改回更接近原来的做法：来源以**块链接**的形式写进卡片答案正文本身，形如
+原来点击角标只是打开浏览视图，停在列表第一行。现在：
 
-```
-[《最后一遍疯狂刷题：科目二心理学单选题》·第 28 块](obsidian://adv-uri?…)
-```
+- 角标知道自己对应哪张卡，点击时带上卡片 id
+- 浏览视图会先清空搜索词与牌组筛选（否则卡片可能被上次的筛选挡住，退化成“选中第一行”），再选中该卡
+- 列表会滚动到那一行并高亮，右栏同时显示它的预览
 
-- 230 张卡已带上这条链接（问答卡在答案面，填空卡在正文末尾）
-- 链接由 fakelink 接管 `obsidian://adv-uri`，点击可跳回源笔记的对应块
-- 原来底部那行提示已删除，不会再出现两份来源
+同一段有多张卡时（填空的 c1/c2、一张图的多个蒙版组），落到第一张。
 
 ### 请测试
 
-- 复习一张以三位数编号开头的填空卡（如 298 题），确认编号完整显示为 `298.`
-- 答案面末尾应有一条蓝色的 `《笔记名》·第 N 块` 链接，点击能跳回源笔记对应位置
-- 问答卡的答案面同样有这条链接，问题面没有
+- 阅读视图里点某段的 📇：浏览视图应打开、筛选被清空、对应行被选中并滚动到视野中央
+- 打开任何一张卡复习：正反面都不该再出现 📇
+- 浏览视图右栏预览里也不该出现 📇
 
 ## English
 
-### Fixed: a card's list number lost its first digit
+### Fixed: a "this block has cards" chip inside the cards themselves
 
-Cards that start with a three-digit number (`298. …`) were shown as `98. …` in the review view: Obsidian draws ordered-list markers outside the content box and relies on the reading view's margins to hold them, while a card pane has much less room - the marker ended up outside the visible area.
+The 📇 badge belongs in the **reading view of a note**, where it marks a block that produced cards. But `MarkdownRenderer` also runs markdown post-processors, and review renders a card with its source note's path - so the badge was injected into the card itself, once on each side.
 
-Lists inside a card (review, browse preview, panel preview) now have their own indent, so the number is printed in full. One- and two-digit lists are unaffected apart from a slightly wider indent.
+The post-processor now checks where it is rendering: inside the review body, a browse preview or a field preview it returns straight away, and the badge stays in real notes only.
 
-### Changed: the "source" line under the card is gone
+### Fixed: clicking the badge opened the browse view without the card
 
-1.0.13 added a "Source: note name" line below the card. This release goes back to what the cards used to carry: the source is a **block link** written into the answer text itself, like
+The click used to just open the view, which then sat on the first row. Now:
 
-```
-[《最后一遍疯狂刷题：科目二心理学单选题》·第 28 块](obsidian://adv-uri?…)
-```
+- the badge carries the id of the card it belongs to
+- the browse view clears its search and deck filters first (a leftover filter could hide that card and the view would fall back to its first row), then selects it
+- the row is scrolled into view and highlighted, with its preview on the right
 
-- 230 cards now carry that link (Q&A in the answer, cloze at the end of the body)
-- fakelink handles `obsidian://adv-uri`, so clicking jumps back to the block in the source note
-- the extra line below the card is removed - there are no two copies of the same source any more
+When one block produced several cards (cloze groups c1/c2, masks of one image), it lands on the first.
 
 ### Please test
 
-- Review a cloze card that starts with a three-digit number (e.g. 298) and check the number is complete
-- The answer should end with a blue `《note》· block N` link that jumps to the right place in the note
-- A Q&A card has the same link on its answer side, and none on the question side
+- In a note's reading view, click a block's 📇: the browse view should open with filters cleared, the row selected and scrolled into the middle
+- Review any card: no 📇 on either side
+- The browse view's own preview should not show a 📇 either
