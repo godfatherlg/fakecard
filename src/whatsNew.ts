@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.16';
+export const WHATS_NEW_VERSION = '1.0.17';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'No new features: two adjustments for the community plugin review. The scratch note behind an edit now goes to the trash instead of being deleted outright, so your "Deleted files" setting applies.',
-        zh: '这一版没有新功能，只有两处按社区插件评审要求做的调整：编辑卡片时的临时笔记改为进回收站，不再直接删除，你的「删除文件」设置会生效。',
-    },
-    {
-        en: 'The cloze toolbar is created through Obsidian\'s DOM helper now. Nothing about it should look or behave differently.',
-        zh: '填空工具条改用 Obsidian 提供的 DOM helper 创建，外观和行为都与之前一致。',
+        en: 'This dialog could never appear on a settings file written before the feature existed: the missing version read as a fresh install. That case counts as one upgrade now - so this is the first note such a vault sees, and later updates behave normally.',
+        zh: '这个说明以前在某些库上永远不会出现：设置文件早于这个功能时没有版本号，被当成了全新安装。现在这种情况算作一次升级——所以这可能是你第一次看到它，之后的更新会正常弹出。',
     },
 ];
 

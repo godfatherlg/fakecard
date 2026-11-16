@@ -52,6 +52,8 @@ export default class FakeCardPlugin extends Plugin {
     private whatsNewTimer: number | null = null;
     /** Set by onunload, so delayed startup work does not run after unloading. */
     private unloaded = false;
+    /** Settings existed before `lastSeenVersion` did: treat as one upgrade. */
+    private upgradedWithoutVersion = false;
 
     async onload() {
         await this.loadSettings();
@@ -353,7 +355,11 @@ export default class FakeCardPlugin extends Plugin {
         // the notice for good.
         const currentVersion = this.manifest.version;
         const isUpdate = this.settings.lastSeenVersion !== ''
-            && this.settings.lastSeenVersion !== currentVersion;
+            ? this.settings.lastSeenVersion !== currentVersion
+            // No stored version at all. A brand-new install stays quiet, but a
+            // settings file written before this feature existed is an upgrade
+            // that would otherwise never see another note.
+            : this.upgradedWithoutVersion;
         if (isUpdate && WHATS_NEW_VERSION === currentVersion) {
             this.app.workspace.onLayoutReady(() => {
                 if (this.unloaded) return;
@@ -386,6 +392,10 @@ export default class FakeCardPlugin extends Plugin {
     async loadSettings() {
         const loaded = (await this.loadData()) as Partial<FakeCardSettings> | null;
         this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded ?? {});
+        // Settings saved before the "what is new" notes existed carry no
+        // version. Empty means "never seen" and used to be read as a fresh
+        // install, which disabled the notes for good.
+        this.upgradedWithoutVersion = !!loaded && !loaded.lastSeenVersion;
         if (!Array.isArray(this.settings.examPlans)) this.settings.examPlans = [];
         // A data file edited by hand may carry anything; only two layouts exist.
         if (this.settings.reviewLayout !== 'wide') this.settings.reviewLayout = 'center';
