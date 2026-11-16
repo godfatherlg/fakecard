@@ -1,45 +1,63 @@
-# 1.0.11
+# 1.0.12
 
 ## 中文
 
-### 修复：重启后复习界面「闪一下」
+### 新功能：今日队列显示在状态栏
 
-重启 Obsidian 后，复习界面会先短暂露出一块「Loading…」占位，紧接着整张卡替换上去，看起来就是闪一下。
+右下角状态栏多了三个数：**到期 / 新卡 / 学习中**，配色照 Anki 的牌组行（到期绿、新卡蓝、学习中橙），为 0 的那项变灰不抢眼。
 
-那段窗口里窗格还在组装，占位其实没有读者；等能看见它的时候，卡片只差一瞬——占位唯一的作用就是被卡片替换。现在布局就绪前不再绘制任何东西，窗格保持空白，卡片出现即是最终状态，和 Obsidian 其它延迟加载的视图一致。
+- 点一下直接打开复习界面
+- 跟随复习窗格的牌组筛选：窗格里选了某个牌组，状态栏就只算那个牌组
+- 每次评分、改设置、卡片文件变动都会刷新（300ms 防抖）
 
-### 优化：等布局的那两秒先读队列
+三项互不重叠，`到期 + 新卡 + 学习中` 正好等于今天队列总数，和窗格里的 `x / 17` 对得上——因为两边现在是同一段「构建队列」的代码，不存在两套算法各算各的。
 
-读卡片队列本来就不依赖布局，现在恢复中的视图在等布局的同时就开始读，布局一就绪直接同步绘制。磁盘空闲时卡片会和其余界面同帧出现，不再晚一步补上来。
+### 优化：复习界面的张数更醒目
 
-### 补上上一版漏掉的说明
+`1 / 17` 原来是条灰色小字，现在是胶囊：当前张数大号加粗深色，总数小而浅跟在后面，悬停显示「第 1 / 17 张」。
 
-1.0.10 的「更新说明」弹窗因为版本号没同步而没有弹出，这次一并补上那两版的改动：重启后首屏卡片的内链不再变成不可点击的纯文本；统计页首次打开更快（卡片文件与复习日志并发读取，只扫一次全量日志）。
+### 新功能：卡片文字可以选中、复制
+
+复习时题目和答案都能拖选、双击选词、`Ctrl+C` 或右键复制——想抄一个术语出来不用再手动打一遍。
+
+卡片依然**不可编辑**：正文是 Markdown 渲染出来的展示内容，没有输入框也没有光标；要改还是点铅笔进编辑面板。
+
+（为什么要专门做这一步：Obsidian 核心样式在 `body` 上关掉了选中，只对自己认识的阅读视图、编辑器、弹窗单独打开，自定义视图得自己把选中权要回来。）
 
 ### 请测试
 
-- 重启 Obsidian，确认复习界面开场不再有「占位换成整张卡」，卡片直接出现
-- 首屏卡片里的 `[[双链]]` 仍然可点、有链接样式（1.0.10 修的，不要回归）
-- 手动从侧边栏打开复习界面，确认没有回归
+- 状态栏三个数与复习界面 `x / 17` 是否一致，评一张卡后状态栏数字是否跟上
+- 点状态栏能打开复习界面；切到某个牌组的筛选后，状态栏是否也只算那个牌组
+- 复习时能否选中并复制题目、答案；确认卡片文字改不了
+- 重启 Obsidian，确认「更新说明」弹窗出现一次且内容完整
 
 ## English
 
-### Fixed: the review view flashing on startup
+### New: today's queue in the status bar
 
-When Obsidian started, the review view briefly showed a "Loading…" placeholder and the whole card then replaced it - a visible flash.
+The status bar now carries three numbers: **due / new / learning**, colour-coded like an Anki deck row (due green, new blue, learning orange), with zeros dimmed so they do not shout.
 
-The pane is still being assembled during that window, so the placeholder has no reader; by the time it is visible the card is a moment away, which makes the placeholder nothing but a thing to be replaced. Nothing is painted before the layout is ready now: the pane stays empty and the card is the first and final state, like any other deferred view in Obsidian.
+- Click it to open the review view
+- It follows the review pane's deck filter: filter to one deck there and the bar counts only that deck
+- Every rating, settings change and card-file change refreshes it (300 ms debounce)
 
-### The queue is read while the layout is still loading
+The three numbers never overlap - `due + new + learning` is exactly the size of today's queue and matches the `x / 17` in the pane, because both now come from the same queue builder instead of two separate counts.
 
-Reading the card queue never depended on the layout, so a restored view now starts it while it waits, and paints straight away once the layout is ready. When the disk is idle the card lands in the same frame as the rest of the workspace instead of a step behind it.
+### Improved: the card counter is easier to read
 
-### Notes that the previous release never showed
+`1 / 17` used to be a line of grey text. It is a pill now: the card you are on is large and dark, the total sits small behind it, and the tooltip spells out "Card 1 of 17".
 
-The 1.0.10 "what is new" dialog was skipped because its version constant was not updated, so the changes from those two releases are listed here as well: wiki links in the first card after a restart are clickable again, and the statistics page opens faster (card files and review logs are read in parallel, and the full history is read once).
+### New: card text can be selected and copied
+
+Questions and answers can be dragged over, double-clicked word by word, and copied with `Ctrl+C` or the right-click menu - no more retyping a term out of an answer.
+
+The card remains **read-only**: its text is rendered Markdown, with no input field and no caret. To change it, use the pencil and the edit panel.
+
+(Why this needed doing at all: Obsidian's core stylesheet turns selection off on `body` and re-enables it only for the panes it knows about - reading view, editors, popups - so a custom view has to ask for it.)
 
 ### Please test
 
-- Restart Obsidian and confirm the review view no longer swaps a placeholder for the card - the card simply appears
-- Check that wiki links in the first card are still clickable and styled (fixed in 1.0.10, must not regress)
-- Open the review view from the ribbon and confirm nothing regressed
+- Do the three numbers in the status bar match `x / 17`, and do they follow a rating?
+- Does clicking the status bar open the review view, and does the bar scope itself to a deck filter?
+- Can you select and copy a question and an answer during review, and confirm the text still cannot be edited?
+- Restart Obsidian and confirm the "what is new" dialog appears once with the full list

@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.11';
+export const WHATS_NEW_VERSION = '1.0.12';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The review view no longer flashes on startup: the "Loading…" placeholder is gone, so the card is painted once and is the first thing you see.',
-        zh: '启动时复习界面不再闪：去掉了「Loading…」占位，卡片只绘制一次，出现即是最终状态。',
+        en: 'Today\'s queue now sits in the status bar: due, new and learning, colour-coded like an Anki deck row. Click it to open the review view.',
+        zh: '今日队列搬到了状态栏：到期、新卡、学习中，配色同 Anki 牌组行。点一下即打开复习界面。',
     },
     {
-        en: 'The card queue is read while the layout is still loading, so the card lands together with the rest of the workspace instead of a moment later.',
-        zh: '读卡片队列改到等布局的同时进行，卡片和其余界面同帧出现，不再晚一步补上来。',
+        en: 'The review header counts cards in a pill now - the card you are on is large and dark, the total sits small behind it.',
+        zh: '复习界面的张数改成胶囊：当前这张大号加粗，总数小而浅地跟在后面。',
     },
     {
-        en: 'Also from the previous two releases, whose notes never showed: wiki links in the first card after a restart are clickable again, and the statistics page opens faster.',
-        zh: '顺带补上前两版没弹出的说明：重启后首屏卡片的内链恢复可点击，统计页首次打开更快。',
+        en: 'Card text can be selected and copied while reviewing (questions and answers alike). The card still cannot be edited - the pencil opens the edit panel for that.',
+        zh: '复习时题目和答案都能选中、复制了。卡片本身仍然不可编辑，要改还是点铅笔进编辑面板。',
     },
 ];
 
