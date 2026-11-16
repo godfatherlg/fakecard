@@ -169,9 +169,70 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* The counter is the only number in the bar, so it carries the weight: a pill
+   with the current card large and dark, the total small behind it. */
 .fakecard-review-progress {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--background-modifier-hover);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  line-height: 1.2;
+}
+
+.fakecard-review-progress-current {
+  font-size: 1.3em;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.fakecard-review-progress-total {
+  font-size: 1em;
+  color: var(--text-muted);
+}
+
+/* Status bar: today's queue, colour-coded like an Anki deck row. */
+.fakecard-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.fakecard-status-part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fakecard-status-label {
+  color: var(--text-faint);
+}
+
+.fakecard-status-count {
+  font-weight: 600;
+}
+
+.fakecard-status-part.is-due .fakecard-status-count {
+  color: var(--color-green);
+}
+
+.fakecard-status-part.is-new .fakecard-status-count {
+  color: var(--color-blue);
+}
+
+.fakecard-status-part.is-learning .fakecard-status-count {
+  color: var(--color-orange);
+}
+
+/* Zero is information too, but it should not shout. */
+.fakecard-status-part.is-empty .fakecard-status-count {
+  font-weight: 400;
+  color: var(--text-faint);
 }
 
 .fakecard-review-icon {
@@ -228,6 +289,17 @@
   border-top: 1px solid var(--background-modifier-border);
   font-size: var(--font-text-size, 16px);
   line-height: 1.7;
+}
+
+/* The card is a reading surface, not an editor: the text can be selected and
+   copied (a term out of an answer, a whole question), and nothing in it can be
+   typed into - editing goes through the pencil, which opens the edit panel.
+   Obsidian's core sets `body { user-select: none }` and only opts specific
+   panes back in, so a custom view has to ask for selection itself. */
+.fakecard-review .fakecard-review-body,
+.fakecard-review .fakecard-review-body * {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Headings inside a card should not dwarf the card itself. */

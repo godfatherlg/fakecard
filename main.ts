@@ -17,6 +17,8 @@ import {
     exportCards as exportCardsImpl,
 } from './src/maintenance';
 import { QaPanelModal } from './src/qaPanel';
+import { buildReviewQueue } from './src/queue';
+import type { ReviewQueue } from './src/queue';
 import { ReviewView, REVIEW_VIEW_TYPE } from './src/reviewView';
 import { BrowseView, BROWSE_VIEW_TYPE } from './src/browseView';
 import { StatsView, STATS_VIEW_TYPE } from './src/statsView';
@@ -37,6 +39,10 @@ export default class FakeCardPlugin extends Plugin {
 
     /** Debounce handle for refreshing views after a settings change. */
     private refreshTimer: number | null = null;
+    /** Status bar entry showing today's queue, see `refreshStatusBar`. */
+    private statusEl: HTMLElement | null = null;
+    /** Debounce handle for the status bar: every rating recomputes it. */
+    private statusTimer: number | null = null;
     /** Timer that opens the "what is new" dialog after an update. */
     private whatsNewTimer: number | null = null;
     /** Set by onunload, so delayed startup work does not run after unloading. */
@@ -57,6 +63,7 @@ export default class FakeCardPlugin extends Plugin {
             if (!file.path.startsWith(cardsPrefix)) return;
             if (this.store.consumeWrite(file.path)) return;
             this.store.invalidate();
+            this.refreshStatusBar();
         };
         this.registerEvent(this.app.vault.on('modify', onCardsChange));
         this.registerEvent(this.app.vault.on('create', onCardsChange));
@@ -95,6 +102,16 @@ export default class FakeCardPlugin extends Plugin {
         this.addRibbonIcon('bar-chart-2', tt('fakecard: statistics'), () => {
             void this.openStats();
         });
+
+        // ----- Today's queue in the status bar -----
+        // Same three numbers Anki puts on a deck row (due / new / learning), so
+        // the day's workload is readable without opening the review pane.
+        this.statusEl = this.addStatusBarItem();
+        this.statusEl.addClass('fakecard-status');
+        this.statusEl.addEventListener('click', () => {
+            void this.openReview();
+        });
+        this.app.workspace.onLayoutReady(() => this.refreshStatusBar());
 
         // Reading view: show a small badge next to the block a card came from.
         // The note file is never modified - this only injects an element into
@@ -341,6 +358,9 @@ export default class FakeCardPlugin extends Plugin {
         this.unloaded = true;
         if (this.whatsNewTimer !== null) window.clearTimeout(this.whatsNewTimer);
         if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
+        if (this.statusTimer !== null) window.clearTimeout(this.statusTimer);
+        // A pending paint must not write into the old element after a reload.
+        this.statusEl = null;
     }
 
     async loadSettings() {
@@ -367,6 +387,56 @@ export default class FakeCardPlugin extends Plugin {
     }
 
     /**
+     * The status bar entry: today's queue as due / new / learning.
+     *
+     * Debounced, because every rating asks for it and ratings can arrive
+     * faster than the queue can be read.
+     */
+    refreshStatusBar(): void {
+        if (!this.statusEl) return;
+        if (this.statusTimer !== null) window.clearTimeout(this.statusTimer);
+        this.statusTimer = window.setTimeout(() => {
+            this.statusTimer = null;
+            void this.paintStatusBar();
+        }, 300);
+    }
+
+    private async paintStatusBar(): Promise<void> {
+        const el = this.statusEl;
+        if (!el) return;
+        // Follow the open pane's deck filter, so the bar and the card counter
+        // never disagree about the size of today's queue.
+        const leaf = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0] ?? null;
+        const deck = leaf?.view instanceof ReviewView ? leaf.view.deck : 'all';
+        let queue: ReviewQueue;
+        try {
+            queue = await buildReviewQueue(this, deck, { prune: false });
+        } catch {
+            return;
+        }
+        // The view may have been torn down while the queue was being read.
+        if (!this.statusEl) return;
+
+        el.empty();
+        el.setAttr('aria-label', ttf(
+            'Today: {due} due, {new} new, {learning} learning. Click to review.',
+            { due: queue.due, new: queue.fresh, learning: queue.learning },
+        ));
+        const parts: Array<[string, number, string]> = [
+            ['Due', queue.due, 'is-due'],
+            ['New', queue.fresh, 'is-new'],
+            ['Learning', queue.learning, 'is-learning'],
+        ];
+        for (const [label, count, cls] of parts) {
+            const part = el.createSpan({
+                cls: `fakecard-status-part ${cls}${count === 0 ? ' is-empty' : ''}`,
+            });
+            part.createSpan({ cls: 'fakecard-status-label', text: tt(label) });
+            part.createSpan({ cls: 'fakecard-status-count', text: String(count) });
+        }
+    }
+
+    /**
      * Settings must take effect immediately: open views reload shortly after a
      * change (debounced, so dragging a slider does not rebuild them on every
      * tick).
@@ -387,6 +457,8 @@ export default class FakeCardPlugin extends Plugin {
                 const view = leaf.view;
                 if (view instanceof StatsView) void view.reload();
             }
+            // Daily limits and the deck list live in the settings.
+            this.refreshStatusBar();
         }, 250);
     }
 

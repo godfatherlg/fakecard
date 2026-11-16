@@ -1,5 +1,5 @@
 import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
-import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
+import { createEmptyCard, fsrs, Rating } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import { suggestedAnswerSeconds } from './answerTime';
@@ -8,9 +8,10 @@ import { hardStreakScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ClozePanelModal } from './clozePanel';
 import { ImagePanelModal } from './imagePanel';
-import { daysLeft, nextExamPlan, pruneExpiredExamPlans } from './examPlan';
+import { daysLeft, nextExamPlan } from './examPlan';
 import { tt, ttf } from './i18n';
 import { RatingKeys, keyLabel, matchesKey } from './keys';
+import { buildReviewQueue, ReviewQueue } from './queue';
 import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
 import type FakeCardPlugin from '../main';
@@ -28,7 +29,7 @@ export const REVIEW_VIEW_TYPE = 'fakecard-review';
 export class ReviewView extends ItemView {
     private cards: CardRecord[] = [];
     /** Queue read while a restored view waits for the layout, see `onOpen`. */
-    private prefetched: Promise<{ decks: string[]; cards: CardRecord[]; expired: number }> | null = null;
+    private prefetched: Promise<ReviewQueue> | null = null;
     private index = 0;
     private revealed = false;
     private loading = true;
@@ -104,7 +105,7 @@ export class ReviewView extends ItemView {
         // Reading the queue does not depend on the layout, so it runs during the
         // wait: the card is then painted in the same frame the layout becomes
         // ready instead of popping in a moment after the rest of the workspace.
-        this.prefetched = this.loadQueue();
+        this.prefetched = buildReviewQueue(this.plugin, this.deckFilter);
         this.app.workspace.onLayoutReady(() => {
             void this.reload();
         });
@@ -117,7 +118,7 @@ export class ReviewView extends ItemView {
         // queue is already in memory by the time the card can be painted.
         let queue = this.prefetched ? await this.prefetched.catch(() => null) : null;
         this.prefetched = null;
-        if (!queue) queue = await this.loadQueue();
+        if (!queue) queue = await buildReviewQueue(this.plugin, this.deckFilter);
 
         if (queue.expired > 0) {
             new Notice(queue.expired === 1
@@ -134,48 +135,9 @@ export class ReviewView extends ItemView {
         this.render();
     }
 
-    /** Reads and orders the queue; touches no view state, so it can run early. */
-    private async loadQueue(): Promise<{ decks: string[]; cards: CardRecord[]; expired: number }> {
-        // Plans whose exam day is over are dropped; card data (stability,
-        // difficulty, history) is never touched, cards just go back to FSRS.
-        const expired = await pruneExpiredExamPlans(this.plugin);
-        const decks = await this.plugin.store.loadDecks();
-        const everyCard = await this.plugin.store.list();
-        const scoped = this.deckFilter === 'all'
-            ? everyCard
-            : everyCard.filter((card) => card.deck === this.deckFilter);
-        // Suspended parents wait for their children; graduated children are
-        // done and stay only for their history.
-        const all = scoped.filter((card) => !card.suspended && !card.graduated);
-
-        // Today's queue: due cards first (oldest due first), then new cards,
-        // both capped by the daily limits in settings.
-        const today = new Date();
-        const todayLogs = await this.plugin.reviews.forDay(today);
-        const reviewedToday = todayLogs.length;
-        const newToday = todayLogs.filter((log) => log.wasNew).length;
-        const remainingReviews = Math.max(0, this.plugin.settings.maxReviewsPerDay - reviewedToday);
-        const remainingNew = Math.max(0, this.plugin.settings.newCardsPerDay - newToday);
-
-        const now = Date.now();
-        const due = all
-            .filter((card) => card.fsrs
-                && card.fsrs.state !== State.New
-                && new Date(card.fsrs.due).getTime() <= now)
-            .sort((a, b) => new Date(a.fsrs!.due).getTime() - new Date(b.fsrs!.due).getTime());
-
-        const fresh = all
-            .filter((card) => !card.fsrs || card.fsrs.state === State.New)
-            .sort((a, b) => a.created.localeCompare(b.created));
-
-        return {
-            decks,
-            cards: [
-                ...due.slice(0, remainingReviews),
-                ...fresh.slice(0, remainingNew),
-            ],
-            expired,
-        };
+    /** Deck the pane is filtered to; the status bar follows it. */
+    get deck(): string {
+        return this.deckFilter;
     }
 
     private render(): void {
@@ -187,6 +149,9 @@ export class ReviewView extends ItemView {
         container.addClass('fakecard-review');
         // Settings -> Card display: a centred column, or the whole pane.
         container.toggleClass('is-wide', this.plugin.settings.reviewLayout === 'wide');
+        // Every rating moves the session on, so the status bar follows the pane
+        // from here instead of from its own timer.
+        this.plugin.refreshStatusBar();
 
         if (this.loading) {
             container.createEl('p', { text: tt('Loading…') });
@@ -224,9 +189,19 @@ export class ReviewView extends ItemView {
             void this.reload();
         });
 
-        meta.createDiv({
+        // The counter is the only number in the bar, so it carries the weight:
+        // the card being reviewed is large and dark, the total sits behind it.
+        const progress = meta.createDiv({
             cls: 'fakecard-review-progress',
-            text: `${this.index + 1} / ${this.cards.length}`,
+            attr: { 'aria-label': ttf('Card {n} of {total}', { n: this.index + 1, total: this.cards.length }) },
+        });
+        progress.createSpan({
+            cls: 'fakecard-review-progress-current',
+            text: String(this.index + 1),
+        });
+        progress.createSpan({
+            cls: 'fakecard-review-progress-total',
+            text: `/ ${this.cards.length}`,
         });
 
         const actions = bar.createDiv({ cls: 'fakecard-review-actions' });

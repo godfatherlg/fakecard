@@ -277,6 +277,9 @@ const UI_ZH: Record<string, string> = {
     '⏱ Over suggested time: {elapsed} / {budget}': '⏱ 超出建议时间：{elapsed} / {budget}',
     '{count} card(s) in the library.': '库中共 {count} 张卡片。',
     'Review': '复习',
+    'Card {n} of {total}': '第 {n} / {total} 张',
+    'Today: {due} due, {new} new, {learning} learning. Click to review.':
+        '今日队列：到期 {due} 张，新卡 {new} 张，学习中 {learning} 张。点击打开复习界面。',
     'today': '今天',
     '{days}d': '{days} 天',
     '{name}: exam today': '{name}：今天考试',
