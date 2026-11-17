@@ -619,7 +619,13 @@ export class ImagePanelModal extends Modal {
             oldId: group.id,
             group: { id: index + 1, masks: group.masks },
         }));
-        const image: CardImage = { path: this.imagePath, groups: plan.map((entry) => entry.group) };
+        // The zoom is a reading preference, not part of the masks: an edit here
+        // must not reset the size the card has been read at.
+        const image: CardImage = {
+            path: this.imagePath,
+            groups: plan.map((entry) => entry.group),
+            zoom: this.card?.image?.zoom,
+        };
 
         // One card per group (Anki model): each group schedules separately.
         const cards = this.plugin.createImageCards(image, this.sourcePath);

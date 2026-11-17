@@ -6,7 +6,7 @@ import { suggestedAnswerSeconds } from './answerTime';
 import { ChildCardPromptModal } from './childPrompt';
 import { hardStreakScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
-import { buildImageFigure, ImageZoomModal } from './imageFigure';
+import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
 import { ClozePanelModal } from './clozePanel';
 import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan } from './examPlan';
@@ -42,6 +42,9 @@ export class ReviewView extends ItemView {
     private cardShownAt = 0;
     /** Due cards the daily limit kept out of the current queue. */
     private backlog = 0;
+    /** Zoom waiting to be written to its card, and the timer that writes it. */
+    private pendingZoom: { cardId: string; zoom: number } | null = null;
+    private zoomTimer: number | null = null;
     /** When the finish page's refresh was last pressed, for its receipt line. */
     private refreshedAt = 0;
     private flashTimer: number | null = null;
@@ -393,7 +396,11 @@ export class ReviewView extends ItemView {
             el,
             card.source.path,
             this,
-        );
+        ).then(() => {
+            // A cloze or Q&A card can carry pictures too; they zoom the same
+            // way an occlusion picture does.
+            attachImageZoom(el, (el.closest('.fakecard-review-body') as HTMLElement | null) ?? el);
+        });
     }
 
     private renderImageBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
@@ -401,54 +408,42 @@ export class ReviewView extends ItemView {
         if (!wrap) return;
         el.appendChild(wrap);
         wrap.addClass('is-zoomable');
-        setTooltip(wrap, tt('Ctrl+wheel to zoom, click to open it larger'));
-
-        // Zoom in place: the picture grows past the pane and the body scrolls,
-        // which is what reading the small print actually needs. A dialog is
-        // still where a picture larger than the screen is panned.
-        let zoom = 1;
-        let baseWidth = 0;
-        const applyZoom = (): void => {
-            const img = wrap.querySelector('img');
-            if (!img) return;
-            // The scroller is the review body, not the block the picture sits
-            // in, so the class goes on the ancestor.
-            const scroller = el.closest('.fakecard-review-body') ?? el;
-            if (zoom === 1) {
-                img.setCssStyles({ width: '', maxWidth: '' });
-                wrap.setCssStyles({ maxWidth: '' });
-                wrap.removeClass('is-zoomed');
-                scroller.removeClass('has-zoomed-image');
-                return;
-            }
-            if (baseWidth === 0) baseWidth = img.getBoundingClientRect().width;
-            img.setCssStyles({
-                maxWidth: 'none',
-                width: `${Math.round(baseWidth * zoom)}px`,
-            });
-            wrap.setCssStyles({ maxWidth: 'none' });
-            wrap.addClass('is-zoomed');
-            scroller.addClass('has-zoomed-image');
-        };
-
-        wrap.addEventListener('wheel', (event) => {
-            // Plain wheel keeps scrolling the card; zoom needs the modifier,
-            // the same way Obsidian's own canvas zooms.
-            if (!(event.ctrlKey || event.metaKey)) return;
-            event.preventDefault();
-            zoom = Math.min(4, Math.max(1, zoom + (event.deltaY < 0 ? 0.15 : -0.15)));
-            applyZoom();
-        }, { passive: false });
-
-        wrap.addEventListener('dblclick', (event) => {
-            event.preventDefault();
-            zoom = 1;
-            applyZoom();
+        const scroller = (el.closest('.fakecard-review-body') as HTMLElement | null) ?? el;
+        const img = wrap.querySelector('img');
+        if (!img) return;
+        // The size a card was last read at is the size it comes back at: the
+        // zoom is saved on the card, so there is no separate width to set
+        // anywhere - the gesture is the setting.
+        makeImageZoomable(img, scroller, wrap, card.image?.zoom ?? 1, (zoom) => {
+            this.rememberZoom(card, zoom);
         });
+    }
 
-        wrap.addEventListener('click', () => {
-            new ImageZoomModal(this.app, card, revealed, this.plugin.settings.maskAllGroups).open();
-        });
+    /**
+     * Persist the zoom after the gesture settles.
+     *
+     * A wheel flicks through a dozen values; writing each one would rewrite the
+     * card a dozen times. Half a second of quiet is one write.
+     */
+    private rememberZoom(card: CardRecord, zoom: number): void {
+        if (!card.image) return;
+        this.pendingZoom = { cardId: card.id, zoom };
+        if (this.zoomTimer !== null) window.clearTimeout(this.zoomTimer);
+        this.zoomTimer = window.setTimeout(() => {
+            this.zoomTimer = null;
+            const pending = this.pendingZoom;
+            this.pendingZoom = null;
+            if (!pending) return;
+            void (async () => {
+                const live = (await this.plugin.store.list()).find((entry) => entry.id === pending.cardId);
+                if (!live?.image) return;
+                // 1 is the default: store nothing rather than a no-op number.
+                if (Math.abs(pending.zoom - 1) < 0.01) delete live.image.zoom;
+                else live.image.zoom = Math.round(pending.zoom * 100) / 100;
+                live.updated = new Date().toISOString();
+                await this.plugin.store.save(live);
+            })();
+        }, 500);
     }
 
     private frontText(card: CardRecord): string {
@@ -752,40 +747,59 @@ export class ReviewView extends ItemView {
      * without reflowing it; the budget is in its tooltip.
      */
     private startAnswerTimeHint(host: HTMLElement, card: CardRecord): void {
+        // The clock belongs to the question: on the answer side there is nothing
+        // to recall, so it is not built at all.
+        if (this.revealed) return;
         const budget = suggestedAnswerSeconds(card, this.plugin.settings.answerTimeBase, {
             secondsPerChunk: this.plugin.settings.answerTimeSecondsPerChunk,
             historyWeight: this.plugin.settings.answerTimeHistoryWeight,
         });
         // Measuring from when the card was first shown (not from this render)
         // keeps the clock honest across a reveal, which rebuilds the view.
-        const shownAt = this.cardShownAt || Date.now();
-        let chip: HTMLElement | null = null;
+        let startedAt = this.cardShownAt || Date.now();
+        /** Set once the clock passes twice the budget - it stops there. */
+        let frozen = false;
+
+        // Elapsed on the left, the budget it is measured against on the right,
+        // and a reset in between: one pill, three things to read.
+        const chip = createDiv({ cls: 'fakecard-timer' });
+        const elapsedEl = chip.createSpan({ cls: 'fakecard-timer-elapsed', text: formatClock(0) });
+        chip.createSpan({ cls: 'fakecard-timer-budget', text: formatClock(budget) });
+        const reset = chip.createEl('button', { cls: 'fakecard-timer-reset' });
+        setIcon(reset, 'refresh-cw');
+        setTooltip(reset, tt('Restart the timer'));
+        reset.addEventListener('click', (event) => {
+            event.stopPropagation();
+            startedAt = Date.now();
+            frozen = false;
+            tick();
+        });
+        setTooltip(chip, ttf(
+            'Suggested {budget} - based on answer length and this card\'s rating history',
+            { budget: formatClock(budget) },
+        ));
+        host.appendChild(chip);
 
         const tick = (): void => {
-            // Once the answer is on screen the wait is over: stop nagging.
-            if (this.revealed) return;
-            const elapsed = Math.floor((Date.now() - shownAt) / 1000);
-            const over = elapsed >= budget;
-            const text = formatClock(elapsed);
-
-            // The clock is visible from the first second, quietly, and turns
-            // orange once it passes the budget. Waiting for the budget before
-            // showing anything meant a card with a 90-second budget looked like
-            // the feature did not work at all.
-            if (chip) {
-                chip.setText(text);
-                chip.toggleClass('is-over', over);
+            // Once the answer is on screen the wait is over: the clock has no
+            // meaning there (the time it measured was for recalling, not for
+            // reading), so it leaves instead of freezing at a number.
+            if (this.revealed) {
+                chip.remove();
                 return;
             }
-            // Right after the card counter, where the eye already is; nothing
-            // else in the bar moves when the clock appears.
-            chip = createDiv({ cls: 'fakecard-review-answer-time', text });
-            chip.toggleClass('is-over', over);
-            host.appendChild(chip);
-            setTooltip(chip, ttf(
-                'Suggested {budget} - based on answer length and this card\'s rating history',
-                { budget: formatClock(budget) },
-            ));
+            // Past twice the budget the number is no longer news - it stops,
+            // keeps its colour, and waits for a deliberate reset.
+            if (frozen) return;
+
+            const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+            const ratio = budget > 0 ? elapsed / budget : 0;
+            if (ratio >= 2) frozen = true;
+
+            elapsedEl.setText(formatClock(elapsed));
+            chip.toggleClass('is-warning', ratio >= 1);
+            chip.toggleClass('is-late', ratio >= 1.5);
+            chip.toggleClass('is-stop', ratio >= 2);
         };
 
         this.hintTimer = window.setInterval(tick, 500);
@@ -1185,6 +1199,10 @@ export class ReviewView extends ItemView {
 
     async onClose(): Promise<void> {
         this.clearAnswerTimeHint();
+        if (this.zoomTimer !== null) {
+            window.clearTimeout(this.zoomTimer);
+            this.zoomTimer = null;
+        }
         if (this.flashTimer !== null) {
             window.clearTimeout(this.flashTimer);
             this.flashTimer = null;

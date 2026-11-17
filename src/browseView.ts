@@ -2,7 +2,7 @@ import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setTooltip } f
 import type { CardRecord } from './card';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
-import { buildImageFigure, ImageZoomModal } from './imageFigure';
+import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
 import { ImagePanelModal } from './imagePanel';
 import { tt, ttf } from './i18n';
 import { matchesQuery, SearchContext } from './search';
@@ -728,11 +728,10 @@ export class BrowseView extends ItemView {
             const wrap = buildImageFigure(this.app, card, revealed, this.plugin.settings.maskAllGroups);
             if (!wrap) return;
             el.appendChild(wrap);
-            wrap.addClass('is-zoomable');
-            setTooltip(wrap, tt('Click to zoom'));
-            wrap.addEventListener('click', () => {
-                new ImageZoomModal(this.app, card, revealed, this.plugin.settings.maskAllGroups).open();
-            });
+            const img = wrap.querySelector('img');
+            // The preview shows the card at the size it is reviewed at; it
+            // never writes that size back.
+            if (img) makeImageZoomable(img, el, wrap, card.image?.zoom ?? 1);
             return;
         }
         void MarkdownRenderer.render(
@@ -741,7 +740,11 @@ export class BrowseView extends ItemView {
             el,
             card.source.path,
             this,
-        );
+        ).then(() => {
+            // Pictures a cloze or Q&A card embeds zoom the same way, right
+            // here in the preview - no dialog to open first.
+            attachImageZoom(el, el);
+        });
     }
 
     private frontText(card: CardRecord): string {

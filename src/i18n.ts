@@ -361,13 +361,9 @@ const UI_ZH: Record<string, string> = {
     '(empty)': '（空）',
     'not found': '未找到',
     'Study this card now': '现在就学这张卡',
-    'Click to zoom': '点击放大',
     'Edit the masks on this picture': '编辑这张图的蒙版',
     '✎ Edit masks': '✎ 编辑蒙版',
-    'Reset': '重置',
     'Ctrl+wheel to zoom, double-click to fit': 'Ctrl+滚轮缩放，双击还原',
-    'Ctrl+wheel to zoom, click to open it larger': 'Ctrl+滚轮直接缩放，点击打开大图',
-    'This card has no image.': '这张卡没有图片。',
     'Study ahead is off: turn on interval scaling in Settings to use it.':
         '提前复习已关闭：在设置里打开「提前复习时折算间隔」后可用。',
     'Removed {count} scratch file(s).': '已清理 {count} 个临时文件。',
@@ -378,6 +374,7 @@ const UI_ZH: Record<string, string> = {
     "Based on answer length and this card's rating history": '根据答案长度和这张卡的评分历史估算',
     'Suggested {budget} - based on answer length and this card\'s rating history':
         '建议用时 {budget}——按答案长度和这张卡的评分历史估算',
+    'Restart the timer': '重新计时',
     '{count} card(s) in the library.': '库中共 {count} 张卡片。',
     'Review': '复习',
     'Card {n} of {total}': '第 {n} / {total} 张',

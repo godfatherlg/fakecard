@@ -1,4 +1,4 @@
-import { App, Modal, setTooltip } from 'obsidian';
+﻿import { App, setTooltip } from 'obsidian';
 import type { CardRecord } from './card';
 import { tt } from './i18n';
 
@@ -44,99 +44,90 @@ export function buildImageFigure(
 }
 
 /**
- * An image card, enlarged.
+ * Ctrl+wheel zooms a picture in place; double-click puts it back.
  *
- * The card itself keeps the picture within a share of the pane height, which is
- * what stops a screenshot from swallowing the review view - but then the small
- * print in it is unreadable. This dialog shows it in a scrolling frame that can
- * be zoomed. The masks come along, so an occlusion card cannot be "zoomed open"
- * and leak its answer.
+ * Shared by every picture a card can show - an occlusion picture, or one
+ * embedded in a cloze or Q&A card - because the gesture should not depend on
+ * how the picture got there. Zooming widens the image past its box and lets the
+ * scroller (`scroller`) take over; `host` is the element that owns the size cap
+ * (the figure wrapper for an occlusion picture, the embed span otherwise).
  */
-export class ImageZoomModal extends Modal {
-    private figureEl: HTMLElement | null = null;
-    private labelEl: HTMLElement | null = null;
-    private scale = 1;
-    /** Width in CSS pixels at 100%: the picture fitted into the frame. */
-    private baseWidth = 0;
+export function makeImageZoomable(
+    img: HTMLImageElement,
+    scroller: HTMLElement,
+    host?: HTMLElement | null,
+    /** Size to start at, as a multiple of "fits the pane" (a saved zoom). */
+    initialZoom = 1,
+    /** Called whenever the gesture changes the zoom, for saving it. */
+    onChange?: (zoom: number) => void,
+): void {
+    if (img.dataset.fcZoom === 'on') return;
+    img.dataset.fcZoom = 'on';
+    img.addClass('is-zoomable');
+    setTooltip(img, tt('Ctrl+wheel to zoom, double-click to fit'));
 
-    constructor(
-        app: App,
-        private card: CardRecord,
-        private revealed: boolean,
-        private maskAll: boolean,
-    ) {
-        super(app);
-    }
-
-    onOpen(): void {
-        this.modalEl.addClass('fakecard-zoom-modal');
-        const { contentEl } = this;
-        contentEl.empty();
-
-        const bar = contentEl.createDiv({ cls: 'fakecard-zoom-bar' });
-        bar.createEl('button', { text: '−' }).addEventListener('click', () => this.zoomBy(1 / 1.25));
-        this.labelEl = bar.createSpan({ cls: 'fakecard-zoom-level', text: '100%' });
-        bar.createEl('button', { text: '+' }).addEventListener('click', () => this.zoomBy(1.25));
-        bar.createEl('button', { text: tt('Reset') }).addEventListener('click', () => this.zoomTo(1));
-
-        const viewport = contentEl.createDiv({ cls: 'fakecard-zoom-viewport' });
-        this.figureEl = buildImageFigure(this.app, this.card, this.revealed, this.maskAll);
-        if (!this.figureEl) {
-            viewport.createEl('p', { text: tt('This card has no image.') });
+    const shell = host ?? (img.parentElement instanceof HTMLElement ? img.parentElement : null);
+    let zoom = initialZoom;
+    let baseWidth = 0;
+    const apply = (): void => {
+        shell?.toggleClass('is-zoomed', zoom !== 1);
+        if (zoom === 1) {
+            img.setCssStyles({ width: '', maxWidth: '' });
+            shell?.setCssStyles({ maxWidth: '' });
+            scroller.removeClass('has-zoomed-image');
             return;
         }
-        viewport.appendChild(this.figureEl);
-        setTooltip(this.figureEl, tt('Ctrl+wheel to zoom, double-click to fit'));
+        if (baseWidth === 0) baseWidth = img.getBoundingClientRect().width;
+        img.setCssStyles({
+            maxWidth: 'none',
+            width: `${Math.round(baseWidth * zoom)}px`,
+        });
+        shell?.setCssStyles({ maxWidth: 'none' });
+        scroller.addClass('has-zoomed-image');
+    };
 
-        const img = this.figureEl.querySelector('img');
-        const fit = (): void => {
-            if (!img || !img.naturalWidth) return;
-            const width = viewport.clientWidth - 24;
-            const height = viewport.clientHeight - 24;
-            // The modal has no size until the browser has laid it out; the
-            // timers below run again once it does.
-            if (width < 80 || height < 80) return;
-            const ratio = Math.min(width / img.naturalWidth, height / img.naturalHeight, 1);
-            this.baseWidth = Math.max(120, Math.round(img.naturalWidth * ratio));
-            this.zoomTo(1);
-        };
-        if (img) {
-            if (img.complete) window.setTimeout(fit, 0);
-            else img.addEventListener('load', () => window.setTimeout(fit, 0), { once: true });
-        }
-        window.setTimeout(fit, 60);
-
-        // Plain wheel keeps scrolling; Ctrl (or Cmd) turns it into zoom, the
-        // way every other image viewer on the desktop behaves.
-        viewport.addEventListener('wheel', (event) => {
-            if (!(event.ctrlKey || event.metaKey)) return;
-            event.preventDefault();
-            this.zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+    img.addEventListener('wheel', (event) => {
+        // Plain wheel keeps scrolling the card; zoom needs the modifier, the
+        // same way Obsidian's own canvas zooms.
+        if (!(event.ctrlKey || event.metaKey)) return;
+        event.preventDefault();
+        // Below 100% is allowed too: a picture can still be too big for the
+        // text around it, and shrinking it is the polite way out.
+            zoom = Math.min(4, Math.max(0.5, zoom + (event.deltaY < 0 ? 0.15 : -0.15)));
+            apply();
+            onChange?.(zoom);
         }, { passive: false });
 
-        this.figureEl.addEventListener('dblclick', () => this.zoomTo(this.scale === 1 ? 2 : 1));
-    }
+        img.addEventListener('dblclick', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            zoom = 1;
+            apply();
+            onChange?.(1);
+        });
 
-    private zoomBy(factor: number): void {
-        this.zoomTo(this.scale * factor);
+    // A saved zoom multiplies a width that is not known until the picture has
+    // been laid out once, so it is applied as soon as there is something to
+    // multiply.
+    if (zoom !== 1) {
+        const applySaved = (): void => {
+            if (img.getBoundingClientRect().width === 0) return;
+            apply();
+        };
+        if (img.complete) window.setTimeout(applySaved, 0);
+        else img.addEventListener('load', () => window.setTimeout(applySaved, 0), { once: true });
+        window.setTimeout(applySaved, 60);
     }
+}
 
-    private zoomTo(next: number): void {
-        this.scale = Math.min(6, Math.max(0.5, Math.round(next * 100) / 100));
-        const img = this.figureEl?.querySelector('img');
-        if (img && this.baseWidth > 0) {
-            // Width rather than a transform: the frame then scrolls for real,
-            // and the masks (percentages of the wrapper) stay glued to the
-            // picture.
-            img.setCssStyles({
-                maxWidth: 'none',
-                width: `${Math.round(this.baseWidth * this.scale)}px`,
-            });
-        }
-        this.labelEl?.setText(`${Math.round(this.scale * 100)}%`);
-    }
-
-    onClose(): void {
-        this.contentEl.empty();
-    }
+/**
+ * Make every picture inside rendered markdown zoomable, including the ones
+ * Obsidian resolves after the render promise settles (embeds load late).
+ */
+export function attachImageZoom(container: HTMLElement, scroller: HTMLElement): void {
+    const wire = (img: HTMLImageElement): void => makeImageZoomable(img, scroller);
+    container.querySelectorAll('img').forEach((img) => wire(img));
+    container.addEventListener('load', (event) => {
+        if (event.target instanceof HTMLImageElement) wire(event.target);
+    }, true);
 }

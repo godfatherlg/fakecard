@@ -45,7 +45,14 @@ export interface CardImage {
     /** Vault path of the image file. */
     path: string;
     groups: ImageGroup[];
-}
+    /**
+     * Size the picture is drawn at, as a multiple of "fits the pane".
+     *
+     * Set by Ctrl+wheel while reviewing, so the size a card was last read at
+     * is the size it comes back at. Absent (or 1) means the default fit.
+     */
+    zoom?: number;
+    }
 
 export interface CardRecord {
     id: string;
