@@ -128,8 +128,10 @@ export class ImageZoomModal extends Modal {
             // Width rather than a transform: the frame then scrolls for real,
             // and the masks (percentages of the wrapper) stay glued to the
             // picture.
-            img.style.maxWidth = 'none';
-            img.style.width = `${Math.round(this.baseWidth * this.scale)}px`;
+            img.setCssStyles({
+                maxWidth: 'none',
+                width: `${Math.round(this.baseWidth * this.scale)}px`,
+            });
         }
         this.labelEl?.setText(`${Math.round(this.scale * 100)}%`);
     }

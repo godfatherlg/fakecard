@@ -293,7 +293,7 @@ export class ReviewView extends ItemView {
         // the mask panel can change (the editor could just rewrite the embed).
         if (card.type === 'image') {
             iconButton('image', tt('Edit the masks on this picture'), () => {
-                this.editImageCard(card);
+                void this.editImageCard(card);
             });
         } else {
             iconButton('pencil', tt('Edit the text in the editor'), () => {
@@ -415,17 +415,18 @@ export class ReviewView extends ItemView {
             // in, so the class goes on the ancestor.
             const scroller = el.closest('.fakecard-review-body') ?? el;
             if (zoom === 1) {
-                img.style.width = '';
-                img.style.maxWidth = '';
-                wrap.style.maxWidth = '';
+                img.setCssStyles({ width: '', maxWidth: '' });
+                wrap.setCssStyles({ maxWidth: '' });
                 wrap.removeClass('is-zoomed');
                 scroller.removeClass('has-zoomed-image');
                 return;
             }
             if (baseWidth === 0) baseWidth = img.getBoundingClientRect().width;
-            img.style.maxWidth = 'none';
-            img.style.width = `${Math.round(baseWidth * zoom)}px`;
-            wrap.style.maxWidth = 'none';
+            img.setCssStyles({
+                maxWidth: 'none',
+                width: `${Math.round(baseWidth * zoom)}px`,
+            });
+            wrap.setCssStyles({ maxWidth: 'none' });
             wrap.addClass('is-zoomed');
             scroller.addClass('has-zoomed-image');
         };
