@@ -755,6 +755,7 @@ export class ReviewView extends ItemView {
         const budget = suggestedAnswerSeconds(card, this.plugin.settings.answerTimeBase, {
             secondsPerChunk: this.plugin.settings.answerTimeSecondsPerChunk,
             historyWeight: this.plugin.settings.answerTimeHistoryWeight,
+            imageChars: this.plugin.settings.answerTimeImageChars,
         });
         // Measuring from when the card was first shown (not from this render)
         // keeps the clock honest across a reveal, which rebuilds the view.

@@ -31,6 +31,8 @@ const MAX_SECONDS = 600;
 export const DEFAULT_ANSWER_SECONDS = 10;
 export const DEFAULT_SECONDS_PER_CHUNK = 10;
 export const DEFAULT_HISTORY_WEIGHT = -20;
+/** Characters a completely masked picture is worth, for an occlusion card. */
+export const DEFAULT_IMAGE_CHARS = 200;
 
 export interface AnswerTimeWeights {
     /** Extra seconds per 40 characters of answer. 0 ignores length. */
@@ -41,6 +43,8 @@ export interface AnswerTimeWeights {
      * ignores history.
      */
     historyWeight?: number;
+    /** Characters an entirely masked picture counts as (occlusion cards). */
+    imageChars?: number;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -65,6 +69,67 @@ export function visibleAnswerLength(text: string): number {
         .replace(/https?:\/\/\S+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim().length;
+}
+
+/** Grid resolution used to union mask areas: 5% cells, 400 of them. */
+const AREA_GRID = 20;
+
+/** Extra characters charged per box: switching between boxes costs a moment. */
+const CHARS_PER_MASK = 3;
+
+/**
+ * Area of the masked region, as a share of the whole picture (0..1).
+ *
+ * Union, not sum: overlapping boxes must not be counted twice. A coarse grid is
+ * enough for a time estimate and handles ellipses without any geometry code -
+ * for each cell, ask whether its centre falls inside any of the boxes.
+ */
+export function maskedArea(masks: ReadonlyArray<{ x: number; y: number; w: number; h: number; shape?: string }>): number {
+    if (masks.length === 0) return 0;
+    const cell = 1 / AREA_GRID;
+    let hit = 0;
+    for (let row = 0; row < AREA_GRID; row++) {
+        const y = (row + 0.5) * cell;
+        for (let column = 0; column < AREA_GRID; column++) {
+            const x = (column + 0.5) * cell;
+            for (const mask of masks) {
+                if (mask.shape === 'ellipse') {
+                    const cx = mask.x + mask.w / 2;
+                    const cy = mask.y + mask.h / 2;
+                    const dx = (x - cx) / (mask.w / 2 || 1);
+                    const dy = (y - cy) / (mask.h / 2 || 1);
+                    if (dx * dx + dy * dy <= 1) {
+                        hit++;
+                        break;
+                    }
+                } else if (x >= mask.x && x <= mask.x + mask.w && y >= mask.y && y <= mask.y + mask.h) {
+                    hit++;
+                    break;
+                }
+            }
+        }
+    }
+    return hit / (AREA_GRID * AREA_GRID);
+}
+
+/**
+ * How many characters an occlusion card's hidden region is worth.
+ *
+ * There is no text to measure, so the boxes are read as text: the whole picture
+ * is worth `fullImageChars` characters (200 by default - a figure, not a page),
+ * and the covered share of it is what has to be recalled. Each box adds a small
+ * fixed cost, because finding the next one is work too.
+ */
+export function imageAnswerCharacters(
+    card: CardRecord,
+    fullImageChars = DEFAULT_IMAGE_CHARS,
+): number {
+    // Only the group this card asks is hidden on its own front, so only that
+    // group's boxes are what the answer consists of.
+    const masks = card.image?.groups[0]?.masks ?? [];
+    const area = maskedArea(masks);
+    if (area <= 0) return 0;
+    return Math.round(area * Math.max(20, fullImageChars)) + CHARS_PER_MASK * masks.length;
 }
 
 /** The text the user has to read back: the back side, or the cloze body. */
@@ -98,8 +163,13 @@ export function suggestedAnswerSeconds(
 
     // The base time covers a short answer; every 40 characters of answer adds
     // its own reading time on top, so the budget grows linearly with length.
-    const lengthSeconds =
-        (visibleAnswerLength(answerText(card)) / CHARS_PER_CHUNK) * secondsPerChunk;
+    // An occlusion card has no text: its boxes are measured as an area and read
+    // as an equivalent number of characters.
+    const imageChars = weights.imageChars ?? DEFAULT_IMAGE_CHARS;
+    const characters = card.type === 'image'
+        ? imageAnswerCharacters(card, imageChars)
+        : visibleAnswerLength(answerText(card));
+    const lengthSeconds = (characters / CHARS_PER_CHUNK) * secondsPerChunk;
 
     const reps = card.fsrs?.reps ?? 0;
     const difficulty = card.fsrs?.difficulty ?? 0;

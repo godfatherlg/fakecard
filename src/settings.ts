@@ -6,6 +6,7 @@ import { ConfirmDialog } from './confirm';
 import {
     DEFAULT_ANSWER_SECONDS,
     DEFAULT_HISTORY_WEIGHT,
+    DEFAULT_IMAGE_CHARS,
     DEFAULT_SECONDS_PER_CHUNK,
 } from './answerTime';
 import {
@@ -77,6 +78,8 @@ export interface FakeCardSettings {
     answerTimeSecondsPerChunk: number;
     /** Maximum bonus from rating history, in percent (0 ignores history). */
     answerTimeHistoryWeight: number;
+    /** Characters a fully masked picture counts as, for occlusion cards. */
+    answerTimeImageChars: number;
     /** Rating shortcuts: a character, "Space", or empty for none. */
     ratingKeyAgain: string;
     ratingKeyHard: string;
@@ -139,6 +142,7 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     answerTimeBase: DEFAULT_ANSWER_SECONDS,
     answerTimeSecondsPerChunk: DEFAULT_SECONDS_PER_CHUNK,
     answerTimeHistoryWeight: DEFAULT_HISTORY_WEIGHT,
+    answerTimeImageChars: DEFAULT_IMAGE_CHARS,
     // Anki's layout: 1-2-3 along the top row, Space on Good. Digits work on
     // the numpad too.
     ratingKeyAgain: '1',
@@ -172,6 +176,7 @@ const NUMBER_LIMITS: Record<string, { min: number; max?: number }> = {
     answerTimeBase: { min: 5, max: 120 },
     answerTimeSecondsPerChunk: { min: 0, max: 120 },
     answerTimeHistoryWeight: { min: -60, max: 100 },
+    answerTimeImageChars: { min: 50, max: 2000 },
 };
 
 /** Text settings that fall back to their default when the field is cleared. */
@@ -479,6 +484,11 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     name: t('review.answerWeight.name'),
                     desc: t('review.answerWeight.desc'),
                     control: { type: 'number', key: 'answerTimeHistoryWeight', min: -60, max: 100, step: 5 },
+                },
+                {
+                    name: t('review.answerImageChars.name'),
+                    desc: t('review.answerImageChars.desc'),
+                    control: { type: 'number', key: 'answerTimeImageChars', min: 50, max: 2000, step: 50 },
                 },
                 {
                     name: t('review.keyAgain.name'),

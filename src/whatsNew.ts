@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.22';
+export const WHATS_NEW_VERSION = '1.0.23';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Pictures zoom in place everywhere - Ctrl+wheel in review, in the browse preview, and on pictures embedded in a cloze or Q&A card; double-click fits again. The click-to-enlarge dialog is gone: it only got in the way.',
-        zh: '图片现在到处都能就地缩放：复习界面、浏览右栏、以及填空/问答卡正文里的图片，Ctrl+滚轮即可，双击还原。单击弹出大图的那个窗口删掉了，它只会碍事。',
+        en: 'An occlusion card now estimates its answer time from the masked area instead of the bare 10-second base: the covered share of the picture is read as characters, so a big mask gets a longer budget than a small one.',
+        zh: '图片遮挡卡改按遮罩面积估算时间，不再一律 10 秒：被遮住的面积折合成字数，遮得多就给得久。',
     },
     {
-        en: 'An occlusion card remembers the size you read it at, and card pictures are height-capped so a long screenshot no longer pushes the answer off the screen.',
-        zh: '图片遮挡卡会记住你读到的大小；卡片里的图片也限了高，长截图不再把答案挤出屏幕。',
-    },
-    {
-        en: 'The answer-time chip sits after the card counter: elapsed on the left, the suggested time beside it, a reset on the right. Orange past 1x, red past 1.5x, frozen at 2x - and it leaves the screen once the answer is up.',
-        zh: '答题计时胶囊放在张数之后：左边是已用时间，中间是建议用时，右边可重置；超过 1 倍变橙、1.5 倍变红、2 倍定格，翻到答案后不再显示。',
+        en: 'Settings → Review screen has a new dial for it: "characters per full image" (200 by default). Only the group a card asks is measured.',
+        zh: '设置 → 复习界面 多了一项「图片遮挡：整张图折合多少字」（默认 200）；只计算这张卡所问的那一组遮罩。',
     },
 ];
 
