@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.20';
+export const WHATS_NEW_VERSION = '1.0.21';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The browse search box completes what you type - deck names, states, tags, types, prop: comparisons - and a ⌄ menu lists the same terms. Up/Down to choose, Tab or Enter to accept.',
-        zh: '浏览视图的搜索框会补全了：牌组、状态、标签、类型、prop: 比较符都能提示；左侧 ⌄ 菜单按用途列出同一批条件。↑↓ 选择，Tab 或回车采用。',
-    },
-    {
-        en: 'Typing in the search box no longer loses the caret: the view repaints on every keystroke, and the field now gets its focus and position back afterwards.',
-        zh: '搜索框连续打字不再丢光标：视图每次输入都会重绘，现在重绘后会把焦点和光标位置放回去。',
+        en: 'Nothing new this time: two community-review fixes only. Inline zoom styles go through Obsidian\'s setCssStyles() instead of element.style, and the async mask-panel opener is voided.',
+        zh: '这版没有新功能，只有两处社区评审要求：就地缩放的样式改用 Obsidian 的 setCssStyles()，不再直接写 element.style；打开蒙版面板的异步调用补了 void。',
     },
 ];
 
