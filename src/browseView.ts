@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
+import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
 import type { CardRecord } from './card';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
@@ -6,6 +6,7 @@ import { buildImageFigure, ImageZoomModal } from './imageFigure';
 import { ImagePanelModal } from './imagePanel';
 import { tt, ttf } from './i18n';
 import { matchesQuery, SearchContext } from './search';
+import { suggestFor, type Suggestion } from './searchSuggest';
 import { jumpToCardSource } from './sourceJump';
 import { parseTags } from './ui';
 import { renderViewNav } from './viewNav';
@@ -33,6 +34,14 @@ export class BrowseView extends ItemView {
     private sortAsc = true;
     /** Row last ticked, the anchor for Shift+click ranges. */
     private lastChecked: string | null = null;
+    /** Caret and focus of the search box, restored after a repaint. */
+    private searchCaret = 0;
+    private searchHadFocus = false;
+    /** Suggestion list currently on screen, and which row is highlighted. */
+    private suggestions: Suggestion[] = [];
+    private suggestRange: { from: number; to: number } | null = null;
+    private suggestIndex = 0;
+    private suggestionsHidden = false;
     /** Shift was held for the click being handled (change events lack it). */
     private shiftClick = false;
 
@@ -208,6 +217,138 @@ export class BrowseView extends ItemView {
         });
     }
 
+    /** Every tag in the library, for `tag:` completion. */
+    private allTags(): string[] {
+        const tags = new Set<string>();
+        for (const card of this.cards) for (const tag of card.tags ?? []) tags.add(tag);
+        return [...tags].sort((a, b) => a.localeCompare(b));
+    }
+
+    /**
+     * The completion list under the search box.
+     *
+     * It is rebuilt with the view, so it always belongs to the query as it is
+     * now - no stale popup from a previous render can linger.
+     */
+    private renderSuggestions(host: HTMLElement): void {
+        this.suggestions = [];
+        this.suggestRange = null;
+        if (!this.searchHadFocus || this.suggestionsHidden || this.query.trim().length === 0) return;
+
+        const found = suggestFor(this.query, this.searchCaret, {
+            decks: this.decks,
+            tags: this.allTags(),
+        });
+        if (!found) return;
+
+        this.suggestions = found.items;
+        this.suggestRange = { from: found.from, to: found.to };
+        if (this.suggestIndex >= found.items.length) this.suggestIndex = 0;
+
+        const list = host.createDiv({ cls: 'fakecard-suggest' });
+        found.items.forEach((item, index) => {
+            const row = list.createDiv({
+                cls: `fakecard-suggest-item${index === this.suggestIndex ? ' is-active' : ''}`,
+            });
+            row.createSpan({ cls: 'fakecard-suggest-label', text: item.label });
+            if (item.hint) row.createSpan({ cls: 'fakecard-suggest-hint', text: item.hint });
+            // mousedown, not click: the input must not blur first.
+            row.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                this.acceptSuggestion(item);
+            });
+        });
+    }
+
+    private onSearchKey(event: KeyboardEvent): void {
+        if (this.suggestions.length === 0) return;
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const step = event.key === 'ArrowDown' ? 1 : -1;
+            const total = this.suggestions.length;
+            this.suggestIndex = (this.suggestIndex + step + total) % total;
+            this.render();
+            return;
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+            this.acceptSuggestion(this.suggestions[this.suggestIndex] ?? this.suggestions[0]);
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            this.suggestionsHidden = true;
+            this.render();
+        }
+    }
+
+    /** Put a suggestion in place of the token it was offered for. */
+    private acceptSuggestion(item: Suggestion | undefined): void {
+        if (!item || !this.suggestRange) return;
+        const { from, to } = this.suggestRange;
+        this.query = `${this.query.slice(0, from)}${item.insert}${this.query.slice(to)}`;
+        this.searchCaret = from + item.insert.length;
+        this.searchHadFocus = true;
+        this.suggestIndex = 0;
+        this.suggestionsHidden = false;
+        this.applyFilter();
+    }
+
+    /** Append a term from the picker menu, keeping the existing query. */
+    private insertFilter(text: string): void {
+        const current = this.query.trim();
+        this.query = current ? `${current} ${text}` : text;
+        this.searchCaret = this.query.length;
+        this.searchHadFocus = true;
+        this.suggestIndex = 0;
+        this.suggestionsHidden = false;
+        this.applyFilter();
+    }
+
+    /**
+     * The menu behind the search box's chevron: the operators, grouped, with the
+     * values this library actually has. Each entry only inserts text, so the
+     * query stays ordinary typed text that can be edited further.
+     */
+    private openSearchMenu(anchor: HTMLElement): void {
+        const menu = new Menu();
+        const add = (title: string, insert: string): void => {
+            menu.addItem((item) => item.setTitle(title).onClick(() => this.insertFilter(insert)));
+        };
+
+        add(tt('Question only') + '  front:', 'front:');
+        add(tt('Answer only') + '  back:', 'back:');
+
+        menu.addSeparator();
+        add(tt('New cards') + '  is:new', 'is:new');
+        add(tt('Due today') + '  is:due', 'is:due');
+        add(tt('Learning') + '  is:learning', 'is:learning');
+        add(tt('Paused') + '  is:paused', 'is:paused');
+        add(tt('Child cards') + '  is:child', 'is:child');
+        add(tt('Graduated') + '  is:graduated', 'is:graduated');
+        add(tt('Orphans') + '  is:orphan', 'is:orphan');
+
+        menu.addSeparator();
+        add(tt('Type: Q&A') + '  type:qa', 'type:qa');
+        add(tt('Type: cloze') + '  type:cloze', 'type:cloze');
+        add(tt('Type: image') + '  type:image', 'type:image');
+
+        menu.addSeparator();
+        for (const deck of this.decks) add(`${tt('Deck')}: ${deck}`, `deck:${deck}`);
+        for (const tag of this.allTags().slice(0, 20)) add(`${tt('Tag')}: ${tag}`, `tag:${tag}`);
+
+        menu.addSeparator();
+        add(tt('Due within 7 days') + '  prop:due<7', 'prop:due<7');
+        add(tt('Overdue') + '  prop:due<=0', 'prop:due<=0');
+        add(tt('Interval at least 21 days') + '  prop:ivl>=21', 'prop:ivl>=21');
+        add(tt('Difficulty at least 7') + '  prop:difficulty>=7', 'prop:difficulty>=7');
+        add(tt('Added in the last 7 days') + '  added:7', 'added:7');
+        add(tt('Reviewed today') + '  rated:1', 'rated:1');
+
+        const rect = anchor.getBoundingClientRect();
+        menu.showAtPosition({ x: rect.left, y: rect.bottom + 4 });
+    }
+
     private render(): void {
         const container = this.contentEl;
         container.empty();
@@ -229,14 +370,42 @@ export class BrowseView extends ItemView {
             this.applyFilter();
         });
 
-        const search = bar.createEl('input', { cls: 'fakecard-browse-search' });
+        const searchWrap = bar.createDiv({ cls: 'fakecard-search-wrap' });
+        const picker = searchWrap.createEl('button', { cls: 'fakecard-search-picker', text: '⌄' });
+        setTooltip(picker, tt('Insert a search filter'));
+        picker.addEventListener('click', (event) => {
+            event.preventDefault();
+            this.openSearchMenu(picker);
+        });
+
+        const search = searchWrap.createEl('input', { cls: 'fakecard-browse-search' });
         search.type = 'search';
         search.placeholder = tt('Search… (deck:deckname tag:tag is:due is:child -tag:x prop:due<7)');
         search.value = this.query;
+        // Every keystroke repaints the view, which replaces this input: without
+        // putting the caret back, typing would stop after one character.
+        if (this.searchHadFocus) {
+            search.focus();
+            const caret = Math.min(this.searchCaret, search.value.length);
+            search.setSelectionRange(caret, caret);
+        }
         search.addEventListener('input', () => {
             this.query = search.value;
+            this.searchCaret = search.selectionStart ?? search.value.length;
+            this.searchHadFocus = true;
+            this.suggestIndex = 0;
+            this.suggestionsHidden = false;
             this.applyFilter();
         });
+        search.addEventListener('focus', () => {
+            this.searchHadFocus = true;
+        });
+        search.addEventListener('blur', () => {
+            this.searchHadFocus = false;
+        });
+        search.addEventListener('keydown', (event) => this.onSearchKey(event));
+
+        this.renderSuggestions(searchWrap);
 
         bar.createSpan({
             cls: 'fakecard-browse-count',
