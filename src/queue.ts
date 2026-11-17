@@ -22,6 +22,8 @@ export interface ReviewQueue {
     fresh: number;
     /** Due cards the daily limit kept out of today's session. */
     backlog: number;
+    /** Cards in this deck filter that could be scheduled at all. */
+    total: number;
 }
 
 /**
@@ -93,5 +95,6 @@ export async function buildReviewQueue(
         // Due cards the daily limit kept out of the session: they are today's
         // work, just not reached yet.
         backlog: waiting.length - due.length,
+        total: all.length,
     };
 }

@@ -429,11 +429,29 @@
 
 /* Shown only once the card passes its suggested time, so no space is reserved
    for it on cards that are answered quickly. */
+/* Over-budget timer: a chip in the toolbar, digits aligned so it does not
+   twitch as the seconds tick. */
+/* The stopwatch: first thing in the bar, quiet while the card is still within
+   its budget and orange once it is past. */
 .fakecard-review-answer-time {
-  margin: 2px 0 10px;
-  font-size: 0.85em;
-  color: var(--text-warning, var(--color-orange));
+  /* Never squeezed to nothing by a long deck name next to it. */
+  flex: 0 0 auto;
+  font-size: 1em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 12px;
+  margin-left: 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
   white-space: nowrap;
+}
+
+.fakecard-review-answer-time.is-over {
+  background: color-mix(in srgb, var(--color-orange) 22%, transparent);
+  border-color: transparent;
+  color: var(--color-orange);
 }
 
 .fakecard-review-time {
@@ -614,13 +632,87 @@ button.fakecard-review-show:hover {
   position: relative;
   display: inline-block;
   max-width: 100%;
+  /* A screenshot must not swallow the pane: cap the height and let it shrink.
+     The masks are percentages of this box, so they follow the scaling. */
+  max-height: 62vh;
 }
 
 .fakecard-image {
   display: block;
   max-width: 100%;
+  max-height: 62vh;
+  width: auto;
   height: auto;
   border-radius: 6px;
+}
+
+/* Wide layout has the room; the browse/preview pane does not. */
+.fakecard-review.is-wide .fakecard-image-wrap,
+.fakecard-review.is-wide .fakecard-image {
+  max-height: 74vh;
+}
+
+.fakecard-card-view .fakecard-image-wrap,
+.fakecard-card-view .fakecard-image {
+  max-height: 44vh;
+}
+
+.fakecard-image-wrap.is-zoomable {
+  cursor: zoom-in;
+}
+
+/* Zoomed in place: the height cap is lifted, the picture can grow past the
+   pane, and the body gains a horizontal scrollbar so nothing is cut off. */
+.fakecard-image-wrap.is-zoomed,
+.fakecard-image-wrap.is-zoomed .fakecard-image {
+  max-height: none;
+}
+
+.fakecard-review-body.has-zoomed-image {
+  overflow-x: auto;
+}
+
+/* The zoom dialog: controls on top, the picture in a frame that scrolls. */
+.fakecard-zoom-modal {
+  width: min(92vw, 1080px);
+  height: 86vh;
+}
+
+.fakecard-zoom-modal .modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.fakecard-zoom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.fakecard-zoom-level {
+  min-width: 3.6em;
+  text-align: center;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.fakecard-zoom-viewport {
+  flex: 1 1 auto;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+}
+
+.fakecard-zoom-viewport .fakecard-image-wrap,
+.fakecard-zoom-viewport .fakecard-image {
+  max-height: none;
 }
 
 /* Editor: the wrapper width is the zoom level, so the image fills it. */
@@ -677,6 +769,33 @@ body.theme-dark .fakecard-image-mask {
 .fakecard-image-mask.is-selected {
   outline: 2px solid var(--interactive-accent);
 }
+
+/* Eight grips, only while the box is selected: corners resize both axes, the
+   edges one. Positioned on the mask, so they follow it as it grows. */
+.fakecard-image-mask-handle {
+  display: none;
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 2px;
+  background: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--background-primary);
+  z-index: 2;
+}
+
+.fakecard-image-mask.is-selected .fakecard-image-mask-handle {
+  display: block;
+}
+
+.fakecard-image-mask-handle.is-nw { left: 0; top: 0; cursor: nwse-resize; }
+.fakecard-image-mask-handle.is-n { left: 50%; top: 0; cursor: ns-resize; }
+.fakecard-image-mask-handle.is-ne { left: 100%; top: 0; cursor: nesw-resize; }
+.fakecard-image-mask-handle.is-e { left: 100%; top: 50%; cursor: ew-resize; }
+.fakecard-image-mask-handle.is-se { left: 100%; top: 100%; cursor: nwse-resize; }
+.fakecard-image-mask-handle.is-s { left: 50%; top: 100%; cursor: ns-resize; }
+.fakecard-image-mask-handle.is-sw { left: 0; top: 100%; cursor: nesw-resize; }
+.fakecard-image-mask-handle.is-w { left: 0; top: 50%; cursor: ew-resize; }
 
 .fakecard-image-mask.is-drawing {
   background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
@@ -1184,6 +1303,33 @@ body.theme-dark .fakecard-image-mask-label {
   font-size: 0.9em;
 }
 
+/* Sortable header: reads as a label, behaves like a button. */
+.fakecard-sort {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.82em;
+  font-weight: var(--font-semibold, 600);
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.fakecard-sort:hover {
+  color: var(--text-normal);
+}
+
+.fakecard-sort.is-active {
+  color: var(--text-accent);
+}
+
+.fakecard-sort-arrow {
+  margin-left: 3px;
+  font-size: 0.85em;
+}
+
 .fakecard-browse-row {
   cursor: pointer;
 }
@@ -1211,6 +1357,44 @@ body.theme-dark .fakecard-image-mask-label {
   font-size: 0.78em;
   opacity: 0.62;
   margin-top: 2px;
+}
+
+/* A child card's parent: the card it stands in for, and a jump to it. */
+.fakecard-parent-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 0.85em;
+}
+
+.fakecard-parent-link {
+  height: auto;
+  max-width: 100%;
+  padding: 1px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-accent);
+  font-size: 0.95em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fakecard-parent-link:hover {
+  background: var(--background-modifier-hover);
+}
+
+.fakecard-parent-arrow {
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+.fakecard-parent-missing {
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* Deck and tags: card metadata, edited inline and saved at once. */
@@ -1277,6 +1461,22 @@ body.theme-dark .fakecard-image-mask-label {
   color: var(--text-muted);
   font-size: 0.9em;
   margin: 6px 0 0;
+}
+
+/* "Refreshed - …": proof the button did something, fading in and out rather
+   than sitting there as if it were part of the page. */
+.fakecard-review-done-flash {
+  color: var(--text-accent);
+  font-size: 0.85em;
+  margin: 10px 0 0;
+  animation: fakecard-flash 2.5s ease-out forwards;
+}
+
+@keyframes fakecard-flash {
+  0% { opacity: 0; transform: translateY(-2px); }
+  12% { opacity: 1; transform: none; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* Badge in the toolbar while due cards are waiting behind the daily limit. */

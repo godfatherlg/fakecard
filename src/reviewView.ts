@@ -6,6 +6,7 @@ import { suggestedAnswerSeconds } from './answerTime';
 import { ChildCardPromptModal } from './childPrompt';
 import { hardStreakScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
+import { buildImageFigure, ImageZoomModal } from './imageFigure';
 import { ClozePanelModal } from './clozePanel';
 import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan } from './examPlan';
@@ -41,12 +42,16 @@ export class ReviewView extends ItemView {
     private cardShownAt = 0;
     /** Due cards the daily limit kept out of the current queue. */
     private backlog = 0;
+    /** When the finish page's refresh was last pressed, for its receipt line. */
+    private refreshedAt = 0;
+    private flashTimer: number | null = null;
+    /** Cards in the library for this deck filter, so an empty queue is not
+     *  mistaken for an empty library. */
+    private total = 0;
     /** True while the cards on screen were pulled in ahead of their due date. */
     private ahead = false;
     /** Interval that reveals the answer-time hint; cleared on every render. */
     private hintTimer: number | null = null;
-    /** Handler that keeps the hint's clock from running while hidden. */
-    private hintVisibilityHandler: (() => void) | null = null;
     /** Ratings that can still be taken back with Ctrl+Z, newest last. */
     private undoStack: UndoEntry[] = [];
     /** Link under the pointer, waiting for Ctrl+hover to turn into a preview. */
@@ -140,6 +145,7 @@ export class ReviewView extends ItemView {
         this.decks = queue.decks;
         this.cards = queue.cards;
         this.backlog = queue.backlog;
+        this.total = queue.total;
         this.index = 0;
         this.revealed = false;
         this.ahead = false;
@@ -156,6 +162,10 @@ export class ReviewView extends ItemView {
     private render(): void {
         const container = this.contentEl;
         this.clearAnswerTimeHint();
+        if (this.flashTimer !== null) {
+            window.clearTimeout(this.flashTimer);
+            this.flashTimer = null;
+        }
         // The body element is rebuilt below; any tracked link is now detached.
         this.endHoverDwell();
         container.empty();
@@ -172,8 +182,15 @@ export class ReviewView extends ItemView {
         }
 
         if (this.cards.length === 0) {
-            container.createEl('h2', { text: tt('No cards yet') });
-            container.createEl('p', { text: tt('Generate cards from a note or create one manually first.') });
+            // An empty queue is not an empty library: after the day's cards are
+            // rated (or after pressing refresh on the finish page) there is
+            // nothing left to show but the ways to keep going.
+            if (this.total === 0) {
+                container.createEl('h2', { text: tt('No cards yet') });
+                container.createEl('p', { text: tt('Generate cards from a note or create one manually first.') });
+                return;
+            }
+            this.renderDone(container);
             return;
         }
 
@@ -271,14 +288,21 @@ export class ReviewView extends ItemView {
             );
             void this.markChildArmed(childButton, card);
         }
-        // One door: the text opens in Obsidian's own editor, on the side being
-        // read. An image card has only its embed as text, and that opens too.
-        iconButton('pencil', tt('Edit the text in the editor'), () => {
-            void this.editTextInEditor(card);
-        });
+        // One door per kind of content: text opens in Obsidian's own editor,
+        // while an image card's content is the picture and its masks, which only
+        // the mask panel can change (the editor could just rewrite the embed).
+        if (card.type === 'image') {
+            iconButton('image', tt('Edit the masks on this picture'), () => {
+                this.editImageCard(card);
+            });
+        } else {
+            iconButton('pencil', tt('Edit the text in the editor'), () => {
+                void this.editTextInEditor(card);
+            });
+        }
 
         if (this.plugin.settings.answerTimeHint) {
-            this.startAnswerTimeHint(bar, card);
+            this.startAnswerTimeHint(meta, card);
         }
 
         // The card itself: centred while it is short, scrolling normally once
@@ -373,31 +397,57 @@ export class ReviewView extends ItemView {
     }
 
     private renderImageBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
-        const image = card.image;
-        if (!image) return;
-        const wrap = el.createDiv({ cls: 'fakecard-image-wrap' });
-        const img = wrap.createEl('img', { cls: 'fakecard-image' });
-        img.src = this.app.vault.adapter.getResourcePath(image.path);
+        const wrap = buildImageFigure(this.app, card, revealed, this.plugin.settings.maskAllGroups);
+        if (!wrap) return;
+        el.appendChild(wrap);
+        wrap.addClass('is-zoomable');
+        setTooltip(wrap, tt('Ctrl+wheel to zoom, click to open it larger'));
 
-        if (revealed || image.groups.length === 0) return;
-
-        const firstId = image.groups[0].id;
-        const overlay = wrap.createDiv({ cls: 'fakecard-image-overlay is-static' });
-        for (const group of image.groups) {
-            const isAsked = group.id === firstId;
-            // The asked group is always hidden; other groups are hidden too
-            // unless "mask all groups" is switched off.
-            if (!isAsked && !this.plugin.settings.maskAllGroups) continue;
-            for (const mask of group.masks) {
-                const maskEl = overlay.createDiv({
-                    cls: `fakecard-image-mask${isAsked ? ' is-current' : ''}${mask.shape === 'ellipse' ? ' is-ellipse' : ''}`,
-                });
-                maskEl.style.left = `${mask.x * 100}%`;
-                maskEl.style.top = `${mask.y * 100}%`;
-                maskEl.style.width = `${mask.w * 100}%`;
-                maskEl.style.height = `${mask.h * 100}%`;
+        // Zoom in place: the picture grows past the pane and the body scrolls,
+        // which is what reading the small print actually needs. A dialog is
+        // still where a picture larger than the screen is panned.
+        let zoom = 1;
+        let baseWidth = 0;
+        const applyZoom = (): void => {
+            const img = wrap.querySelector('img');
+            if (!img) return;
+            // The scroller is the review body, not the block the picture sits
+            // in, so the class goes on the ancestor.
+            const scroller = el.closest('.fakecard-review-body') ?? el;
+            if (zoom === 1) {
+                img.style.width = '';
+                img.style.maxWidth = '';
+                wrap.style.maxWidth = '';
+                wrap.removeClass('is-zoomed');
+                scroller.removeClass('has-zoomed-image');
+                return;
             }
-        }
+            if (baseWidth === 0) baseWidth = img.getBoundingClientRect().width;
+            img.style.maxWidth = 'none';
+            img.style.width = `${Math.round(baseWidth * zoom)}px`;
+            wrap.style.maxWidth = 'none';
+            wrap.addClass('is-zoomed');
+            scroller.addClass('has-zoomed-image');
+        };
+
+        wrap.addEventListener('wheel', (event) => {
+            // Plain wheel keeps scrolling the card; zoom needs the modifier,
+            // the same way Obsidian's own canvas zooms.
+            if (!(event.ctrlKey || event.metaKey)) return;
+            event.preventDefault();
+            zoom = Math.min(4, Math.max(1, zoom + (event.deltaY < 0 ? 0.15 : -0.15)));
+            applyZoom();
+        }, { passive: false });
+
+        wrap.addEventListener('dblclick', (event) => {
+            event.preventDefault();
+            zoom = 1;
+            applyZoom();
+        });
+
+        wrap.addEventListener('click', () => {
+            new ImageZoomModal(this.app, card, revealed, this.plugin.settings.maskAllGroups).open();
+        });
     }
 
     private frontText(card: CardRecord): string {
@@ -690,7 +740,17 @@ export class ReviewView extends ItemView {
      * hesitation, not to put a stopwatch on every card. Time spent with the
      * window hidden does not count.
      */
-    private startAnswerTimeHint(bar: HTMLElement, card: CardRecord): void {
+    /**
+     * How long the card has been on screen, once it passes its budget.
+     *
+     * Plain wall-clock time from when the card first appeared: pausing while
+     * the window was hidden made the number stop for no visible reason and
+     * disagree with the clock on the wall, and switching panes inside Obsidian
+     * never paused it at all - the same card behaved differently depending on
+     * where the user looked. The chip is small enough to sit in the toolbar
+     * without reflowing it; the budget is in its tooltip.
+     */
+    private startAnswerTimeHint(host: HTMLElement, card: CardRecord): void {
         const budget = suggestedAnswerSeconds(card, this.plugin.settings.answerTimeBase, {
             secondsPerChunk: this.plugin.settings.answerTimeSecondsPerChunk,
             historyWeight: this.plugin.settings.answerTimeHistoryWeight,
@@ -698,56 +758,43 @@ export class ReviewView extends ItemView {
         // Measuring from when the card was first shown (not from this render)
         // keeps the clock honest across a reveal, which rebuilds the view.
         const shownAt = this.cardShownAt || Date.now();
-        let hiddenTotal = 0;
-        let hiddenAt: number | null = null;
-        let hint: HTMLElement | null = null;
+        let chip: HTMLElement | null = null;
 
         const tick = (): void => {
             // Once the answer is on screen the wait is over: stop nagging.
             if (this.revealed) return;
-            const elapsed = Math.floor((Date.now() - shownAt - hiddenTotal) / 1000);
-            if (elapsed < budget) return;
-            const text = ttf('⏱ Over suggested time: {elapsed} / {budget}', {
-                elapsed: formatClock(elapsed),
-                budget: formatClock(budget),
-            });
-            if (hint) {
-                hint.setText(text);
+            const elapsed = Math.floor((Date.now() - shownAt) / 1000);
+            const over = elapsed >= budget;
+            const text = formatClock(elapsed);
+
+            // The clock is visible from the first second, quietly, and turns
+            // orange once it passes the budget. Waiting for the budget before
+            // showing anything meant a card with a 90-second budget looked like
+            // the feature did not work at all.
+            if (chip) {
+                chip.setText(text);
+                chip.toggleClass('is-over', over);
                 return;
             }
-            hint = bar.createDiv({
-                cls: 'fakecard-review-answer-time',
-                text,
-                attr: { title: tt("Based on answer length and this card's rating history") },
-            });
-            bar.after(hint);
+            // Right after the card counter, where the eye already is; nothing
+            // else in the bar moves when the clock appears.
+            chip = createDiv({ cls: 'fakecard-review-answer-time', text });
+            chip.toggleClass('is-over', over);
+            host.appendChild(chip);
+            setTooltip(chip, ttf(
+                'Suggested {budget} - based on answer length and this card\'s rating history',
+                { budget: formatClock(budget) },
+            ));
         };
 
-        const onVisibility = (): void => {
-            if (activeDocument.hidden) {
-                hiddenAt = Date.now();
-                return;
-            }
-            if (hiddenAt !== null) {
-                hiddenTotal += Date.now() - hiddenAt;
-                hiddenAt = null;
-            }
-            tick();
-        };
-
-        activeDocument.addEventListener('visibilitychange', onVisibility);
-        this.hintVisibilityHandler = onVisibility;
         this.hintTimer = window.setInterval(tick, 500);
+        tick();
     }
 
     /** Stop the hint's clock; called on every render and when the view closes. */
     private clearAnswerTimeHint(): void {
         if (this.hintTimer !== null) window.clearInterval(this.hintTimer);
         this.hintTimer = null;
-        if (this.hintVisibilityHandler) {
-            activeDocument.removeEventListener('visibilitychange', this.hintVisibilityHandler);
-            this.hintVisibilityHandler = null;
-        }
     }
 
     /**
@@ -776,6 +823,33 @@ export class ReviewView extends ItemView {
         parent.suspended = false;
         await this.plugin.store.save(parent);
         return snapshot;
+    }
+
+    /**
+     * Back into the mask panel with this card's own boxes: add, move, reshape or
+     * delete them, exactly like when the card was created. Saving there keeps the
+     * card id and its FSRS history.
+     */
+    private async editImageCard(card: CardRecord): Promise<void> {
+        const image = card.image;
+        if (!image) return;
+        // One card holds one group; the panel edits the picture, so it needs the
+        // groups of every card made from it - otherwise saving would treat the
+        // other groups as deleted and take their cards with them.
+        const all = await this.plugin.store.list();
+        const groups = all
+            .filter((entry) => entry.type === 'image' && entry.image?.path === image.path)
+            .flatMap((entry) => entry.image?.groups ?? []);
+        new ImagePanelModal(
+            this.app,
+            this.plugin,
+            image.path,
+            card.source.path,
+            card,
+            () => this.refreshCurrentCard(),
+            undefined,
+            groups,
+        ).open();
     }
 
     /**
@@ -973,8 +1047,14 @@ export class ReviewView extends ItemView {
      */
     private renderDone(container: HTMLElement): void {
         container.createEl('h2', { text: tt('Review finished') });
-        const reviewed = this.cards.filter((card) => (card.reviews ?? 0) > 0).length;
-        container.createEl('p', { text: ttf('{count} card(s) in the library.', { count: reviewed }) });
+        container.createEl('p', {
+            cls: 'fakecard-review-done-note',
+            text: this.cards.length === 0
+                // Nothing was due when the page was drawn (refresh, or the
+                // session ended and the queue came back empty).
+                ? tt('Nothing else is due today.')
+                : ttf('{count} card(s) in the library.', { count: this.total }),
+        });
 
         const actions = container.createDiv({ cls: 'fakecard-review-done' });
 
@@ -1020,8 +1100,27 @@ export class ReviewView extends ItemView {
         });
         setTooltip(refresh, tt('Recompute today\'s queue. Only needed after adding or editing cards during the session.'));
         refresh.addEventListener('click', () => {
+            // Same page, same buttons: without a trace of the click the button
+            // looks broken. The line below says what the fresh queue holds and
+            // fades on its own.
+            this.refreshedAt = Date.now();
             void this.reload();
         });
+
+        if (Date.now() - this.refreshedAt < 2500) {
+            container.createEl('p', {
+                cls: 'fakecard-review-done-flash',
+                text: this.backlog > 0
+                    ? ttf('Refreshed - {count} due card(s) are waiting.', { count: this.backlog })
+                    : tt('Refreshed - nothing else is due today.'),
+            });
+            // The flash is a receipt, not a state: drop it after a moment.
+            this.flashTimer = window.setTimeout(() => {
+                this.flashTimer = null;
+                this.refreshedAt = 0;
+                this.render();
+            }, 2500);
+        }
     }
 
     /**
@@ -1085,6 +1184,10 @@ export class ReviewView extends ItemView {
 
     async onClose(): Promise<void> {
         this.clearAnswerTimeHint();
+        if (this.flashTimer !== null) {
+            window.clearTimeout(this.flashTimer);
+            this.flashTimer = null;
+        }
         this.contentEl.empty();
     }
 }

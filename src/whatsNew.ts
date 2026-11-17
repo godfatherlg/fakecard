@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.18';
+export const WHATS_NEW_VERSION = '1.0.19';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Study ahead: when today is clear, the finish page lends you 10 cards that are not due yet, hardest first. Ratings still go through FSRS, with the new interval shortened by the days you gained early - and they do not use up today\'s allowance.',
-        zh: '提前复习：今天清空后，完成页会从还没到期的卡里借 10 张给你练（优先最难的）。评分照常走 FSRS，但会按提前的天数缩短新间隔，而且不占用当天的复习额度。',
+        en: 'Pictures in a card are capped to the pane now, click one to open it large, and Ctrl+wheel zooms in place. The mask editor gained dragging, eight resize handles, Ctrl+multi-select and "move selected to cN".',
+        zh: '卡片里的图片按窗格限高了，点一下可看大图，Ctrl+滚轮能就地缩放；蒙版编辑器支持拖动、八个把手缩放、Ctrl 多选，还能把选中的框移到指定组。',
     },
     {
-        en: 'When due cards exceed the daily limit, review shows a red backlog chip and offers "study more today", which can be pressed again and again. New cards are held back until the queue fits.',
-        zh: '到期卡超过每日上限时，复习界面会标出积压数量，并提供「今天多学一点」——可以反复点着续。积压期间新卡自动暂停，队列降下来再恢复。',
+        en: 'The answer-time chip sits after the card counter, starts at zero and turns orange past the budget. Cloze cards are measured by their hidden words, and links no longer count - both used to inflate the budget by minutes.',
+        zh: '答题计时胶囊放在张数之后，从 0 开始走、超时变橙。填空卡只按挖空长度计算，链接也不再计入——这两项以前会把预算抬到好几分钟。',
     },
     {
-        en: 'Settings are regrouped into eight sections (daily pace, study ahead, review screen, maintenance ...), and the stats page\'s hardest cards now scroll and can be studied by clicking a row.',
-        zh: '设置页重排成八组（每日节奏、提前复习、复习界面、维护……）；统计页的「最难的卡」可以滚动，点一行就能直接开始学。',
+        en: 'Browse: sort by type, deck, reviews or due; a child card links to its parent; Shift+click selects a range; cards can be paused and resumed. The finish page confirms a refresh and keeps its buttons when the queue is empty.',
+        zh: '浏览视图：可按类型、牌组、复习次数、到期排序；子卡能跳到父卡；Shift 连选；卡片可暂停/恢复。完成页的刷新会有回执，队列为空时也不再只剩一片空白。',
     },
 ];
 

@@ -1,4 +1,5 @@
 import type { CardRecord } from './card';
+import { parseCloze } from './cloze';
 
 /**
  * Suggested answer time, ported from the True Recall PR.
@@ -46,18 +47,39 @@ function clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max);
 }
 
-/** Characters the reader actually sees: tags, cloze markers and spacing dropped. */
+/**
+ * Characters the reader actually has to recall.
+ *
+ * Dropped: HTML tags, spacing, and every kind of link. A link's label is not
+ * something to read back - "pdf", "视频", or "《note》· block 29" at the end of
+ * an imported card were all being counted as answer text, which inflated the
+ * budget of nearly every card the importer produced.
+ */
 export function visibleAnswerLength(text: string): number {
     return text
         .replace(/<[^>]*>/g, ' ')
+        // Cloze markers first, so a hole's own text still counts.
         .replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, '$1')
+        .replace(/!?\[\[[^\]]*\]\]/g, ' ')
+        .replace(/!?\[[^\]]*\]\([^)]*\)/g, ' ')
+        .replace(/https?:\/\/\S+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim().length;
 }
 
 /** The text the user has to read back: the back side, or the cloze body. */
 function answerText(card: CardRecord): string {
-    if (card.type === 'cloze' && card.clozeText) return card.clozeText;
+    if (card.type === 'cloze' && card.clozeText) {
+        // What has to be recalled is the hidden part, not the paragraph around
+        // it. Measuring the whole body made the budget roughly ten times too
+        // long for a normal cloze card, so its reminder arrived after a minute
+        // or two and looked like it never came.
+        const holes = parseCloze(card.clozeText);
+        const group = card.clozeGroup ?? holes[0]?.group;
+        const asked = holes.filter((hole) => hole.group === group);
+        if (asked.length > 0) return asked.map((hole) => hole.text).join(' ');
+        return card.clozeText;
+    }
     return card.back ?? card.front ?? '';
 }
 

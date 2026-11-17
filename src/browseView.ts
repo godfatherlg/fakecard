@@ -1,7 +1,9 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
 import type { CardRecord } from './card';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
+import { buildImageFigure, ImageZoomModal } from './imageFigure';
+import { ImagePanelModal } from './imagePanel';
 import { tt, ttf } from './i18n';
 import { matchesQuery, SearchContext } from './search';
 import { jumpToCardSource } from './sourceJump';
@@ -26,6 +28,31 @@ export class BrowseView extends ItemView {
     private selectedId: string | null = null;
     /** Cloze / image preview: whether the masks are lifted. */
     private previewRevealed = false;
+    /** Column the table is sorted by; null keeps the store's own order. */
+    private sortKey: SortKey | null = null;
+    private sortAsc = true;
+    /** Row last ticked, the anchor for Shift+click ranges. */
+    private lastChecked: string | null = null;
+    /** Shift was held for the click being handled (change events lack it). */
+    private shiftClick = false;
+
+    /** The rows as the table prints them, in the chosen order. */
+    private sortedRows(): CardRecord[] {
+        if (!this.sortKey) return this.filtered;
+        const key = this.sortKey;
+        const direction = this.sortAsc ? 1 : -1;
+        return [...this.filtered].sort((a, b) => direction * compareCards(a, b, key));
+    }
+
+    /** `MM-DD` for a scheduled card, a dash for one that never ran. */
+    private dueLabel(card: CardRecord): string {
+        if (!card.fsrs) return '—';
+        const due = new Date(card.fsrs.due);
+        if (Number.isNaN(due.getTime())) return '—';
+        const month = String(due.getMonth() + 1).padStart(2, '0');
+        const day = String(due.getDate()).padStart(2, '0');
+        return `${month}-${day}`;
+    }
     private query = '';
     private deckFilter = 'all';
     private decks: string[] = ['default'];
@@ -83,6 +110,54 @@ export class BrowseView extends ItemView {
         );
 
         this.applyFilter();
+    }
+
+    /**
+     * Tick every row between the last ticked box and this one, the way a file
+     * list does. The clicked row decides the state, so a Shift+click on a ticked
+     * row unticks the whole stretch.
+     */
+    private selectRange(toId: string): void {
+        const rows = this.sortedRows();
+        const to = rows.findIndex((card) => card.id === toId);
+        if (to < 0) return;
+        const select = !this.checked.has(toId);
+        const from = this.lastChecked ? rows.findIndex((card) => card.id === this.lastChecked) : to;
+        const start = from < 0 ? to : Math.min(from, to);
+        const end = from < 0 ? to : Math.max(from, to);
+        for (let i = start; i <= end; i++) {
+            const id = rows[i].id;
+            if (select) this.checked.add(id);
+            else this.checked.delete(id);
+        }
+        this.lastChecked = toId;
+        this.render();
+    }
+
+    /**
+     * Take cards out of the review rotation, or put them back.
+     *
+     * Suspending touches no schedule: the card keeps its FSRS state and simply
+     * stops being handed out until it is resumed.
+     */
+    private async setSuspended(ids: Iterable<string>, suspended: boolean): Promise<void> {
+        const all = await this.plugin.store.list();
+        let changed = 0;
+        for (const id of ids) {
+            const card = all.find((entry) => entry.id === id);
+            if (!card || Boolean(card.suspended) === suspended) continue;
+            card.suspended = suspended;
+            card.updated = new Date().toISOString();
+            await this.plugin.store.save(card);
+            changed++;
+        }
+        if (changed > 0) {
+            new Notice(suspended
+                ? ttf('{count} card(s) paused.', { count: changed })
+                : ttf('{count} card(s) resumed.', { count: changed }));
+            this.plugin.refreshStatusBar();
+            await this.reload();
+        }
     }
 
     private async moveChecked(deck: string): Promise<void> {
@@ -187,6 +262,16 @@ export class BrowseView extends ItemView {
                 if (moveSelect.value) void this.moveChecked(moveSelect.value);
             });
 
+            // Pause / resume the selection: a card kept out of the queue without
+            // being deleted, which is what "not now" usually means.
+            const checkedCards = this.cards.filter((card) => this.checked.has(card.id));
+            const allPaused = checkedCards.length > 0 && checkedCards.every((card) => card.suspended);
+            bar.createEl('button', {
+                text: allPaused ? tt('Resume selected') : tt('Pause selected'),
+            }).addEventListener('click', () => {
+                void this.setSuspended(this.checked, !allPaused);
+            });
+
             bar.createEl('button', { text: tt('Delete selected') }).addEventListener('click', () => {
                 new ConfirmDialog(
                     this.app,
@@ -239,10 +324,35 @@ export class BrowseView extends ItemView {
             const table = listEl.createEl('table', { cls: 'fakecard-browse-table' });
             const head = table.createEl('tr');
             head.createEl('th', { text: '' });
-            for (const label of ['Front', 'Type', 'Deck', 'Reviews']) {
-                head.createEl('th', { text: tt(label) });
-            }
-            for (const card of this.filtered) {
+            // Every column sorts: click once for ascending, again to reverse.
+            // A second click is also how the default order comes back.
+            const addSortable = (label: string, key: SortKey): void => {
+                const cell = head.createEl('th');
+                const button = cell.createEl('button', {
+                    cls: `fakecard-sort${this.sortKey === key ? ' is-active' : ''}`,
+                });
+                button.createSpan({ text: tt(label) });
+                if (this.sortKey === key) {
+                    button.createSpan({ cls: 'fakecard-sort-arrow', text: this.sortAsc ? '▲' : '▼' });
+                }
+                button.addEventListener('click', () => {
+                    if (this.sortKey === key) this.sortAsc = !this.sortAsc;
+                    else {
+                        this.sortKey = key;
+                        this.sortAsc = true;
+                    }
+                    this.render();
+                });
+            };
+            // The front is the text you search by, not something to reorder by:
+            // it reads like a list of half-sentences.
+            head.createEl('th', { text: tt('Front') });
+            addSortable('Type', 'type');
+            addSortable('Deck', 'deck');
+            addSortable('Reviews', 'reviews');
+            addSortable('Due', 'due');
+
+            for (const card of this.sortedRows()) {
                 const row = table.createEl('tr', { cls: 'fakecard-browse-row' });
                 // Used to bring the row into view when a badge in a note opens
                 // the card (selectCard).
@@ -253,10 +363,21 @@ export class BrowseView extends ItemView {
                 const checkbox = checkCell.createEl('input');
                 checkbox.type = 'checkbox';
                 checkbox.checked = this.checked.has(card.id);
-                checkbox.addEventListener('click', (event) => event.stopPropagation());
+                // `change` carries no modifiers, so the click remembers whether
+                // Shift was held when the box was ticked.
+                checkbox.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    this.shiftClick = event.shiftKey;
+                });
                 checkbox.addEventListener('change', () => {
+                    if (this.shiftClick) {
+                        this.shiftClick = false;
+                        this.selectRange(card.id);
+                        return;
+                    }
                     if (checkbox.checked) this.checked.add(card.id);
                     else this.checked.delete(card.id);
+                    this.lastChecked = card.id;
                     this.render();
                 });
 
@@ -271,6 +392,10 @@ export class BrowseView extends ItemView {
                 row.createEl('td', { text: `${baseType}${state}` });
                 row.createEl('td', { text: card.deck ?? 'default' });
                 row.createEl('td', { text: String(card.reviews ?? 0) });
+                const dueCell = row.createEl('td', { text: this.dueLabel(card) });
+                if (card.fsrs) {
+                    setTooltip(dueCell, new Date(card.fsrs.due).toLocaleString());
+                }
                 row.addEventListener('click', () => {
                     if (this.selectedId !== card.id) this.previewRevealed = false;
                     this.selectedId = card.id;
@@ -291,6 +416,11 @@ export class BrowseView extends ItemView {
         actions.createEl('button', { text: tt('↗ Source') }).addEventListener('click', () => {
             void jumpToCardSource(this.app, selected);
         });
+        actions.createEl('button', {
+            text: selected.suspended ? tt('Resume') : tt('Pause'),
+        }).addEventListener('click', () => {
+            void this.setSuspended([selected.id], !selected.suspended);
+        });
         actions.createEl('button', { text: tt('🗑 Delete') }).addEventListener('click', () => {
             new ConfirmDialog(
                 this.app,
@@ -303,6 +433,30 @@ export class BrowseView extends ItemView {
                 },
             ).open();
         });
+
+        // A child card is studied instead of its parent, and the parent is
+        // paused while its children run - so say which one that is, and let the
+        // link jump there rather than making the user search for it.
+        if (selected.childOf) {
+            const parent = this.cards.find((card) => card.id === selected.childOf);
+            const parentRow = previewEl.createDiv({ cls: 'fakecard-parent-row' });
+            parentRow.createSpan({ cls: 'fakecard-preview-label', text: tt('Parent card') });
+            if (parent) {
+                const link = parentRow.createEl('button', { cls: 'fakecard-parent-link' });
+                link.createSpan({ text: parent.front.slice(0, 48) || tt('(empty)') });
+                link.createSpan({ cls: 'fakecard-parent-arrow', text: '↗' });
+                setTooltip(link, parent.suspended
+                    ? tt('Open the paused parent card')
+                    : tt('Open the parent card'));
+                link.addEventListener('click', () => {
+                    // selectCard clears the filters: the parent may not match the
+                    // current search, and choosing it must still work.
+                    this.selectCard(parent.id);
+                });
+            } else {
+                parentRow.createSpan({ cls: 'fakecard-parent-missing', text: tt('not found') });
+            }
+        }
 
         // Deck and tags are metadata, not text: they are edited right here and
         // saved on the spot, so a card never needs a dialog for them.
@@ -342,9 +496,27 @@ export class BrowseView extends ItemView {
         if (selected.type === 'cloze') {
             addEditor('clozeText', tt('✎ Edit cloze text'));
         } else if (selected.type === 'image') {
-            // The only text an image card has is the embed that points at the
-            // picture; the masks are drawn, not typed.
-            addEditor('front', tt('✎ Edit image link'));
+            // Only the masks are real content: `front`/`back` are `![[image]]`
+            // copies the review view never reads (it draws `card.image`), so
+            // editing them would change nothing on screen.
+            editors.createEl('button', { text: tt('✎ Edit masks') }).addEventListener('click', () => {
+                // Every group of the picture, not just this card's: the panel
+                // edits the picture, and a save must not read the other groups
+                // as deleted and remove their cards.
+                const groups = this.cards
+                    .filter((entry) => entry.type === 'image' && entry.image?.path === selected.image?.path)
+                    .flatMap((entry) => entry.image?.groups ?? []);
+                new ImagePanelModal(
+                    this.app,
+                    this.plugin,
+                    selected.image?.path ?? '',
+                    selected.source.path,
+                    selected,
+                    () => { void this.reload(); },
+                    undefined,
+                    groups,
+                ).open();
+            });
         } else {
             addEditor('front', tt('✎ Edit question'));
             addEditor('back', tt('✎ Edit answer'));
@@ -384,26 +556,14 @@ export class BrowseView extends ItemView {
 
     private renderPreview(el: HTMLElement, card: CardRecord, revealed: boolean): void {
         if (card.type === 'image' && card.image) {
-            const wrap = el.createDiv({ cls: 'fakecard-image-wrap' });
-            const img = wrap.createEl('img', { cls: 'fakecard-image' });
-            img.src = this.app.vault.adapter.getResourcePath(card.image.path);
-            if (revealed || card.image.groups.length === 0) return;
-
-            const firstId = card.image.groups[0].id;
-            const overlay = wrap.createDiv({ cls: 'fakecard-image-overlay is-static' });
-            for (const group of card.image.groups) {
-                const isAsked = group.id === firstId;
-                if (!isAsked && !this.plugin.settings.maskAllGroups) continue;
-                for (const mask of group.masks) {
-                    const maskEl = overlay.createDiv({
-                        cls: `fakecard-image-mask${isAsked ? ' is-current' : ''}${mask.shape === 'ellipse' ? ' is-ellipse' : ''}`,
-                    });
-                    maskEl.style.left = `${mask.x * 100}%`;
-                    maskEl.style.top = `${mask.y * 100}%`;
-                    maskEl.style.width = `${mask.w * 100}%`;
-                    maskEl.style.height = `${mask.h * 100}%`;
-                }
-            }
+            const wrap = buildImageFigure(this.app, card, revealed, this.plugin.settings.maskAllGroups);
+            if (!wrap) return;
+            el.appendChild(wrap);
+            wrap.addClass('is-zoomable');
+            setTooltip(wrap, tt('Click to zoom'));
+            wrap.addEventListener('click', () => {
+                new ImageZoomModal(this.app, card, revealed, this.plugin.settings.maskAllGroups).open();
+            });
             return;
         }
         void MarkdownRenderer.render(
@@ -484,5 +644,33 @@ export class BrowseView extends ItemView {
 
     async onClose(): Promise<void> {
         this.contentEl.empty();
+    }
+}
+
+/** One sortable column of the card table. */
+type SortKey = 'type' | 'deck' | 'reviews' | 'due';
+
+/**
+ * Order two cards by one column.
+ *
+ * Text uses `localeCompare` so Chinese sorts by pinyin instead of by code
+ * point; a card that never ran has no due date and sorts last rather than
+ * jumping to 1970.
+ */
+function compareCards(a: CardRecord, b: CardRecord, key: SortKey): number {
+    switch (key) {
+        case 'type':
+            return a.type.localeCompare(b.type);
+        case 'deck':
+            return (a.deck ?? 'default').localeCompare(b.deck ?? 'default');
+        case 'reviews':
+            return (a.reviews ?? 0) - (b.reviews ?? 0);
+        case 'due': {
+            const left = a.fsrs ? new Date(a.fsrs.due).getTime() : Number.POSITIVE_INFINITY;
+            const right = b.fsrs ? new Date(b.fsrs.due).getTime() : Number.POSITIVE_INFINITY;
+            return left - right;
+        }
+        default:
+            return 0;
     }
 }
