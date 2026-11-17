@@ -399,7 +399,9 @@ export class ReviewView extends ItemView {
         ).then(() => {
             // A cloze or Q&A card can carry pictures too; they zoom the same
             // way an occlusion picture does.
-            attachImageZoom(el, (el.closest('.fakecard-review-body') as HTMLElement | null) ?? el);
+            // The generic form says what the selector returns without an
+            // assertion: the scroller is the review body, a real element.
+            attachImageZoom(el, el.closest<HTMLElement>('.fakecard-review-body') ?? el);
         });
     }
 
@@ -408,7 +410,7 @@ export class ReviewView extends ItemView {
         if (!wrap) return;
         el.appendChild(wrap);
         wrap.addClass('is-zoomable');
-        const scroller = (el.closest('.fakecard-review-body') as HTMLElement | null) ?? el;
+        const scroller = el.closest<HTMLElement>('.fakecard-review-body') ?? el;
         const img = wrap.querySelector('img');
         if (!img) return;
         // The size a card was last read at is the size it comes back at: the
