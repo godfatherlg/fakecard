@@ -1,5 +1,5 @@
 import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
-import { createEmptyCard, fsrs, Rating } from 'ts-fsrs';
+import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import { suggestedAnswerSeconds } from './answerTime';
@@ -39,6 +39,10 @@ export class ReviewView extends ItemView {
     private decks: string[] = ['default'];
     /** When the current card was first shown, for the review duration. */
     private cardShownAt = 0;
+    /** Due cards the daily limit kept out of the current queue. */
+    private backlog = 0;
+    /** True while the cards on screen were pulled in ahead of their due date. */
+    private ahead = false;
     /** Interval that reveals the answer-time hint; cleared on every render. */
     private hintTimer: number | null = null;
     /** Handler that keeps the hint's clock from running while hidden. */
@@ -135,8 +139,10 @@ export class ReviewView extends ItemView {
 
         this.decks = queue.decks;
         this.cards = queue.cards;
+        this.backlog = queue.backlog;
         this.index = 0;
         this.revealed = false;
+        this.ahead = false;
         this.loading = false;
         this.cardShownAt = Date.now();
         this.render();
@@ -210,6 +216,18 @@ export class ReviewView extends ItemView {
             cls: 'fakecard-review-progress-total',
             text: `/ ${this.cards.length}`,
         });
+
+        // These cards came from after today's queue: say so, or the interval
+        // correction in `shortenEarlyInterval` looks like a numbers bug.
+        if (this.ahead) {
+            meta.createSpan({ cls: 'fakecard-review-ahead', text: tt('studying ahead') });
+        } else if (this.backlog > 0) {
+            const badge = meta.createSpan({
+                cls: 'fakecard-review-backlog',
+                text: ttf('{count} more due', { count: this.backlog }),
+            });
+            setTooltip(badge, tt('These cards are due today; the daily limit kept them out of this session.'));
+        }
 
         const actions = bar.createDiv({ cls: 'fakecard-review-actions' });
 
@@ -784,7 +802,9 @@ export class ReviewView extends ItemView {
 
         const scheduler = fsrs();
         const fsrsCard: FsrsCard = card.fsrs ?? createEmptyCard();
-        const scheduling = scheduler.next(fsrsCard, new Date(), rating as Grade);
+        const now = new Date();
+        const scheduling = scheduler.next(fsrsCard, now, rating as Grade);
+        this.shortenEarlyInterval(card, scheduling.card, now, rating);
 
         const wasNew = !card.fsrs;
         card.fsrs = scheduling.card;
@@ -798,6 +818,8 @@ export class ReviewView extends ItemView {
             rating,
             wasNew,
             durationMs: this.cardShownAt > 0 ? Date.now() - this.cardShownAt : undefined,
+            // Rated before its due date: practice, not today's quota.
+            ahead: new Date(fsrsCard.due).getTime() > now.getTime() || undefined,
         });
         entry.reviewLog = { cardId: card.id, at: card.updated };
 
@@ -812,6 +834,42 @@ export class ReviewView extends ItemView {
         this.revealed = false;
         this.cardShownAt = Date.now();
         this.render();
+    }
+
+    /**
+     * Keep a rating made before the due date honest.
+     *
+     * FSRS assumes the rating arrived when the card was scheduled; taken at
+     * face value, studying a 30-day card on day 3 would push it out as if it
+     * had just been reviewed on time. Subtracting the days gained early gives
+     * back what that unearned head start was worth, and the result is clamped
+     * so a card is never scheduled earlier than it already was.
+     *
+     * Only reviews of learned cards are touched: new and learning cards are
+     * scheduled in minutes, and an Again is a real failure whose shorter
+     * interval should stand.
+     */
+    private shortenEarlyInterval(
+        card: CardRecord,
+        scheduled: FsrsCard,
+        now: Date,
+        rating: Rating,
+    ): void {
+        if (!this.plugin.settings.scaleEarlyReviews) return;
+        const previous = card.fsrs;
+        if (!previous || previous.state !== State.Review) return;
+        if (rating === Rating.Again || scheduled.state !== State.Review) return;
+
+        const earlyDays = (new Date(previous.due).getTime() - now.getTime()) / 86400000;
+        if (earlyDays <= 0) return;
+
+        const fsrsDays = Math.max(1, scheduled.scheduled_days);
+        const honestDays = Math.max(earlyDays, fsrsDays - earlyDays);
+        const rounded = Math.max(1, Math.round(honestDays));
+        if (rounded >= fsrsDays) return;
+
+        scheduled.scheduled_days = rounded;
+        scheduled.due = new Date(now.getTime() + rounded * 86400000);
     }
 
     /**
@@ -906,15 +964,123 @@ export class ReviewView extends ItemView {
         this.render();
     }
 
+    /**
+     * The end of a session, with the two ways to keep going.
+     *
+     * They never appear together, because they mean different things: a card
+     * behind the daily limit is today's work (no interval scaling), a card that
+     * is not due yet is borrowed from the future (its interval is scaled).
+     */
     private renderDone(container: HTMLElement): void {
         container.createEl('h2', { text: tt('Review finished') });
         const reviewed = this.cards.filter((card) => (card.reviews ?? 0) > 0).length;
         container.createEl('p', { text: ttf('{count} card(s) in the library.', { count: reviewed }) });
-        const again = container.createEl('button', { text: tt('Review again') });
-        again.addEventListener('click', () => {
-            void this.reload();
-            new Notice(tt('Reloaded.'));
+
+        const actions = container.createDiv({ cls: 'fakecard-review-done' });
+
+        if (this.backlog > 0) {
+            container.createEl('p', {
+                cls: 'fakecard-review-done-note',
+                text: ttf('{count} due card(s) are waiting behind the daily limit.', { count: this.backlog }),
+            });
+            const more = actions.createEl('button', {
+                cls: 'mod-cta fakecard-review-done-primary',
+                text: ttf('Study more today ({count} left)', { count: this.backlog }),
+            });
+            setTooltip(more, ttf(
+                'Today still has {count} due card(s) the daily limit cut off. Each press allows {step} more; they are due today, so intervals are not scaled.',
+                { count: this.backlog, step: this.plugin.boostStepSize() },
+            ));
+            more.addEventListener('click', () => {
+                this.plugin.boostReviewLimit();
+                void this.reload();
+            });
+        } else if (!this.plugin.settings.scaleEarlyReviews) {
+            // Study ahead without the interval correction would inflate the
+            // schedules of the very cards it borrows, so it stays off.
+            container.createEl('p', {
+                cls: 'fakecard-review-done-note',
+                text: tt('Study ahead is off: turn on interval scaling in Settings to use it.'),
+            });
+        } else {
+            const batch = Math.max(1, this.plugin.settings.aheadBatch);
+            const ahead = actions.createEl('button', {
+                cls: 'fakecard-review-done-primary',
+                text: ttf('Study {count} cards ahead', { count: batch }),
+            });
+            setTooltip(ahead, tt('Today is clear. These cards are not due yet; because they are early, a rating shortens the new interval by the days you gained early.'));
+            ahead.addEventListener('click', () => {
+                void this.startAhead();
+            });
+        }
+
+        const refresh = actions.createEl('button', {
+            cls: 'fakecard-review-done-refresh',
+            text: tt('Refresh'),
         });
+        setTooltip(refresh, tt('Recompute today\'s queue. Only needed after adding or editing cards during the session.'));
+        refresh.addEventListener('click', () => {
+            void this.reload();
+        });
+    }
+
+    /**
+     * Study an explicit set of cards (the stats page's hardest list) instead of
+     * today's queue. Only these cards appear; rating one schedules it as usual,
+     * with the early correction if it was not due yet.
+     */
+    startExtra(cards: CardRecord[]): void {
+        const list = cards.filter((card) => !card.suspended && !card.graduated);
+        if (list.length === 0) {
+            new Notice(tt('No card to study ahead.'));
+            return;
+        }
+        this.cards = list;
+        this.index = 0;
+        this.revealed = false;
+        this.ahead = false;
+        this.loading = false;
+        this.cardShownAt = Date.now();
+        this.render();
+    }
+
+    /**
+     * Borrow a few cards from the future: not due yet, hardest first, and
+     * reviewed with the early-interval correction (see `shortenEarlyInterval`).
+     */
+    private async startAhead(): Promise<void> {
+        if (!this.plugin.settings.scaleEarlyReviews) {
+            new Notice(tt('Study ahead is off: turn on interval scaling in Settings to use it.'));
+            return;
+        }
+        const all = await this.plugin.store.list();
+        const now = Date.now();
+        const misses = (card: CardRecord): number => (card.reviews ?? 0) - (card.correct ?? 0);
+        const byEarliest = this.plugin.settings.aheadOrder === 'earliest';
+        const pool = all
+            .filter((card) => !card.suspended && !card.graduated)
+            .filter((card) => this.deckFilter === 'all' || card.deck === this.deckFilter)
+            .filter((card) => card.fsrs
+                && card.fsrs.state === State.Review
+                && new Date(card.fsrs.due).getTime() > now)
+            .sort((a, b) => (byEarliest
+                // Borrow from the future in order: the card that would have come
+                // up soonest is the one that suffers least from a few days early.
+                ? new Date(a.fsrs!.due).getTime() - new Date(b.fsrs!.due).getTime()
+                : misses(b) - misses(a) || (b.fsrs?.difficulty ?? 0) - (a.fsrs?.difficulty ?? 0)))
+            .slice(0, Math.max(1, this.plugin.settings.aheadBatch));
+
+        if (pool.length === 0) {
+            new Notice(tt('No card to study ahead.'));
+            return;
+        }
+
+        this.cards = pool;
+        this.index = 0;
+        this.revealed = false;
+        this.ahead = true;
+        this.cardShownAt = Date.now();
+        this.render();
     }
 
     async onClose(): Promise<void> {

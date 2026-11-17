@@ -1,6 +1,8 @@
-import { App, PluginSettingTab } from 'obsidian';
+import { App, Notice, PluginSettingTab, TFile, TFolder, normalizePath } from 'obsidian';
 import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type FakeCardPlugin from '../main';
+import { ConfirmDialog } from './confirm';
+
 import {
     DEFAULT_ANSWER_SECONDS,
     DEFAULT_HISTORY_WEIGHT,
@@ -19,7 +21,7 @@ import {
     EXAM_PLAN_RATIO_STEP,
     ExamPlanConfig,
 } from './examPlan';
-import { t, tf } from './i18n';
+import { t, tf, tt, ttf } from './i18n';
 import { DEFAULT_LIBRARY_FOLDER } from './store';
 
 export interface FakeCardSettings {
@@ -45,6 +47,28 @@ export interface FakeCardSettings {
     // --- Review ------------------------------------------------------------
     newCardsPerDay: number;
     maxReviewsPerDay: number;
+    /** How many not-yet-due cards one "study ahead" batch pulls. */
+    aheadBatch: number;
+    /** Which not-yet-due cards come first in a batch. */
+    aheadOrder: 'hardest' | 'earliest';
+    /**
+     * Hold new cards while due cards already exceed the daily limit: a backlog
+     * means the day is full, and new cards only add tomorrow's work.
+     */
+    pauseNewWhenBacklogged: boolean;
+    /**
+     * Extra cards one press of "study more today" allows; 0 means half of the
+     * daily limit (at least 20).
+     */
+    boostStep: number;
+    /**
+     * Scale the interval when a card is rated before its due date. Turning this
+     * off also disables "study ahead" - borrowing cards from the future without
+     * the correction would push their intervals further out than earned.
+     */
+    scaleEarlyReviews: boolean;
+    /** Show the 📇 badge next to blocks that produced cards. */
+    showCardBadge: boolean;
     /** Show the suggested answer time in review. */
     answerTimeHint: boolean;
     /** Base seconds in the answer-time estimate (reading time is added). */
@@ -103,6 +127,12 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
 
     newCardsPerDay: 20,
     maxReviewsPerDay: 200,
+    aheadBatch: 10,
+    aheadOrder: 'hardest',
+    pauseNewWhenBacklogged: true,
+    boostStep: 0,
+    scaleEarlyReviews: true,
+    showCardBadge: true,
     answerTimeHint: true,
     // The three answer-time values below are the ones the True Recall install
     // this plugin was ported from actually uses.
@@ -137,6 +167,8 @@ const NUMBER_LIMITS: Record<string, { min: number; max?: number }> = {
     childAgainScore: { min: 0, max: 3 },
     newCardsPerDay: { min: 0 },
     maxReviewsPerDay: { min: 1 },
+    aheadBatch: { min: 1, max: 100 },
+    boostStep: { min: 0, max: 500 },
     answerTimeBase: { min: 5, max: 120 },
     answerTimeSecondsPerChunk: { min: 0, max: 120 },
     answerTimeHistoryWeight: { min: -60, max: 100 },
@@ -166,10 +198,12 @@ export class FakeCardSettingTab extends PluginSettingTab {
         return [
             this.libraryGroup(),
             this.creationGroup(),
+            this.paceGroup(),
+            this.aheadGroup(),
             this.reviewGroup(),
-            this.displayGroup(),
             this.examGroup(),
             this.importExportGroup(),
+            this.maintenanceGroup(),
         ];
     }
 
@@ -195,6 +229,9 @@ export class FakeCardSettingTab extends PluginSettingTab {
         settings[key] = next;
         if (key === 'libraryFolder') this.plugin.rebuildStores();
         await this.plugin.saveSettings();
+        // The badge is drawn by a post-processor, so open notes must be redrawn
+        // for the change to show without reopening them.
+        if (key === 'showCardBadge') this.plugin.rerenderNotes();
     }
 
     // ------------------------------------------------------------------ Library
@@ -305,12 +342,12 @@ export class FakeCardSettingTab extends PluginSettingTab {
         };
     }
 
-    // ------------------------------------------------------------------- Review
+    // -------------------------------------------------------------- Daily pace
 
-    private reviewGroup(): SettingDefinitionGroup {
+    private paceGroup(): SettingDefinitionGroup {
         return {
             type: 'group',
-            heading: t('review.heading'),
+            heading: t('pace.heading'),
             items: [
                 {
                     name: t('review.newPerDay.name'),
@@ -321,6 +358,107 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     name: t('review.maxPerDay.name'),
                     desc: t('review.maxPerDay.desc'),
                     control: { type: 'number', key: 'maxReviewsPerDay', min: 1, step: 1 },
+                },
+                {
+                    name: t('review.pauseNew.name'),
+                    desc: t('review.pauseNew.desc'),
+                    control: { type: 'toggle', key: 'pauseNewWhenBacklogged' },
+                },
+                {
+                    name: t('review.boostStep.name'),
+                    desc: t('review.boostStep.desc'),
+                    render: (setting) => {
+                        setting.addText((text) => {
+                            // Blank means "work it out": a tenth of the daily
+                            // limit. A stored 0 is that same choice, but the
+                            // field shows nothing rather than a puzzling zero.
+                            text.inputEl.type = 'number';
+                            text.inputEl.min = '1';
+                            text.inputEl.max = '500';
+                            text.setPlaceholder(t('review.boostStep.auto'));
+                            text.setValue(this.plugin.settings.boostStep > 0
+                                ? String(this.plugin.settings.boostStep)
+                                : '');
+                            text.onChange(async (raw) => {
+                                const typed = raw.trim();
+                                const parsed = Number(typed);
+                                const next = typed === '' || !Number.isFinite(parsed) || parsed <= 0
+                                    ? 0
+                                    : Math.min(500, Math.round(parsed));
+                                if (this.plugin.settings.boostStep === next) return;
+                                this.plugin.settings.boostStep = next;
+                                await this.plugin.saveSettings();
+                            });
+                        });
+                    },
+                },
+            ],
+        };
+    }
+
+    // ------------------------------------------------------------ Study ahead
+
+    private aheadGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('ahead.heading'),
+            items: [
+                {
+                    name: t('review.aheadBatch.name'),
+                    desc: t('review.aheadBatch.desc'),
+                    control: { type: 'number', key: 'aheadBatch', min: 1, max: 100, step: 1 },
+                },
+                {
+                    name: t('review.aheadOrder.name'),
+                    desc: t('review.aheadOrder.desc'),
+                    control: {
+                        type: 'dropdown',
+                        key: 'aheadOrder',
+                        options: {
+                            hardest: t('review.aheadOrder.hardest'),
+                            earliest: t('review.aheadOrder.earliest'),
+                        },
+                        defaultValue: 'hardest',
+                    },
+                },
+                {
+                    name: t('review.scaleEarly.name'),
+                    desc: t('review.scaleEarly.desc'),
+                    control: { type: 'toggle', key: 'scaleEarlyReviews' },
+                },
+            ],
+        };
+    }
+
+    // ----------------------------------------------------------- Review screen
+
+    private reviewGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('review.heading'),
+            items: [
+                {
+                    name: t('display.layout.name'),
+                    desc: t('display.layout.desc'),
+                    control: {
+                        type: 'dropdown',
+                        key: 'reviewLayout',
+                        options: {
+                            center: t('display.layout.center'),
+                            wide: t('display.layout.wide'),
+                        },
+                        defaultValue: 'center',
+                    },
+                },
+                {
+                    name: t('display.maskAll.name'),
+                    desc: t('display.maskAll.desc'),
+                    control: { type: 'toggle', key: 'maskAllGroups' },
+                },
+                {
+                    name: t('display.badge.name'),
+                    desc: t('display.badge.desc'),
+                    control: { type: 'toggle', key: 'showCardBadge' },
                 },
                 {
                     name: t('review.answerTime.name'),
@@ -361,35 +499,6 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     name: t('review.keyEasy.name'),
                     desc: t('review.keys.desc'),
                     control: { type: 'text', key: 'ratingKeyEasy', placeholder: '3' },
-                },
-            ],
-        };
-    }
-
-    // ------------------------------------------------------------------ Display
-
-    private displayGroup(): SettingDefinitionGroup {
-        return {
-            type: 'group',
-            heading: t('display.heading'),
-            items: [
-                {
-                    name: t('display.layout.name'),
-                    desc: t('display.layout.desc'),
-                    control: {
-                        type: 'dropdown',
-                        key: 'reviewLayout',
-                        options: {
-                            center: t('display.layout.center'),
-                            wide: t('display.layout.wide'),
-                        },
-                        defaultValue: 'center',
-                    },
-                },
-                {
-                    name: t('display.maskAll.name'),
-                    desc: t('display.maskAll.desc'),
-                    control: { type: 'toggle', key: 'maskAllGroups' },
                 },
             ],
         };
@@ -649,5 +758,85 @@ export class FakeCardSettingTab extends PluginSettingTab {
                 },
             ],
         };
+    }
+
+    // ------------------------------------------------------------- Maintenance
+
+    /**
+     * The things that have no other home: the scratch notes the editor split
+     * leaves behind, the backups the destructive actions write, and a way to
+     * rebuild the card index without restarting Obsidian.
+     */
+    private maintenanceGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('maintenance.heading'),
+            items: [
+                {
+                    name: t('maintenance.sweep.name'),
+                    desc: t('maintenance.sweep.desc'),
+                    render: (setting) => {
+                        setting.addButton((button) => button
+                            .setButtonText(t('maintenance.sweep.button'))
+                            .onClick(async () => {
+                                const removed = await this.plugin.tempEdit.cleanup();
+                                new Notice(removed > 0
+                                    ? ttf('Removed {count} scratch file(s).', { count: removed })
+                                    : t('maintenance.sweep.empty'));
+                            }));
+                    },
+                },
+                {
+                    name: t('maintenance.backup.name'),
+                    desc: t('maintenance.backup.desc'),
+                    render: (setting) => {
+                        setting.addButton((button) => button
+                            .setButtonText(t('maintenance.backup.button'))
+                            .onClick(() => {
+                                new ConfirmDialog(
+                                    this.app,
+                                    t('maintenance.backup.confirm'),
+                                    t('maintenance.backup.button'),
+                                    () => this.clearBackups(),
+                                ).open();
+                            }));
+                    },
+                },
+                {
+                    name: t('maintenance.reindex.name'),
+                    desc: t('maintenance.reindex.desc'),
+                    render: (setting) => {
+                        setting.addButton((button) => button
+                            .setButtonText(t('maintenance.reindex.button'))
+                            .onClick(() => {
+                                void this.plugin.rebuildIndex();
+                            }));
+                    },
+                },
+            ],
+        };
+    }
+
+    /** Delete the backup folder's contents; the user confirmed first. */
+    private async clearBackups(): Promise<void> {
+        const dir = normalizePath(`${this.plugin.store.folder}/backup`);
+        const folder = this.plugin.app.vault.getAbstractFileByPath(dir);
+        if (!(folder instanceof TFolder)) {
+            new Notice(t('maintenance.backup.empty'));
+            return;
+        }
+        let removed = 0;
+        for (const child of [...folder.children]) {
+            if (!(child instanceof TFile)) continue;
+            try {
+                await this.plugin.app.fileManager.trashFile(child);
+                removed++;
+            } catch {
+                // Locked or already gone.
+            }
+        }
+        new Notice(removed > 0
+            ? ttf('Removed {count} backup file(s).', { count: removed })
+            : t('maintenance.backup.empty'));
     }
 }

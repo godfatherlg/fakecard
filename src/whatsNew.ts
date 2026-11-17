@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.17';
+export const WHATS_NEW_VERSION = '1.0.18';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'This dialog could never appear on a settings file written before the feature existed: the missing version read as a fresh install. That case counts as one upgrade now - so this is the first note such a vault sees, and later updates behave normally.',
-        zh: '这个说明以前在某些库上永远不会出现：设置文件早于这个功能时没有版本号，被当成了全新安装。现在这种情况算作一次升级——所以这可能是你第一次看到它，之后的更新会正常弹出。',
+        en: 'Study ahead: when today is clear, the finish page lends you 10 cards that are not due yet, hardest first. Ratings still go through FSRS, with the new interval shortened by the days you gained early - and they do not use up today\'s allowance.',
+        zh: '提前复习：今天清空后，完成页会从还没到期的卡里借 10 张给你练（优先最难的）。评分照常走 FSRS，但会按提前的天数缩短新间隔，而且不占用当天的复习额度。',
+    },
+    {
+        en: 'When due cards exceed the daily limit, review shows a red backlog chip and offers "study more today", which can be pressed again and again. New cards are held back until the queue fits.',
+        zh: '到期卡超过每日上限时，复习界面会标出积压数量，并提供「今天多学一点」——可以反复点着续。积压期间新卡自动暂停，队列降下来再恢复。',
+    },
+    {
+        en: 'Settings are regrouped into eight sections (daily pace, study ahead, review screen, maintenance ...), and the stats page\'s hardest cards now scroll and can be studied by clicking a row.',
+        zh: '设置页重排成八组（每日节奏、提前复习、复习界面、维护……）；统计页的「最难的卡」可以滚动，点一行就能直接开始学。',
     },
 ];
 

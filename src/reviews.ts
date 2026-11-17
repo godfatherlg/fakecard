@@ -10,6 +10,11 @@ export interface ReviewLog {
     wasNew: boolean;
     /** Time spent on the card, in milliseconds (front shown -> rated). */
     durationMs?: number;
+    /**
+     * Rated before the card was due - "study ahead". Such a review does not
+     * consume the day's allowance for due cards.
+     */
+    ahead?: boolean;
 }
 
 /** YYYY-MM-DD in local time, the name of the day file. */

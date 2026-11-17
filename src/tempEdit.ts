@@ -279,6 +279,29 @@ export class TempEditor {
             });
     }
 
+    /**
+     * Delete scratch notes that no live session owns - the manual version of
+     * the startup sweep, without its age guard (the user asked for this one).
+     * Returns how many files went away.
+     */
+    async cleanup(): Promise<number> {
+        const folder = this.app.vault.getAbstractFileByPath(this.folderPath);
+        if (!(folder instanceof TFolder)) return 0;
+        let removed = 0;
+        for (const child of [...folder.children]) {
+            if (!(child instanceof TFile)) continue;
+            if (!/-(front|back|cloze)\.md$/.test(child.name)) continue;
+            if (this.sessions.has(child.path)) continue;
+            try {
+                await this.app.fileManager.trashFile(child);
+                removed++;
+            } catch {
+                // Locked or already gone - the startup sweep tries again.
+            }
+        }
+        return removed;
+    }
+
     /** Plugin unload: persist every draft, then drop the scratch files. */
     async flushAll(): Promise<void> {
         for (const path of [...this.sessions.keys()]) await this.finish(path, true);

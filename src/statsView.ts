@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf, setTooltip } from 'obsidian';
 import { State } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import { dayStreak, lastDays } from './reviews';
@@ -219,6 +219,9 @@ export class StatsView extends ItemView {
 
         // --- Hardest cards ---
         container.createEl('h3', { text: tt('Hardest cards') });
+        // Every card that has been missed at least once, worst first. The list
+        // scrolls instead of being cut at five: those five were only the top of
+        // a much longer pile, and the pile is what the section is about.
         const hardest = this.cards
             .filter((card) => (card.reviews ?? 0) > 0)
             .map((card) => ({
@@ -226,8 +229,7 @@ export class StatsView extends ItemView {
                 misses: (card.reviews ?? 0) - (card.correct ?? 0),
             }))
             .filter((entry) => entry.misses > 0)
-            .sort((a, b) => b.misses - a.misses)
-            .slice(0, 5);
+            .sort((a, b) => b.misses - a.misses);
 
         if (hardest.length === 0) {
             container.createEl('p', { cls: 'fakecard-stats-empty', text: tt('No struggling cards yet.') });
@@ -235,8 +237,20 @@ export class StatsView extends ItemView {
             const list = container.createDiv({ cls: 'fakecard-stats-hardest' });
             for (const { card, misses } of hardest) {
                 const row = list.createDiv({ cls: 'fakecard-stats-hardest-row' });
+                row.setAttr('role', 'button');
+                row.setAttr('tabindex', '0');
+                setTooltip(row, tt('Study this card now'));
                 row.createSpan({ cls: 'fakecard-stats-hardest-front', text: card.front.slice(0, 70) });
                 row.createSpan({ cls: 'fakecard-stats-hardest-count', text: ttf('{count} miss(es)', { count: misses }) });
+                const study = (): void => {
+                    void this.plugin.openReviewWith([card]);
+                };
+                row.addEventListener('click', study);
+                row.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    study();
+                });
             }
         }
     }

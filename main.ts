@@ -38,6 +38,11 @@ export default class FakeCardPlugin extends Plugin {
     reviews: ReviewStore;
     /** Card fields being edited in a real editor split, see `tempEdit.ts`. */
     tempEdit!: TempEditor;
+    /**
+     * Extra reviews allowed beyond `maxReviewsPerDay`, added by "study more
+     * today" on the review-finished page. Memory only: it means "today".
+     */
+    reviewLimitBoost = 0;
 
 
     /** Debounce handle for refreshing views after a settings change. */
@@ -134,6 +139,7 @@ export default class FakeCardPlugin extends Plugin {
             // our own views the markdown is a card being reviewed or previewed,
             // where the chip is noise - and it showed on both sides of the card.
             if (el.closest('.fakecard-review-body, .fakecard-card-view, .fakecard-field-preview-body')) return;
+            if (!this.settings.showCardBadge) return;
             const cards = this.store.cardsForPath(ctx.sourcePath);
             if (cards.length === 0) return;
             // Several mask groups can share one image - show one badge there.
@@ -493,6 +499,58 @@ export default class FakeCardPlugin extends Plugin {
     }
 
     /**
+     * Study a hand-picked set of cards - the stats page's hardest list. Opens
+     * the review view on exactly those cards; their schedules are untouched
+     * until they are rated.
+     */
+    async openReviewWith(cards: CardRecord[]): Promise<void> {
+        let leaf: WorkspaceLeaf | null = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0] ?? null;
+        if (!leaf) {
+            leaf = this.app.workspace.getLeaf('tab');
+            await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
+        }
+        void this.app.workspace.revealLeaf(leaf);
+        const view = leaf.view;
+        if (view instanceof ReviewView) view.startExtra(cards);
+    }
+
+    /**
+     * Drop the card cache and repaint every view from disk. For hand-edited
+     * JSON or a sync that changed files while Obsidian was open.
+     */
+    async rebuildIndex(): Promise<void> {
+        this.store.invalidate();
+        this.refreshStatusBar();
+        for (const leaf of this.app.workspace.getLeavesOfType(BROWSE_VIEW_TYPE)) {
+            const view = leaf.view;
+            if (view instanceof BrowseView) void view.reload();
+        }
+        for (const leaf of this.app.workspace.getLeavesOfType(STATS_VIEW_TYPE)) {
+            const view = leaf.view;
+            if (view instanceof StatsView) void view.reload();
+        }
+        for (const leaf of this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)) {
+            const view = leaf.view;
+            if (view instanceof ReviewView) void view.reload();
+        }
+        new Notice(tt('Card index rebuilt.'));
+    }
+
+    /**
+     * Re-run markdown rendering in open notes. The card badge is injected by a
+     * post-processor that reads a setting, so toggling it needs a re-render
+     * rather than a reload.
+     */
+    rerenderNotes(): void {
+        for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+            const view = leaf.view;
+            if (view instanceof MarkdownView && view.getMode() === 'preview') {
+                view.previewMode.rerender(true);
+            }
+        }
+    }
+
+    /**
      * A card was saved by something other than the views - the editor split in
      * `tempEdit.ts` writes straight into the JSON. Repaint what is on screen
      * without rebuilding the review session: same card, same side.
@@ -510,6 +568,20 @@ export default class FakeCardPlugin extends Plugin {
                 if (view instanceof BrowseView) void view.reload();
             }
         }, 300);
+    }
+
+    /**
+     * "Study more today": raise the review limit for the rest of this session.
+     * Only due cards can fill the gap, so nothing is studied early by it.
+     */
+    boostReviewLimit(): void {
+        this.reviewLimitBoost += this.boostStepSize();
+    }
+
+    /** Extra cards one "study more today" adds: set, or a tenth of the limit. */
+    boostStepSize(): number {
+        if (this.settings.boostStep > 0) return this.settings.boostStep;
+        return Math.max(10, Math.round(this.settings.maxReviewsPerDay / 10));
     }
 
     /** Recreate both stores after the library folder changes. */
