@@ -21,7 +21,7 @@ import {
     EXAM_PLAN_RATIO_STEP,
     ExamPlanConfig,
 } from './examPlan';
-import { t, tf, tt, ttf } from './i18n';
+import { t, tf, ttf } from './i18n';
 import { DEFAULT_LIBRARY_FOLDER } from './store';
 
 export interface FakeCardSettings {
