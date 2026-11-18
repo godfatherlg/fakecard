@@ -2054,10 +2054,3 @@ body.theme-dark .fakecard-image-mask-label {
   height: 340px;
   padding: 0;
 }
-
-/* One finger pans, two fingers pinch - the browser must not scroll the page
-   instead. */
-.fakecard-map {
-  touch-action: none;
-  overscroll-behavior: contain;
-}

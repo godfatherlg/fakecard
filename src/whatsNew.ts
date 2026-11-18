@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.31';
+export const WHATS_NEW_VERSION = '1.0.32';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'A mind map can be panned and zoomed by touch now: one finger pans, two fingers pinch. Mouse and trackpad behave as before.',
-        zh: '思维导图支持触控了：单指拖动平移，双指捏合缩放。鼠标与触摸板的行为不变。',
+        en: 'The touch panning and pinching added in 1.0.31 is gone again: the mind map is mouse and trackpad only, exactly as in 1.0.30.',
+        zh: '撤回 1.0.31 加入的触屏拖动与捏合缩放：导图恢复为只支持鼠标与触摸板，行为与 1.0.30 一致。',
+    },
+    {
+        en: 'Mind map nodes no longer cache their rendered HTML, so the plugin passes the community review. A mask toggle re-renders the labels, which is slightly slower on a very large map.',
+        zh: '导图节点不再缓存渲染后的 HTML，插件因此能通过社区审核。切换遮罩时会重新渲染节点文本，超大导图上会略慢一点。',
     },
 ];
 

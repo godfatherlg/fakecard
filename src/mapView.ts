@@ -59,17 +59,6 @@ function subtreeHasHoles(node: OutlineNode): boolean {
     return node.children.some((child) => child.holes.length > 0 || subtreeHasHoles(child));
 }
 
-/**
- * Rendered node text, keyed by source path and text.
- *
- * A repaint rebuilds every node, and each visible piece goes through
- * MarkdownRenderer. Caching the resulting HTML keeps a mask toggle cheap on a
- * large map instead of re-parsing the same labels every time. The cache is
- * bounded: it is a speed-up, not a store.
- */
-const RENDER_CACHE = new Map<string, string>();
-const RENDER_CACHE_LIMIT = 500;
-
 const GAP_X = 56;
 const GAP_Y = 16;
 const MIN_SCALE = 0.3;
@@ -240,16 +229,7 @@ export async function renderMindmap(
                 const raw = span.dataset.raw ?? '';
                 if (!raw) continue;
                 span.empty();
-                const key = `${options.sourcePath}\u0000${raw}`;
-                const cached = RENDER_CACHE.get(key);
-                if (cached !== undefined) {
-                    // Same text, same note: the HTML is already known.
-                    span.innerHTML = cached;
-                    continue;
-                }
                 await MarkdownRenderer.render(options.app!, raw, span, options.sourcePath!, component);
-                if (RENDER_CACHE.size >= RENDER_CACHE_LIMIT) RENDER_CACHE.clear();
-                RENDER_CACHE.set(key, span.innerHTML);
             }
         }));
         // The renderer's children are done; releasing them here keeps embedded
@@ -378,75 +358,35 @@ export async function renderMindmap(
         fit();
     };
 
-    // Pointer events cover mouse, pen and touch with one set of handlers: one
-    // pointer pans, two pointers pinch. `touch-action: none` in the stylesheet
-    // stops the page from scrolling instead.
-    const pointers = new Map<number, { x: number; y: number }>();
-    let pinchSpan = 0;
-
-    const spanOf = (): number => {
-        const [a, b] = [...pointers.values()];
-        if (!a || !b) return 0;
-        return Math.hypot(a.x - b.x, a.y - b.y);
-    };
-
-    host.addEventListener('pointerdown', (event) => {
-        if (event.pointerType === 'mouse' && event.button !== 0) return;
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    host.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return;
         // Typing into the inline editor is not a drag: preventDefault here would
         // stop the caret from being placed at the click.
         const target = event.target;
         if (target instanceof HTMLElement && target.closest('.fakecard-map-editor')) return;
-        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-        if (pointers.size === 1) {
-            host.addClass('is-panning');
-            host.setPointerCapture(event.pointerId);
-        } else {
-            pinchSpan = spanOf();
-        }
+        dragging = true;
+        lastX = event.clientX;
+        lastY = event.clientY;
+        host.addClass('is-panning');
+        event.preventDefault();
     });
-
-    host.addEventListener('pointermove', (event) => {
-        const previous = pointers.get(event.pointerId);
-        if (!previous) return;
-        const from = { x: previous.x, y: previous.y };
-        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-
-        if (pointers.size === 1) {
-            tx += event.clientX - from.x;
-            ty += event.clientY - from.y;
-            apply();
-            return;
-        }
-        if (pointers.size !== 2) return;
-
-        // Pinch: the distance between the fingers is the zoom, anchored at their
-        // midpoint so the map grows under the fingers.
-        const span = spanOf();
-        if (pinchSpan <= 0) {
-            pinchSpan = span;
-            return;
-        }
-        const factor = span / pinchSpan;
-        pinchSpan = span;
-        const rect = host.getBoundingClientRect();
-        const [a, b] = [...pointers.values()];
-        const px = (a.x + b.x) / 2 - rect.left;
-        const py = (a.y + b.y) / 2 - rect.top;
-        const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
-        tx = px - ((px - tx) / scale) * next;
-        ty = py - ((py - ty) / scale) * next;
-        scale = next;
+    host.addEventListener('mousemove', (event) => {
+        if (!dragging) return;
+        tx += event.clientX - lastX;
+        ty += event.clientY - lastY;
+        lastX = event.clientX;
+        lastY = event.clientY;
         apply();
     });
-
-    const endPointer = (event: PointerEvent): void => {
-        pointers.delete(event.pointerId);
-        pinchSpan = 0;
-        if (pointers.size === 0) host.removeClass('is-panning');
-        if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId);
+    const endDrag = (): void => {
+        dragging = false;
+        host.removeClass('is-panning');
     };
-    host.addEventListener('pointerup', endPointer);
-    host.addEventListener('pointercancel', endPointer);
+    host.addEventListener('mouseup', endDrag);
+    host.addEventListener('mouseleave', endDrag);
 
     host.addEventListener('wheel', (event) => {
         if (event.ctrlKey || event.metaKey) {

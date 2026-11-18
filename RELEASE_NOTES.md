@@ -1,47 +1,57 @@
-# 1.0.31
+# 1.0.32
 
 ## 中文
 
-### 新增：触控板 / 触摸屏可以用手指拖动和缩放导图
+### 撤回：触屏拖动与捏合缩放
 
-之前导图只认鼠标：拖动要靠鼠标按键，缩放要 `Ctrl` + 滚轮。现在：
+1.0.31 给导图加了 `pointerdown` / `pointermove` 那一套触屏手势。这一版把它撤掉了，导图回到只认鼠标：
 
-- **单指（或触摸板单指按住）拖动** = 平移
-- **双指捏合** = 缩放（以两指中点为中心）
-- 鼠标行为完全不变：按住拖动平移、`Ctrl` + 滚轮缩放、双击回中
-- 页面上加了 `touch-action: none`，手指在图上滑动不会带着整页滚动
+- 按住拖动 = 平移，`Ctrl` + 滚轮 = 缩放，双击 = 回中，和 1.0.30 完全一致
+- 触摸板仍然可用：双指滑动产生的是滚轮事件，所以照样能平移和缩放
+- 样式表里的 `touch-action: none` 一并删除，页面不再因此禁用触屏滚动
 
-### 内部：两处整理
+### 修复：社区审核报的两个问题
 
-- **居中逻辑合并**：`focusOn` 与 `centerOn` 原本各有一份坐标换算，现在只有 `centerOn(el, scale)` 一处，`fitScale()` 单独负责“整图放得下是多大”
-- **测量方式更稳**：节点宽度改用 CSS 的 `width: max-content`（受 `max-width: 420px` 约束），不再需要在测量时把画布临时撑到 8000px。这样节点尺寸不再取决于容器的临时宽度，测量和布局的耦合少了一层
+审核在 `src/mapView.ts` 报了两条，来源都是同一处：
+
+- **Error**：Unsafe assignment to innerHTML（第 247 行）
+- **Warning**：Do not write to DOM directly using innerHTML/outerHTML
+
+原因是节点文本的渲染缓存：为了在遮罩切换时少解析一遍 Markdown，之前把 `MarkdownRenderer.render` 的结果存进 `span.innerHTML`，下次同一个词直接写回去。现在整块缓存已经删掉，节点文本每次重绘都交给 `MarkdownRenderer.render` 重新渲染——不再有任何 `innerHTML` / `outerHTML` 赋值。
+
+代价是：遮罩切换、连线重算这类重绘会把可见节点的文本重新渲染一次，超大导图上会略慢。换来的是审核可以过，而且没有把外部 HTML 拼进 DOM 的路径。
 
 ### 请测试
 
-- 触摸屏或触摸板：单指拖动是否平移、双指捏合是否缩放、松手后是否停住
-- 鼠标：拖动、`Ctrl`+滚轮、双击回中是否与之前一致
-- 导图节点宽度：短标签是否仍是窄框、长句是否在 420px 处折行（不应出现整块变窄或文字竖排）
-- 复习与浏览视图里的导图：居中位置是否正常
+- 鼠标：拖动平移、`Ctrl` + 滚轮缩放、双击回中是否正常
+- 触摸板：双指滑动是否还能平移、`Ctrl` + 双指滑动是否还能缩放
+- 遮罩切换（点击节点、按住 `Alt` 点选）：文字是否仍然正确显示、是否出现闪烁
+- 导图节点宽度：短标签是否仍是窄框、长句是否在 420px 处折行
 
 ## English
 
-### New: pan and zoom a mind map with a touch screen or trackpad
+### Reverted: touch panning and pinching
 
-The map used to be mouse-only: drag with a button, zoom with `Ctrl`+wheel. Now:
+1.0.31 added a `pointerdown` / `pointermove` gesture layer to the mind map. This release takes it out again, so the map is back to being mouse-only:
 
-- **One finger** (or a trackpad press-and-drag) pans
-- **Two fingers pinching** zooms around their midpoint
-- The mouse behaves exactly as before: drag to pan, `Ctrl`+wheel to zoom, double-click to re-centre
-- `touch-action: none` keeps the page from scrolling while a finger drags the map
+- Drag to pan, `Ctrl`+wheel to zoom, double-click to re-centre - exactly as in 1.0.30
+- A trackpad still works: two-finger scrolling arrives as wheel events, so it pans and zooms as before
+- `touch-action: none` is gone from the stylesheet, so the page no longer blocks touch scrolling for the map
 
-### Internal, two tidy-ups
+### Fixed: the two issues from the community review
 
-- **Centring merged**: `focusOn` and `centerOn` each had their own coordinate math; now there is one `centerOn(el, scale)`, with `fitScale()` answering "how big does the whole map fit"
-- **Steadier measurement**: node width now comes from CSS `width: max-content` (capped by `max-width: 420px`), so the canvas no longer has to be temporarily stretched to 8000px while measuring. A node's size no longer depends on a temporary container width
+The review reported two things in `src/mapView.ts`, both from the same place:
+
+- **Error**: Unsafe assignment to innerHTML (line 247)
+- **Warning**: Do not write to DOM directly using innerHTML/outerHTML
+
+The cause was the node render cache: to avoid re-parsing the same Markdown on every mask toggle, the output of `MarkdownRenderer.render` was copied into `span.innerHTML` and written back for repeated text. That cache is now removed entirely - every repaint hands the node text to `MarkdownRenderer.render`, and no `innerHTML` / `outerHTML` assignment remains anywhere.
+
+The cost: a repaint (mask toggle, edge re-layout) re-renders the visible labels, which is a little slower on a very large map. In exchange the plugin is clean under review and no external HTML is ever spliced into the DOM.
 
 ### Please test
 
-- Touch screen or trackpad: does one finger pan, do two fingers pinch, does it stop when you let go
-- Mouse: drag, `Ctrl`+wheel and double-click still behave as before
-- Node widths: are short labels still narrow, and do long sentences wrap at 420px (nothing should become a narrow column of characters)
-- Mind maps in review and in the browse preview: is the centring still right
+- Mouse: drag to pan, `Ctrl`+wheel to zoom, double-click to re-centre
+- Trackpad: does two-finger scrolling still pan, and `Ctrl`+two-finger still zoom
+- Mask toggling (clicking a node, `Alt`-clicking): do labels still show correctly, is there any flicker
+- Node widths: short labels still narrow, long sentences still wrap at 420px
