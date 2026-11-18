@@ -7,6 +7,7 @@ import { HistoryStack } from './history';
 import { tt, ttf } from './i18n';
 import { clozeVisibleMap, plainOf, wrapSelectionLines } from './inlineMd';
 import { addFillScreenButton } from './panelFill';
+import { createStages, type StageSwitch } from './panelStages';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 
 /**
@@ -105,22 +106,22 @@ export class ClozePanelModal extends Modal {
         this.rebuildGroupOptions();
 
         // The same box, two stages: editing, then the rendered card.
-        let showingPreview = false;
         const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
         addFillScreenButton(this, toolbar);
-        const setStage = (preview: boolean): void => {
-            showingPreview = preview;
-            editStage.toggleClass('is-hidden', preview);
-            previewStage.toggleClass('is-hidden', !preview);
-            modeButton.setText(preview ? tt('Edit') : tt('Done'));
-            if (preview) {
+        this.stages = createStages({
+            button: modeButton,
+            edit: editStage,
+            view: previewStage,
+            onShowView: () => {
                 this.preview.show(this.textarea.value);
                 window.setTimeout(() => this.dimGroups(), 60);
-            } else {
-                this.textarea.focus();
-            }
-        };
-        modeButton.addEventListener('click', () => setStage(!showingPreview));
+            },
+            onShowEdit: () => this.textarea.focus(),
+        });
+        modeButton.addEventListener('click', () => {
+            if (this.stages.onView) this.stages.showEdit();
+            else this.stages.showView();
+        });
 
         // Selecting words in the rendered card wraps them, the same gesture as
         // on a mind map. The selection is found in the source by its text: the
@@ -128,7 +129,7 @@ export class ClozePanelModal extends Modal {
         const onSelectionUp = (): void => {
             window.setTimeout(() => {
                 this.hideFloat();
-                if (!showingPreview) return;
+                if (!this.stages.onView) return;
                 const selection = window.getSelection();
                 if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
                 const range = selection.getRangeAt(0);
@@ -257,6 +258,8 @@ export class ClozePanelModal extends Modal {
 
     /** Floating "wrap this selection" button, mirroring the mind map's. */
     private floatEl: HTMLElement | null = null;
+    /** The editor/render switch shared with the other new-card panels. */
+    private stages!: StageSwitch;
     private selectionHandler: (() => void) | null = null;
 
     private showFloat(

@@ -1,8 +1,9 @@
-import { App, Component, MarkdownRenderer, Modal, Notice, Setting } from 'obsidian';
+﻿import { App, Component, MarkdownRenderer, Modal, Notice, Setting } from 'obsidian';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { HistoryStack } from './history';
 import { addFillScreenButton } from './panelFill';
+import { createStages, type StageSwitch } from './panelStages';
 import { tt } from './i18n';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 
@@ -20,6 +21,8 @@ export class QaPanelModal extends Modal {
     private backOut!: HTMLElement;
     /** Owns the rendered markdown, so it can be unloaded on repaint and close. */
     private mdComponent: Component | null = null;
+    /** The editor/render switch shared with the other new-card panels. */
+    private stages!: StageSwitch;
     private history!: HistoryStack<{ front: string; back: string }>;
     private historyTimer: number | null = null;
     private deckEl!: HTMLSelectElement;
@@ -62,7 +65,6 @@ export class QaPanelModal extends Modal {
         // Two stages in one box: the fields while writing, the rendered card
         // afterwards. The box keeps its size, so "Done" cannot make it jump.
         const toolbar = contentEl.createDiv({ cls: 'fakecard-toolbar' });
-        let showingPreview = false;
         const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
         addFillScreenButton(this, toolbar);
 
@@ -95,15 +97,19 @@ export class QaPanelModal extends Modal {
         bindAutoSize(this.backEl);
         this.backOut = previewStage.createDiv({ cls: 'fakecard-md-render fakecard-md-answer' });
 
-        const setStage = (preview: boolean): void => {
-            showingPreview = preview;
-            editStage.toggleClass('is-hidden', preview);
-            previewStage.toggleClass('is-hidden', !preview);
-            modeButton.setText(preview ? tt('Edit') : tt('Done'));
-            if (preview) void this.renderStage();
-            else this.frontEl.focus();
-        };
-        modeButton.addEventListener('click', () => setStage(!showingPreview));
+        this.stages = createStages({
+            button: modeButton,
+            edit: editStage,
+            view: previewStage,
+            onShowView: () => {
+                void this.renderStage();
+            },
+            onShowEdit: () => this.frontEl.focus(),
+        });
+        modeButton.addEventListener('click', () => {
+            if (this.stages.onView) this.stages.showEdit();
+            else this.stages.showView();
+        });
 
         contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Deck') });
         this.deckEl = contentEl.createEl('select', { cls: 'dropdown' });
@@ -126,10 +132,10 @@ export class QaPanelModal extends Modal {
         this.frontEl.addEventListener('input', onInput);
         this.backEl.addEventListener('input', onInput);
         this.frontEl.addEventListener('input', () => {
-            if (showingPreview) void this.renderStage();
+            if (this.stages.onView) void this.renderStage();
         });
         this.backEl.addEventListener('input', () => {
-            if (showingPreview) void this.renderStage();
+            if (this.stages.onView) void this.renderStage();
         });
 
         this.contentEl.addEventListener('keydown', (event: KeyboardEvent) => {
@@ -141,7 +147,7 @@ export class QaPanelModal extends Modal {
             this.backEl.value = next.back;
             autoSizeTextarea(this.frontEl);
             autoSizeTextarea(this.backEl);
-            if (showingPreview) void this.renderStage();
+            if (this.stages.onView) void this.renderStage();
         });
 
         new Setting(contentEl)

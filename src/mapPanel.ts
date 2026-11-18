@@ -7,6 +7,7 @@ import { parseTags } from './ui';
 import { tt, ttf } from './i18n';
 import { type OutlineNode, parseOutline } from './outline';
 import { addFillScreenButton } from './panelFill';
+import { createStages, type StageSwitch } from './panelStages';
 import { renderMindmap } from './mapView';
 import type FakeCardPlugin from '../main';
 
@@ -46,7 +47,8 @@ export class MapPanelModal extends Modal {
     /** The floating "mask this selection" button, when one is on screen. */
     private floatEl: HTMLElement | null = null;
     /** Whether the outline strip is showing its source box. */
-    private editingSource = false;
+    /** The editor/render switch shared with the other new-card panels. */
+    private stages!: StageSwitch;
 
     onOpen(): void {
         const { contentEl } = this;
@@ -102,40 +104,39 @@ export class MapPanelModal extends Modal {
         // Room to work: a big map in the default dialog is a postage stamp.
         addFillScreenButton(this, toolbar);
 
-        const showSource = (): void => {
-            this.editingSource = true;
-            this.textarea.removeClass('is-hidden');
-            this.previewEl.addClass('is-hidden');
-            modeButton.setText(tt('Done'));
-            this.textarea.focus();
-        };
-        const showMap = (): void => {
-            this.editingSource = false;
-            this.textarea.addClass('is-hidden');
-            this.previewEl.removeClass('is-hidden');
-            modeButton.setText(tt('Edit outline'));
-            this.previewEl.dataset.view = '';
-            this.drawPreview();
-        };
+        this.stages = createStages({
+            button: modeButton,
+            edit: this.textarea,
+            view: this.previewEl,
+            doneLabel: tt('Done'),
+            editLabel: tt('Edit outline'),
+            onShowView: () => {
+                // The map is being shown fresh: centre it, do not inherit the
+                // position the empty canvas had.
+                this.previewEl.dataset.view = '';
+                this.drawPreview();
+            },
+            onShowEdit: () => {
+                this.textarea.value = this.text;
+                this.textarea.focus();
+            },
+        });
 
         modeButton.addEventListener('click', (event) => {
             event.preventDefault();
-            if (!this.editingSource) {
-                showSource();
+            if (this.stages.onView) {
+                this.stages.showEdit();
                 return;
             }
             if (!this.text.trim()) {
                 new Notice(tt('The map is empty.'));
                 return;
             }
-            showMap();
+            this.stages.showView();
         });
 
-        if (this.text.trim()) {
-            showMap();
-        } else {
-            showSource();
-        }
+        if (this.text.trim()) this.stages.showView();
+        else this.stages.showEdit();
 
         new Setting(contentEl)
             .setName(tt('Deck'))
@@ -211,7 +212,7 @@ export class MapPanelModal extends Modal {
     private drawPreview(): void {
         // Nothing to draw while the outline is on screen: it would be a hidden
         // repaint, and the map is rendered the moment the stage changes.
-        if (this.editingSource) return;
+        if (!this.stages.onView) return;
         const group = this.currentGroup;
         void renderMindmap(this.previewEl, parseOutline(this.text), {
             maskGroups: new Set([group]),
