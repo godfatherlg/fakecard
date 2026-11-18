@@ -18,6 +18,8 @@ export class QaPanelModal extends Modal {
     private backEl!: HTMLTextAreaElement;
     private frontOut!: HTMLElement;
     private backOut!: HTMLElement;
+    /** Owns the rendered markdown, so it can be unloaded on repaint and close. */
+    private mdComponent: Component | null = null;
     private history!: HistoryStack<{ front: string; back: string }>;
     private historyTimer: number | null = null;
     private deckEl!: HTMLSelectElement;
@@ -181,17 +183,27 @@ export class QaPanelModal extends Modal {
             });
     }
 
-    /** Draw the card the way review will: question, then answer. */
+    /**
+     * Draw the card the way review will: question, then answer.
+     *
+     * The component that owns the rendered children lives on the panel: it is
+     * unloaded before every repaint and once more on close, so embedded notes
+     * and their listeners are released instead of piling up.
+     */
     private async renderStage(): Promise<void> {
         const front = this.frontEl.value.trim() || tt('(empty)');
         const back = this.backEl.value.trim() || tt('(empty)');
+        this.mdComponent?.unload();
+        this.mdComponent = new Component();
         this.frontOut.empty();
         this.backOut.empty();
-        await MarkdownRenderer.render(this.app, front, this.frontOut, this.sourcePath, new Component());
-        await MarkdownRenderer.render(this.app, back, this.backOut, this.sourcePath, new Component());
+        await MarkdownRenderer.render(this.app, front, this.frontOut, this.sourcePath, this.mdComponent);
+        await MarkdownRenderer.render(this.app, back, this.backOut, this.sourcePath, this.mdComponent);
     }
 
     onClose(): void {
+        this.mdComponent?.unload();
+        this.mdComponent = null;
         if (this.historyTimer !== null) window.clearTimeout(this.historyTimer);
         this.contentEl.empty();
     }

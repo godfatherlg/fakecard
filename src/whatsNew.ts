@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.28';
+export const WHATS_NEW_VERSION = '1.0.29';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'A map card is now timed exactly like a cloze card: only the words of the hole group it asks about count, so the same sentence gets the same budget on both.',
-        zh: '导图卡的计时改成和填空卡完全一致：只算这张卡所问的那组洞里的字，同一句话在两种卡上得到相同的建议用时。',
+        en: 'Nothing new this time: three community-review fixes only. Rendered markdown is now unloaded properly, the node check is safe across windows, and the map connectors use Obsidian\'s SVG helper.',
+        zh: '这版没有新功能，只有三处社区评审要求：渲染的 Markdown 会正确释放、节点判断改为跨窗口安全写法、地图连线改用 Obsidian 的 SVG 构造方法。',
     },
 ];
 

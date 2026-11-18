@@ -86,9 +86,7 @@ export async function renderMindmap(
     // width here, an absolutely positioned canvas is 0px wide and every node
     // shrinks to one character per line - the "vertical text" look.
     canvas.setCssStyles({ width: '8000px', height: '8000px' });
-    const linkLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    linkLayer.setAttribute('class', 'fakecard-map-links');
-    canvas.appendChild(linkLayer);
+    const linkLayer = canvas.createSvg('svg', { cls: 'fakecard-map-links' });
 
     const boxes = new Map<OutlineNode, Box>();
     const created: Array<{ node: OutlineNode; el: HTMLElement }> = [];
@@ -234,6 +232,9 @@ export async function renderMindmap(
                 await MarkdownRenderer.render(options.app!, raw, span, options.sourcePath!, component);
             }
         }));
+        // The renderer's children are done; releasing them here keeps embedded
+        // notes from holding listeners for the life of the view.
+        component.unload();
     }
 
     // Sizes are known only now.
@@ -292,10 +293,8 @@ export async function renderMindmap(
             const x2 = target.x;
             const y2 = target.y + target.h / 2;
             const mid = (x1 + x2) / 2;
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const path = linkLayer.createSvg('path', { cls: 'fakecard-map-link' });
             path.setAttribute('d', `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`);
-            path.setAttribute('class', 'fakecard-map-link');
-            linkLayer.appendChild(path);
         }
     }
     linkLayer.setAttribute('width', String(maxX + 80));

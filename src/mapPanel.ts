@@ -442,9 +442,10 @@ export class MapPanelModal extends Modal {
                 this.hideFloat();
                 return;
             }
-            const holder = range.commonAncestorContainer instanceof Element
-                ? range.commonAncestorContainer
-                : range.commonAncestorContainer.parentElement;
+            // instanceOf, not instanceof: the node may come from another window
+            // (a popped-out pane), where the global Element is a different class.
+            const container = range.commonAncestorContainer;
+            const holder = container.instanceOf(Element) ? container : container.parentElement;
             const nodeEl = holder?.closest<HTMLElement>('.fakecard-map-node') ?? null;
             if (!nodeEl || nodeEl !== this.activeEl || !this.activeNode) {
                 this.hideFloat();
