@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.33';
+export const WHATS_NEW_VERSION = '1.0.34';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The Browse search box takes spaces again. The whole view was rebuilt on every keystroke, which dropped the caret and cut Chinese input methods short; the field is now built once and only the results below it are repainted.',
-        zh: '浏览页的搜索框能正常输入空格了。以前每敲一个字符都会整块重绘界面，光标丢失、中文输入法被打断；现在搜索框只创建一次，按键时只重绘下面的结果区。',
-    },
-    {
-        en: 'The search filter syntax now has a table and combination examples in the README: spaces mean AND, `-` negates, and `prop:reps` / `prop:lapses` are covered too.',
-        zh: 'README 补上了完整的搜索语法表和组合示例：空格表示 AND，`-` 取反，并新增了 `prop:reps` / `prop:lapses` 的说明。',
+        en: 'The batch-action row in Browse no longer relies on a CSS feature that the review flags as only partially supported. Nothing changes visually.',
+        zh: '浏览页批量操作那一行不再使用审核认为支持不完整的 CSS 特性，外观没有任何变化。',
     },
 ];
 

@@ -1281,10 +1281,18 @@ body.theme-dark .fakecard-image-mask-label {
   flex: 1;
 }
 
-/* Batch actions sit in their own node so they can be repainted on their own;
-   it carries no box of its own and the buttons stay in the toolbar's row. */
+/* Batch actions sit in their own node so they can be repainted on their own.
+   It is a plain row with the toolbar's own gap, so the buttons line up with
+   the rest of the bar. */
 .fakecard-browse-selection {
-  display: contents;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Nothing ticked: no gap left behind in the toolbar. */
+.fakecard-browse-selection:empty {
+  display: none;
 }
 
 /* Search box: the chevron lives inside the field, the completions under it. */
