@@ -59,6 +59,17 @@ function subtreeHasHoles(node: OutlineNode): boolean {
     return node.children.some((child) => child.holes.length > 0 || subtreeHasHoles(child));
 }
 
+/**
+ * Rendered node text, keyed by source path and text.
+ *
+ * A repaint rebuilds every node, and each visible piece goes through
+ * MarkdownRenderer. Caching the resulting HTML keeps a mask toggle cheap on a
+ * large map instead of re-parsing the same labels every time. The cache is
+ * bounded: it is a speed-up, not a store.
+ */
+const RENDER_CACHE = new Map<string, string>();
+const RENDER_CACHE_LIMIT = 500;
+
 const GAP_X = 56;
 const GAP_Y = 16;
 const MIN_SCALE = 0.3;
@@ -229,7 +240,16 @@ export async function renderMindmap(
                 const raw = span.dataset.raw ?? '';
                 if (!raw) continue;
                 span.empty();
+                const key = `${options.sourcePath}\u0000${raw}`;
+                const cached = RENDER_CACHE.get(key);
+                if (cached !== undefined) {
+                    // Same text, same note: the HTML is already known.
+                    span.innerHTML = cached;
+                    continue;
+                }
                 await MarkdownRenderer.render(options.app!, raw, span, options.sourcePath!, component);
+                if (RENDER_CACHE.size >= RENDER_CACHE_LIMIT) RENDER_CACHE.clear();
+                RENDER_CACHE.set(key, span.innerHTML);
             }
         }));
         // The renderer's children are done; releasing them here keeps embedded
