@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.29';
+export const WHATS_NEW_VERSION = '1.0.30';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Nothing new this time: three community-review fixes only. Rendered markdown is now unloaded properly, the node check is safe across windows, and the map connectors use Obsidian\'s SVG helper.',
-        zh: '这版没有新功能，只有三处社区评审要求：渲染的 Markdown 会正确释放、节点判断改为跨窗口安全写法、地图连线改用 Obsidian 的 SVG 构造方法。',
+        en: 'A mind map caches the rendered text of its nodes, so a large map repaints faster after masking, editing or panning. Nothing looks different.',
+        zh: '思维导图会缓存节点文本的渲染结果，大图在挖空、改字、拖动后重绘更快。外观没有变化。',
     },
 ];
 
