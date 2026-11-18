@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.27';
+export const WHATS_NEW_VERSION = '1.0.28';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Importing cards keeps their type: a mind map or an occlusion card no longer comes back as a plain Q&A card with its masks thrown away.',
-        zh: '导入卡片会保留类型了：思维导图卡和图片卡不再被降级成普通问答卡、丢掉遮罩和分组。',
-    },
-    {
-        en: 'A map card\'s suggested time now counts what it asks - the node or the holes - instead of the whole outline, and editing a map updates the deck and tags of all its cards.',
-        zh: '导图卡的建议用时改为按「这张卡要回忆的内容」计算，不再按整份大纲；编辑导图时牌组与标签会同步到这张图的所有卡。',
-    },
-    {
-        en: 'Housekeeping: duplicated stylesheet rules removed (11 selectors, ~475 lines) and dead code deleted. Nothing should look different.',
-        zh: '整理：样式表里的重复定义清掉了（11 组选择器、约 475 行），并删除了死代码。外观不应有任何变化。',
+        en: 'A map card is now timed exactly like a cloze card: only the words of the hole group it asks about count, so the same sentence gets the same budget on both.',
+        zh: '导图卡的计时改成和填空卡完全一致：只算这张卡所问的那组洞里的字，同一句话在两种卡上得到相同的建议用时。',
     },
 ];
 

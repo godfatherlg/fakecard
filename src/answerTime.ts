@@ -1,6 +1,5 @@
 import type { CardRecord } from './card';
 import { parseCloze } from './cloze';
-import { findQuestionNode, parseOutline } from './outline';
 
 /**
  * Suggested answer time, ported from the True Recall PR.
@@ -133,40 +132,24 @@ export function imageAnswerCharacters(
     return Math.round(area * Math.max(20, fullImageChars)) + CHARS_PER_MASK * masks.length;
 }
 
-/**
- * How many characters a map card actually asks for.
- *
- * Measuring the whole outline made a 40-line map look like a three-minute
- * answer. What has to be recalled is the hole this card asks about - or, for a
- * whole-node mask, that node's text - plus a little context around it.
- */
-function mapAnswerCharacters(card: CardRecord): number {
-    const root = parseOutline(card.mapText ?? '');
-    const group = card.mapGroup ?? 1;
-    const node = findQuestionNode(root, group);
-    if (!node) return visibleAnswerLength(card.back ?? '');
-    const plain = (text: string): string =>
-        text.replace(/\{\{c\d+::([\s\S]*?)(?:::[^}]*?)?\}\}/g, '$1').replace(/\s+/g, ' ').trim();
-
-    if (node.wholeHole === group) return plain(node.text).length;
-    const holes = node.holes.filter((hole) => hole.group === group);
-    if (holes.length === 0) return plain(node.text).length;
-    const words = holes.reduce((sum, hole) => sum + hole.text.trim().length, 0);
-    return words + 8;
-}
-
-/** The text the user has to read back: the back side, or the cloze body. */
+/** The text the user has to read back: the back side, or the hidden holes. */
 function answerText(card: CardRecord): string {
-    if (card.type === 'cloze' && card.clozeText) {
-        // What has to be recalled is the hidden part, not the paragraph around
-        // it. Measuring the whole body made the budget roughly ten times too
-        // long for a normal cloze card, so its reminder arrived after a minute
-        // or two and looked like it never came.
-        const holes = parseCloze(card.clozeText);
-        const group = card.clozeGroup ?? holes[0]?.group;
+    // A map card is a cloze card wearing a tree: its holes are the same
+    // `{{cN::...}}` markers, so it is measured the same way - the words this
+    // card hides, not the outline around them.
+    const source = card.type === 'cloze'
+        ? card.clozeText
+        : card.type === 'map'
+            ? card.mapText
+            : undefined;
+    if (source) {
+        const holes = parseCloze(source);
+        const group = card.type === 'cloze'
+            ? (card.clozeGroup ?? holes[0]?.group)
+            : (card.mapGroup ?? holes[0]?.group);
         const asked = holes.filter((hole) => hole.group === group);
         if (asked.length > 0) return asked.map((hole) => hole.text).join(' ');
-        return card.clozeText;
+        return source;
     }
     return card.back ?? card.front ?? '';
 }
@@ -191,9 +174,7 @@ export function suggestedAnswerSeconds(
     const imageChars = weights.imageChars ?? DEFAULT_IMAGE_CHARS;
     const characters = card.type === 'image'
         ? imageAnswerCharacters(card, imageChars)
-        : card.type === 'map'
-            ? mapAnswerCharacters(card)
-            : visibleAnswerLength(answerText(card));
+        : visibleAnswerLength(answerText(card));
     const lengthSeconds = (characters / CHARS_PER_CHUNK) * secondsPerChunk;
 
     const reps = card.fsrs?.reps ?? 0;
