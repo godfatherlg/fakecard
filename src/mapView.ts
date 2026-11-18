@@ -1,4 +1,4 @@
-import { App, Component, MarkdownRenderer } from 'obsidian';
+﻿import { App, Component, MarkdownRenderer } from 'obsidian';
 
 import { renderInlineMd } from './inlineMd';
 import type { OutlineNode } from './outline';
@@ -93,10 +93,10 @@ export async function renderMindmap(
     host.addClass('fakecard-map');
 
     const canvas = host.createDiv({ cls: 'fakecard-map-canvas' });
-    // Nodes are measured while they are already in the DOM. Without a definite
-    // width here, an absolutely positioned canvas is 0px wide and every node
-    // shrinks to one character per line - the "vertical text" look.
-    canvas.setCssStyles({ width: '8000px', height: '8000px' });
+    // Nodes are measured in place, before they are positioned. Their width comes
+    // from `width: max-content` in the stylesheet (capped by `max-width`), not
+    // from the canvas - an absolutely positioned canvas has no width of its own,
+    // and depending on it collapsed every node to one character per line.
     const linkLayer = canvas.createSvg('svg', { cls: 'fakecard-map-links' });
 
     const boxes = new Map<OutlineNode, Box>();
@@ -342,31 +342,26 @@ export async function renderMindmap(
         apply();
     };
 
-    const centerOn = (el: HTMLElement): void => {
+    /** Centre one node at the given scale - the only centring code there is. */
+    const centerOn = (el: HTMLElement, nextScale: number): void => {
         const rect = host.getBoundingClientRect();
         const left = Number.parseFloat(el.style.left || '0');
         const top = Number.parseFloat(el.style.top || '0');
-        const w = el.offsetWidth;
-        const h = el.offsetHeight;
-        // Readable but not huge: a masked node is centred at 100%, or at the fit
-        // scale when the map is wider than the frame.
-        const fitted = Math.min((rect.width - 40) / (maxX || 1), (rect.height - 40) / (maxY || 1));
-        scale = Math.min(1, Math.max(MIN_SCALE, fitted));
-        tx = rect.width / 2 - (left + w / 2) * scale;
-        ty = rect.height / 2 - (top + h / 2) * scale;
+        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale));
+        tx = rect.width / 2 - (left + el.offsetWidth / 2) * scale;
+        ty = rect.height / 2 - (top + el.offsetHeight / 2) * scale;
         apply();
     };
 
-    /** Put one node in the middle at 100%: the view an editor wants. */
-    const focusOn = (el: HTMLElement): void => {
+    /** The scale at which the whole map fits, never above 100%. */
+    const fitScale = (): number => {
         const rect = host.getBoundingClientRect();
-        const left = Number.parseFloat(el.style.left || '0');
-        const top = Number.parseFloat(el.style.top || '0');
-        scale = 1;
-        tx = rect.width / 2 - (left + el.offsetWidth / 2);
-        ty = rect.height / 2 - (top + el.offsetHeight / 2);
-        apply();
+        const next = Math.min((rect.width - 40) / (maxX || 1), (rect.height - 40) / (maxY || 1), 1);
+        return Math.max(MIN_SCALE, next);
     };
+
+    /** Editing wants the node at 100%: the view a text box needs. */
+    const focusOn = (el: HTMLElement): void => centerOn(el, 1);
 
     const centerOnQuestion = (): void => {
         // An explicit node wins (review passes the one the card asks about, so
@@ -377,41 +372,81 @@ export async function renderMindmap(
             : undefined;
         const target = focus?.el ?? firstMasked ?? boxes.get(root)?.el ?? null;
         if (target) {
-            centerOn(target);
+            centerOn(target, fitScale());
             return;
         }
         fit();
     };
 
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    host.addEventListener('mousedown', (event) => {
-        if (event.button !== 0) return;
+    // Pointer events cover mouse, pen and touch with one set of handlers: one
+    // pointer pans, two pointers pinch. `touch-action: none` in the stylesheet
+    // stops the page from scrolling instead.
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinchSpan = 0;
+
+    const spanOf = (): number => {
+        const [a, b] = [...pointers.values()];
+        if (!a || !b) return 0;
+        return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
+    host.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
         // Typing into the inline editor is not a drag: preventDefault here would
         // stop the caret from being placed at the click.
         const target = event.target;
         if (target instanceof HTMLElement && target.closest('.fakecard-map-editor')) return;
-        dragging = true;
-        lastX = event.clientX;
-        lastY = event.clientY;
-        host.addClass('is-panning');
-        event.preventDefault();
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (pointers.size === 1) {
+            host.addClass('is-panning');
+            host.setPointerCapture(event.pointerId);
+        } else {
+            pinchSpan = spanOf();
+        }
     });
-    host.addEventListener('mousemove', (event) => {
-        if (!dragging) return;
-        tx += event.clientX - lastX;
-        ty += event.clientY - lastY;
-        lastX = event.clientX;
-        lastY = event.clientY;
+
+    host.addEventListener('pointermove', (event) => {
+        const previous = pointers.get(event.pointerId);
+        if (!previous) return;
+        const from = { x: previous.x, y: previous.y };
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+        if (pointers.size === 1) {
+            tx += event.clientX - from.x;
+            ty += event.clientY - from.y;
+            apply();
+            return;
+        }
+        if (pointers.size !== 2) return;
+
+        // Pinch: the distance between the fingers is the zoom, anchored at their
+        // midpoint so the map grows under the fingers.
+        const span = spanOf();
+        if (pinchSpan <= 0) {
+            pinchSpan = span;
+            return;
+        }
+        const factor = span / pinchSpan;
+        pinchSpan = span;
+        const rect = host.getBoundingClientRect();
+        const [a, b] = [...pointers.values()];
+        const px = (a.x + b.x) / 2 - rect.left;
+        const py = (a.y + b.y) / 2 - rect.top;
+        const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+        tx = px - ((px - tx) / scale) * next;
+        ty = py - ((py - ty) / scale) * next;
+        scale = next;
         apply();
     });
-    const endDrag = (): void => {
-        dragging = false;
-        host.removeClass('is-panning');
+
+    const endPointer = (event: PointerEvent): void => {
+        pointers.delete(event.pointerId);
+        pinchSpan = 0;
+        if (pointers.size === 0) host.removeClass('is-panning');
+        if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId);
     };
-    host.addEventListener('mouseup', endDrag);
-    host.addEventListener('mouseleave', endDrag);
+    host.addEventListener('pointerup', endPointer);
+    host.addEventListener('pointercancel', endPointer);
 
     host.addEventListener('wheel', (event) => {
         if (event.ctrlKey || event.metaKey) {

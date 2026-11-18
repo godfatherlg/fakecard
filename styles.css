@@ -1794,6 +1794,10 @@ body.theme-dark .fakecard-image-mask-label {
 
 .fakecard-map-node {
   position: absolute;
+  /* max-content, not "as wide as the parent": the parent is a zero-width
+     absolutely positioned canvas, and measuring against it collapsed the text
+     into a single column. */
+  width: max-content;
   /* Wide enough that most labels fit on one or two lines. */
   max-width: 420px;
   padding: 4px 10px;
@@ -2049,4 +2053,11 @@ body.theme-dark .fakecard-image-mask-label {
 .fakecard-card-view.fakecard-map-host {
   height: 340px;
   padding: 0;
+}
+
+/* One finger pans, two fingers pinch - the browser must not scroll the page
+   instead. */
+.fakecard-map {
+  touch-action: none;
+  overscroll-behavior: contain;
 }

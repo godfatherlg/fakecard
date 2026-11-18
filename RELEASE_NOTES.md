@@ -1,41 +1,47 @@
-# 1.0.30
+# 1.0.31
 
 ## 中文
 
-### 内部重构：三个新建面板共用一套“两阶段”逻辑
+### 新增：触控板 / 触摸屏可以用手指拖动和缩放导图
 
-问答、填空、导图面板之前各自写了一遍“隐藏编辑器 / 显示卡片 / 换按钮文字 / 触发对应回调”，三份代码会慢慢偏离。现在共用 `createStages()`（`src/panelStages.ts`），面板之间只剩两点不同：两半各装什么、卡片出现时要做什么。
+之前导图只认鼠标：拖动要靠鼠标按键，缩放要 `Ctrl` + 滚轮。现在：
 
-对使用者的影响：**行为不变**。上面三个面板的「完成 / 编辑」按钮、切换效果、高度都与 1.0.29 一致。
+- **单指（或触摸板单指按住）拖动** = 平移
+- **双指捏合** = 缩放（以两指中点为中心）
+- 鼠标行为完全不变：按住拖动平移、`Ctrl` + 滚轮缩放、双击回中
+- 页面上加了 `touch-action: none`，手指在图上滑动不会带着整页滚动
 
-### 性能：地图节点文本渲染加了缓存
+### 内部：两处整理
 
-之前每次重绘都会重建所有节点，并给每段可见文字跑一次 `MarkdownRenderer`。一张上百节点的图，点一次遮罩就要重新解析整张图。
-
-现在按“源文件 + 文本”缓存渲染出的 HTML（上限 500 条，超出即整体清空）。同一个词再次出现时直接复用，不再解析。对使用者的影响：大图在挖空、改字、拖动后重绘更快；小图感觉不出差别。
+- **居中逻辑合并**：`focusOn` 与 `centerOn` 原本各有一份坐标换算，现在只有 `centerOn(el, scale)` 一处，`fitScale()` 单独负责“整图放得下是多大”
+- **测量方式更稳**：节点宽度改用 CSS 的 `width: max-content`（受 `max-width: 420px` 约束），不再需要在测量时把画布临时撑到 8000px。这样节点尺寸不再取决于容器的临时宽度，测量和布局的耦合少了一层
 
 ### 请测试
 
-- 三个新建面板：`完成` / `编辑` 是否与之前一致（尤其导图面板第一次打开是否居中、编辑后回到导图是否重新居中）
-- 一张较大的导图（几十个节点）：连续点几个节点遮罩、双击改字，是否比之前流畅且位置不乱
-- 一张图里同一个词出现在多个节点：是否都能正常显示（缓存复用）
+- 触摸屏或触摸板：单指拖动是否平移、双指捏合是否缩放、松手后是否停住
+- 鼠标：拖动、`Ctrl`+滚轮、双击回中是否与之前一致
+- 导图节点宽度：短标签是否仍是窄框、长句是否在 420px 处折行（不应出现整块变窄或文字竖排）
+- 复习与浏览视图里的导图：居中位置是否正常
 
 ## English
 
-### Internal: the three new-card panels share one two-stage switch
+### New: pan and zoom a mind map with a touch screen or trackpad
 
-The Q&A, cloze and map panels each had their own copy of "hide the editor, show the card, swap the button label, run the right callback", and three copies drift. They now share `createStages()` (`src/panelStages.ts`); a panel only says what its two halves contain and what must happen when the card appears.
+The map used to be mouse-only: drag with a button, zoom with `Ctrl`+wheel. Now:
 
-For you: **behaviour is unchanged**. The "Done / Edit" button, the switch and the sizes are the same as 1.0.29.
+- **One finger** (or a trackpad press-and-drag) pans
+- **Two fingers pinching** zooms around their midpoint
+- The mouse behaves exactly as before: drag to pan, `Ctrl`+wheel to zoom, double-click to re-centre
+- `touch-action: none` keeps the page from scrolling while a finger drags the map
 
-### Performance: mind map node text is cached
+### Internal, two tidy-ups
 
-Every repaint rebuilt every node and ran `MarkdownRenderer` once per visible piece of text, so toggling a mask on a hundred-node map re-parsed the whole map.
-
-The rendered HTML is now cached by source path and text (bounded at 500 entries, cleared as a whole when full). The same word appearing again is reused instead of parsed. For you: large maps repaint faster after a mask, an edit or a pan; small maps feel the same.
+- **Centring merged**: `focusOn` and `centerOn` each had their own coordinate math; now there is one `centerOn(el, scale)`, with `fitScale()` answering "how big does the whole map fit"
+- **Steadier measurement**: node width now comes from CSS `width: max-content` (capped by `max-width: 420px`), so the canvas no longer has to be temporarily stretched to 8000px while measuring. A node's size no longer depends on a temporary container width
 
 ### Please test
 
-- The three panels: does "Done / Edit" behave as before (the map in particular: centred on first open, and centred again when returning from the outline)
-- A large map: toggle a few masks and edit a node - does it feel faster, and does the view stay put
-- The same word in several nodes: do they all render (the cache is shared)
+- Touch screen or trackpad: does one finger pan, do two fingers pinch, does it stop when you let go
+- Mouse: drag, `Ctrl`+wheel and double-click still behave as before
+- Node widths: are short labels still narrow, and do long sentences wrap at 420px (nothing should become a narrow column of characters)
+- Mind maps in review and in the browse preview: is the centring still right

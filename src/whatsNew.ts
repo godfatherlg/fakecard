@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.30';
+export const WHATS_NEW_VERSION = '1.0.31';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'A mind map caches the rendered text of its nodes, so a large map repaints faster after masking, editing or panning. Nothing looks different.',
-        zh: '思维导图会缓存节点文本的渲染结果，大图在挖空、改字、拖动后重绘更快。外观没有变化。',
+        en: 'A mind map can be panned and zoomed by touch now: one finger pans, two fingers pinch. Mouse and trackpad behave as before.',
+        zh: '思维导图支持触控了：单指拖动平移，双指捏合缩放。鼠标与触摸板的行为不变。',
     },
 ];
 
