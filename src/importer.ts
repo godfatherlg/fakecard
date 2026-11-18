@@ -1,6 +1,6 @@
 import { App, Modal, Notice, TFile } from 'obsidian';
 import { importApkg } from './ankiImport';
-import type { CardRecord } from './card';
+import type { CardImage, CardRecord } from './card';
 import { tt, ttf } from './i18n';
 import { findSourceSnapshot } from './sourceLocate';
 import type FakeCardPlugin from '../main';
@@ -164,7 +164,16 @@ export async function importCardJson(plugin: FakeCardPlugin, jsonText: string): 
     for (const item of list) {
         if (!item || typeof item !== 'object') continue;
         const raw = item as Record<string, unknown>;
-        const type = raw.type === 'cloze' ? 'cloze' : 'qa';
+        // Export writes cards as they are, so import has to accept every type
+        // it can produce - otherwise a map or an occlusion card comes back as a
+        // Q&A card with its content thrown away.
+        const type = raw.type === 'cloze'
+            ? 'cloze'
+            : raw.type === 'map'
+                ? 'map'
+                : raw.type === 'image'
+                    ? 'image'
+                    : 'qa';
         const sourcePath = typeof raw.sourcePath === 'string'
             ? raw.sourcePath
             : (plugin.app.workspace.getActiveFile()?.path ?? '');
@@ -182,6 +191,24 @@ export async function importCardJson(plugin: FakeCardPlugin, jsonText: string): 
                 }
                 await plugin.store.save(card);
             }
+            count += cards.length;
+        } else if (type === 'map') {
+            const mapText = asText(raw.mapText ?? raw.front).trim();
+            if (!mapText) continue;
+            const cards = plugin.createMapCards(mapText, sourcePath, sourceText);
+            const groupId = `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            for (const card of cards) {
+                card.mapGroupId = groupId;
+                if (Array.isArray(raw.tags)) card.tags = raw.tags.map((tag) => asText(tag)).filter(Boolean);
+                await plugin.store.save(card);
+            }
+            count += cards.length;
+        } else if (type === 'image') {
+            const image = raw.image as { path?: unknown; groups?: unknown } | undefined;
+            const path = typeof image?.path === 'string' ? image.path : '';
+            if (!path || !Array.isArray(image?.groups)) continue;
+            const cards = plugin.createImageCards(image as unknown as CardImage, sourcePath);
+            for (const card of cards) await plugin.store.save(card);
             count += cards.length;
         } else {
             const front = asText(raw.front ?? raw.question).trim();

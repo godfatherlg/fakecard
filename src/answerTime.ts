@@ -1,5 +1,6 @@
 import type { CardRecord } from './card';
 import { parseCloze } from './cloze';
+import { findQuestionNode, parseOutline } from './outline';
 
 /**
  * Suggested answer time, ported from the True Recall PR.
@@ -132,6 +133,28 @@ export function imageAnswerCharacters(
     return Math.round(area * Math.max(20, fullImageChars)) + CHARS_PER_MASK * masks.length;
 }
 
+/**
+ * How many characters a map card actually asks for.
+ *
+ * Measuring the whole outline made a 40-line map look like a three-minute
+ * answer. What has to be recalled is the hole this card asks about - or, for a
+ * whole-node mask, that node's text - plus a little context around it.
+ */
+function mapAnswerCharacters(card: CardRecord): number {
+    const root = parseOutline(card.mapText ?? '');
+    const group = card.mapGroup ?? 1;
+    const node = findQuestionNode(root, group);
+    if (!node) return visibleAnswerLength(card.back ?? '');
+    const plain = (text: string): string =>
+        text.replace(/\{\{c\d+::([\s\S]*?)(?:::[^}]*?)?\}\}/g, '$1').replace(/\s+/g, ' ').trim();
+
+    if (node.wholeHole === group) return plain(node.text).length;
+    const holes = node.holes.filter((hole) => hole.group === group);
+    if (holes.length === 0) return plain(node.text).length;
+    const words = holes.reduce((sum, hole) => sum + hole.text.trim().length, 0);
+    return words + 8;
+}
+
 /** The text the user has to read back: the back side, or the cloze body. */
 function answerText(card: CardRecord): string {
     if (card.type === 'cloze' && card.clozeText) {
@@ -168,7 +191,9 @@ export function suggestedAnswerSeconds(
     const imageChars = weights.imageChars ?? DEFAULT_IMAGE_CHARS;
     const characters = card.type === 'image'
         ? imageAnswerCharacters(card, imageChars)
-        : visibleAnswerLength(answerText(card));
+        : card.type === 'map'
+            ? mapAnswerCharacters(card)
+            : visibleAnswerLength(answerText(card));
     const lengthSeconds = (characters / CHARS_PER_CHUNK) * secondsPerChunk;
 
     const reps = card.fsrs?.reps ?? 0;

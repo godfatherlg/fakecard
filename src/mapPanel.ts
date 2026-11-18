@@ -407,14 +407,9 @@ export class MapPanelModal extends Modal {
 
         if (this.card) {
             await this.plugin.syncMapGroup(this.card, text);
-            if (this.tags !== undefined) {
-                const live = (await this.plugin.store.list()).find((entry) => entry.id === this.card?.id);
-                if (live) {
-                    live.tags = parseTags(this.tags);
-                    live.deck = this.deck;
-                    await this.plugin.store.save(live);
-                }
-            }
+            // Deck and tags belong to the whole map: setting them on this card
+            // alone left the other groups of the same map on the old values.
+            await this.plugin.applyMapMeta(this.card, this.deck, parseTags(this.tags));
         } else {
             const cards = this.plugin.createMapCards(text, this.sourcePath, undefined, this.deck);
             const tags = parseTags(this.tags);

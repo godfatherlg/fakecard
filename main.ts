@@ -1098,6 +1098,21 @@ export default class FakeCardPlugin extends Plugin {
      * edit that adds c3 or drops c2 has to change the set of cards, not just the
      * text of the one being edited.
      */
+    /** Deck and tags are properties of the whole map, not of one of its cards. */
+    async applyMapMeta(card: CardRecord, deck: string, tags: string[]): Promise<void> {
+        const all = await this.store.list();
+        const groupId = card.mapGroupId;
+        for (const entry of all) {
+            if (entry.type !== 'map') continue;
+            const sameMap = groupId ? entry.mapGroupId === groupId : entry.id === card.id;
+            if (!sameMap) continue;
+            entry.deck = deck;
+            entry.tags = [...tags];
+            entry.updated = new Date().toISOString();
+            await this.store.save(entry);
+        }
+    }
+
     async syncMapGroup(card: CardRecord, mapText: string): Promise<void> {
         const all = await this.store.list();
         const groupId = card.mapGroupId;

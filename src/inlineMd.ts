@@ -96,17 +96,6 @@ export function wrapSelectionLines(raw: string, from: number, to: number, group:
     return `${raw.slice(0, from)}${wrapped}${raw.slice(to)}`;
 }
 
-export function wrapSelectedWords(raw: string, from: number, to: number, group: number): string {
-    let start = Math.max(0, Math.min(from, to));
-    let end = Math.min(raw.length, Math.max(from, to));
-    for (const marker of ['**', '==', '~~', '`', '*']) {
-        if (raw.slice(start - marker.length, start) === marker) start -= marker.length;
-        if (raw.slice(end, end + marker.length) === marker) end += marker.length;
-    }
-    const inner = plainOf(raw.slice(start, end)).plain.trim();
-    return `${raw.slice(0, start)}{{c${group}::${inner}}}${raw.slice(end)}`;
-}
-
 export function wrapRangePlainText(raw: string, from: number, to: number, group: number): string {
     let start = Math.max(0, Math.min(from, to));
     let end = Math.min(raw.length, Math.max(from, to));
