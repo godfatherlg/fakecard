@@ -7,6 +7,8 @@ import { ChildCardPromptModal } from './childPrompt';
 import { hardStreakScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
+import { renderMindmap } from './mapView';
+import { parseOutline } from './outline';
 import { ClozePanelModal } from './clozePanel';
 import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan } from './examPlan';
@@ -311,6 +313,8 @@ export class ReviewView extends ItemView {
         // The card itself: centred while it is short, scrolling normally once
         // a long answer does not fit.
         const body = container.createDiv({ cls: 'fakecard-review-body' });
+        // A map brings its own scrolling: the body must not scroll under it.
+        if (card.type === 'map') body.addClass('is-map');
         this.attachHoverPreview(body, card);
 
         if (!this.revealed) {
@@ -387,6 +391,10 @@ export class ReviewView extends ItemView {
             this.renderImageBody(el, card, revealed);
             return;
         }
+        if (card.type === 'map') {
+            this.renderMapBody(el, card, revealed);
+            return;
+        }
         // Same class the reading view uses, so headings, lists and spacing look
         // like the note the card came from.
         el.addClass('markdown-rendered');
@@ -403,6 +411,21 @@ export class ReviewView extends ItemView {
             // assertion: the scroller is the review body, a real element.
             attachImageZoom(el, el.closest<HTMLElement>('.fakecard-review-body') ?? el);
         });
+    }
+
+    /**
+     * A map card is a canvas, not a column of text: it pans and zooms, and it
+     * opens centred on the node it is asking about.
+     */
+    private renderMapBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
+        const group = card.mapGroup ?? 1;
+        void renderMindmap(el, parseOutline(card.mapText ?? ''), {
+            maskGroups: revealed ? new Set<number>() : new Set([group]),
+            maskSubtree: this.plugin.settings.mapMaskSubtree,
+            app: this.app,
+            sourcePath: card.source.path,
+        });
+        el.addClass('fakecard-map-host');
     }
 
     private renderImageBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
@@ -449,6 +472,11 @@ export class ReviewView extends ItemView {
     }
 
     private frontText(card: CardRecord): string {
+        // A map has no text side; this is only what search and hover previews
+        // read, and the holes are stripped there.
+        if (card.type === 'map' && card.mapText) {
+            return card.mapText.replace(/\{\{c\d+::([\s\S]*?)(?:::[^}]*?)?\}\}/g, '$1');
+        }
         if (card.type === 'cloze' && card.clozeText) {
             // Each card asks exactly its own group; when "mask all groups" is
             // on every group is hidden on the front.

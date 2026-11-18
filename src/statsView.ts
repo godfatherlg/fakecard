@@ -72,7 +72,14 @@ export class StatsView extends ItemView {
             return;
         }
 
-        container.createEl('h2', { text: tt('Statistics') });
+        const header = container.createDiv({ cls: 'fakecard-stats-header' });
+        header.createEl('h2', { text: tt('Statistics') });
+        // The browse view is not the only place a card gets made: someone
+        // looking at their numbers is exactly who wants one more.
+        header.createEl('button', { cls: 'fakecard-stats-new', text: tt('New card') })
+            .addEventListener('click', () => {
+                void this.plugin.newCard();
+            });
 
         const todayKey = this.dayKey(new Date());
         const todayLogs = this.recent.get(todayKey) ?? [];

@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.23';
+export const WHATS_NEW_VERSION = '1.0.24';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'An occlusion card now estimates its answer time from the masked area instead of the bare 10-second base: the covered share of the picture is read as characters, so a big mask gets a longer budget than a small one.',
-        zh: '图片遮挡卡改按遮罩面积估算时间，不再一律 10 秒：被遮住的面积折合成字数，遮得多就给得久。',
+        en: 'A fourth card type: paste an outline and headings and list items become a mind map, rendered by Obsidian itself. One card per mask group, in the same queue and schedule as the rest.',
+        zh: '第四种卡片：粘贴大纲，标题与列表项就变成思维导图，节点内容由 Obsidian 渲染；一组建一张卡，和其他卡一样排队、排程。',
     },
     {
-        en: 'Settings → Review screen has a new dial for it: "characters per full image" (200 by default). Only the group a card asks is measured.',
-        zh: '设置 → 复习界面 多了一项「图片遮挡：整张图折合多少字」（默认 200）；只计算这张卡所问的那一组遮罩。',
+        en: 'Work straight on the map: drag to pan, Ctrl+wheel to zoom, double-click a node to edit it, select words to mask them, and the map decides how big the box is - the outline is only the input.',
+        zh: '导图就是操作界面：拖动平移、Ctrl+滚轮缩放、双击节点改字、划选文字直接遮罩；大纲只是输入，之后都在图上完成。',
+    },
+    {
+        en: 'The Q&A, cloze and mind-map panels now share one layout: the input fills the box, "Done" turns it into the rendered card in place, and cloze cards can be masked by selecting words on that card.',
+        zh: '问答、填空、导图三个新建面板统一成一套：输入填满窗口，点「完成」原地变成渲染后的卡片，填空卡还能直接在上面划选挖空。',
     },
 ];
 

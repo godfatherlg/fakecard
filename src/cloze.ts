@@ -88,9 +88,12 @@ export function renderClozeHtml(
     hidden: ReadonlySet<number> | 'all',
     askedGroup?: number,
 ): string {
-    return text.replace(CLOZE_RE, (_m, groupStr: string, inner: string, hint?: string) => {
+    return text.replace(CLOZE_RE, (match, groupStr: string, inner: string, hint: string | undefined, offset: number) => {
         const group = Number(groupStr);
         const isHidden = hidden === 'all' || hidden.has(group);
+        // The offsets let an editor map a click back to the source and remove
+        // exactly this hole.
+        const span = `data-cloze-group="${group}" data-from="${offset}" data-to="${offset + match.length}"`;
         if (isHidden) {
             const label = hint ? escapeHtml(hint) : '___';
             // Only the group being asked gets the accent colour. Other groups
@@ -98,9 +101,9 @@ export function renderClozeHtml(
             const cls = askedGroup === undefined || group === askedGroup
                 ? 'fakecard-cloze-mask'
                 : 'fakecard-cloze-other';
-            return `<span class="${cls}">[${label}]</span>`;
+            return `<span class="${cls}" ${span}>[${label}]</span>`;
         }
-        return `<span class="fakecard-cloze-answer">${escapeHtml(inner)}</span>`;
+        return `<span class="fakecard-cloze-answer" ${span}>${escapeHtml(inner)}</span>`;
     });
 }
 

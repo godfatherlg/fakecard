@@ -1,6 +1,6 @@
 import type { Card as FsrsCard } from 'ts-fsrs';
 
-export type CardType = 'qa' | 'cloze' | 'image';
+export type CardType = 'qa' | 'cloze' | 'image' | 'map';
 
 /** Where a card came from. The note is only a reference - card content is a
  *  copy and never writes back unless the user opts in. */
@@ -77,6 +77,16 @@ export interface CardRecord {
     clozeGroupId?: string;
     /** Which cloze group (c1, c2 ...) this card asks. */
     clozeGroup?: number;
+    /**
+     * Outline for type 'map': headings and list items, with the same
+     * `{{cN::...}}` holes a cloze card uses. A node whose whole text sits inside
+     * one hole is a node-level mask.
+     */
+    mapText?: string;
+    /** Which hole group this map card asks. */
+    mapGroup?: number;
+    /** Cards cut from one map share this id, so an edit updates them together. */
+    mapGroupId?: string;
     /** Image + mask groups for type 'image'. */
     image?: CardImage;
     source: CardSource;

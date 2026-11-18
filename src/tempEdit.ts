@@ -6,13 +6,14 @@ import { syncClozeGroup } from './sourceSync';
 import { tt, ttf } from './i18n';
 
 /** The card fields an editor split can hold. */
-export type EditableField = 'front' | 'back' | 'clozeText';
+export type EditableField = 'front' | 'back' | 'clozeText' | 'mapText';
 
 /** File name suffix per field: `<card id>-<suffix>.md`. */
 const SUFFIX: Record<EditableField, string> = {
     front: 'front',
     back: 'back',
     clozeText: 'cloze',
+    mapText: 'map',
 };
 
 /** Pause after the last keystroke before the text is written into the card. */
@@ -379,6 +380,20 @@ export class TempEditor {
             }
             if (card.clozeText === text) return;
             card.clozeText = text;
+            card.updated = new Date().toISOString();
+            await this.plugin.store.save(card);
+            return;
+        }
+
+        // A map is one text with several cards cut from it: on close, rewrite
+        // them together so adding c3 or dropping c2 changes the card set.
+        if (field === 'mapText') {
+            if (final) {
+                await this.plugin.syncMapGroup(card, text);
+                return;
+            }
+            if (card.mapText === text) return;
+            card.mapText = text;
             card.updated = new Date().toISOString();
             await this.plugin.store.save(card);
             return;

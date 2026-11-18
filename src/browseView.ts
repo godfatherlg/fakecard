@@ -1,9 +1,12 @@
 import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
 import type { CardRecord } from './card';
+import type { EditableField } from './tempEdit';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
 import { ImagePanelModal } from './imagePanel';
+import { renderMindmap } from './mapView';
+import { parseOutline } from './outline';
 import { tt, ttf } from './i18n';
 import { matchesQuery, SearchContext } from './search';
 import { suggestFor, type Suggestion } from './searchSuggest';
@@ -550,7 +553,13 @@ export class BrowseView extends ItemView {
                     this.render();
                 });
 
-                const baseType = card.type === 'cloze' ? tt('Cloze') : card.type === 'image' ? tt('Image') : tt('Q&A');
+                const baseType = card.type === 'cloze'
+                    ? tt('Cloze')
+                    : card.type === 'image'
+                        ? tt('Image')
+                        : card.type === 'map'
+                            ? tt('Mind map')
+                            : tt('Q&A');
                 const state = card.graduated ? ` · ${tt('graduated')}` : card.suspended ? ` · ${tt('paused')}` : card.childOf ? ` · ${tt('child')}` : '';
                 // Front only - but a card found by a word that lives in its
                 // answer would look like a wrong hit, so say where it matched.
@@ -657,13 +666,15 @@ export class BrowseView extends ItemView {
         // The text itself is edited in Obsidian's own editor, one button per
         // field: live preview, links, math - everything a note gets.
         const editors = previewEl.createDiv({ cls: 'fakecard-browse-editors' });
-        const addEditor = (field: 'front' | 'back' | 'clozeText', label: string): void => {
+        const addEditor = (field: EditableField, label: string): void => {
             editors.createEl('button', { text: label }).addEventListener('click', () => {
                 void this.plugin.tempEdit.open(selected, field);
             });
         };
         if (selected.type === 'cloze') {
             addEditor('clozeText', tt('✎ Edit cloze text'));
+        } else if (selected.type === 'map') {
+            addEditor('mapText', tt('✎ Edit mind map'));
         } else if (selected.type === 'image') {
             // Only the masks are real content: `front`/`back` are `![[image]]`
             // copies the review view never reads (it draws `card.image`), so
@@ -724,6 +735,16 @@ export class BrowseView extends ItemView {
     }
 
     private renderPreview(el: HTMLElement, card: CardRecord, revealed: boolean): void {
+        if (card.type === 'map') {
+            void renderMindmap(el, parseOutline(card.mapText ?? ''), {
+                maskGroups: revealed ? new Set<number>() : new Set([card.mapGroup ?? 1]),
+                maskSubtree: this.plugin.settings.mapMaskSubtree,
+                app: this.app,
+                sourcePath: card.source.path,
+            });
+            el.addClass('fakecard-map-host');
+            return;
+        }
         if (card.type === 'image' && card.image) {
             const wrap = buildImageFigure(this.app, card, revealed, this.plugin.settings.maskAllGroups);
             if (!wrap) return;

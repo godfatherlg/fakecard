@@ -15,6 +15,16 @@ import { tt } from './i18n';
  * until the text contains something Markdown actually does something with.
  */
 export class FieldPreview {
+    /** The panel toggles this between the input and the rendered stage. */
+    get element(): HTMLElement {
+        return this.el;
+    }
+
+    /** Where the rendered markdown lives, for mapping a selection back. */
+    get content(): HTMLElement {
+        return this.body;
+    }
+
     private el: HTMLElement;
     private body: HTMLElement;
     private component: Component | null = null;

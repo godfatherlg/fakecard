@@ -97,6 +97,11 @@ export interface FakeCardSettings {
      * this card asks. Answer side always reveals everything.
      */
     maskAllGroups: boolean;
+    /**
+     * A mind-map node that is masked as a whole also hides its children. Off
+     * leaves the branch structure visible, so only that node's text is asked.
+     */
+    mapMaskSubtree: boolean;
 
     // --- Exam --------------------------------------------------------------
     /** Exam plans; each one has its own countdown, decks and share. */
@@ -152,6 +157,7 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
 
     reviewLayout: 'center',
     maskAllGroups: true,
+    mapMaskSubtree: true,
 
     examPlans: [],
     examDate: '',
@@ -459,6 +465,11 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     name: t('display.maskAll.name'),
                     desc: t('display.maskAll.desc'),
                     control: { type: 'toggle', key: 'maskAllGroups' },
+                },
+                {
+                    name: t('display.mapSubtree.name'),
+                    desc: t('display.mapSubtree.desc'),
+                    control: { type: 'toggle', key: 'mapMaskSubtree' },
                 },
                 {
                     name: t('display.badge.name'),

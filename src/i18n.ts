@@ -73,6 +73,8 @@ const EN = {
     'display.layout.wide': 'Full width',
     'display.maskAll.name': 'Mask all groups on the front',
     'display.maskAll.desc': 'On: every group of a cloze or image card is hidden on the front (the answer side always reveals everything). Off: only the group this card asks is hidden, the other groups stay visible.',
+    'display.mapSubtree.name': 'Mind map: mask the whole branch',
+    'display.mapSubtree.desc': 'When a node is masked as a whole, its children are hidden too, so the branch itself is the answer. Off: only that node\'s text is hidden and the structure stays visible.',
     'display.badge.name': 'Card badge in notes',
     'display.badge.desc': 'Show the 📇 marker next to blocks in a note that already produced cards. Clicking it opens the browse view on that card.',
 
@@ -196,6 +198,8 @@ const ZH: Record<UiTextKey, string> = {
     'display.layout.wide': '铺满窗格',
     'display.maskAll.name': '正面遮住所有分组',
     'display.maskAll.desc': '开：填空题或图片卡的正面遮住所有分组（答案面始终全部显示）。关：只遮住本卡片所问的分组，其他分组保持可见。',
+    'display.mapSubtree.name': '思维导图：遮住整条分支',
+    'display.mapSubtree.desc': '整节点被遮住时，连同它的子节点一起隐藏，让这条分支本身成为答案。关：只遮这一节点的文字，结构仍然可见。',
     'display.badge.name': '笔记里的卡片角标',
     'display.badge.desc': '在已经生成过卡片的笔记段落旁显示 📇 角标，点它会在浏览视图里定位到那张卡。',
 
@@ -350,6 +354,38 @@ const UI_ZH: Record<string, string> = {
     'Recompute today\'s queue. Only needed after adding or editing cards during the session.':
         '重新计算今天的队列。只有复习途中新增或修改过卡片时才用得到。',
     'No card to study ahead.': '暂时没有可以提前复习的卡。',
+    // Mind map cards.
+    'Mind map': '思维导图',
+    'New mind map': '新建思维导图',
+    'Edit mind map': '编辑思维导图',
+    '✎ Edit mind map': '✎ 编辑导图',
+    'Paste an outline - headings and list items become a map, {{c1::...}} the masks.':
+        '粘贴一段大纲——标题和列表项会变成节点，{{c1::...}} 就是挖空。',
+    'Headings and list items become nodes. Wrap words in {{c1::...}} to mask them, wrap a whole line to mask the node.':
+        '标题和列表项会变成节点。把词包进 {{c1::...}} 就是挖空；整行包起来就是遮住整个节点。',
+    'Mask whole node': '遮住整节点',
+    'Outline source': '源文本（批量编辑用）',
+    'Paste the outline': '输入大纲',
+    'Edit': '编辑',
+    'Done': '完成',
+    'Edit outline': '编辑大纲',
+    'Mask c{group}': '挖空 c{group}',
+    'That text is not in the source as one piece.': '这段文字在源码里不是连续的一整段。',
+    '{lines} lines · {groups} mask group(s)': '{lines} 行 · {groups} 组挖空',
+    'Double-click a node to edit it. Select words to mask them. Drag to pan, double-click empty space to re-centre.':
+        '双击节点改字；划选文字后点浮动按钮遮罩；拖动平移，双击空白处回到挖空位置。',
+    'Paste an outline here, one line per node, then mask on the map.':
+        '把大纲粘到这里（一行一个节点），之后都在导图上挖空。',
+    'Mask selection': '遮罩选中',
+    'New mind map from the selection': '用选中的笔记内容新建思维导图',
+    'Remove mask': '移除挖空',
+    'Wrap the selection in a hole for the chosen group': '把选中的文字包成所选分组的挖空',
+    'This line already has a mask.': '这一行已经有挖空了。',
+    'Multi-line nodes cannot be masked as a whole yet.': '多行节点暂时不能整节点遮罩。',
+    'Select the masked text first.': '先选中要解除的挖空文字。',
+    'The map is empty.': '导图内容为空。',
+    'Mask at least one word or node with {{c1::...}} first.': '先用 {{c1::...}} 挖空至少一个词或节点。',
+    'Saved {count} map card(s).': '已保存 {count} 张导图卡。',
     'Nothing else is due today.': '今天没有更多到期卡片了。',
     'Refreshed - {count} due card(s) are waiting.': '已刷新 · 还有 {count} 张待复习',
     'Refreshed - nothing else is due today.': '已刷新 · 今天已清空',

@@ -2,6 +2,8 @@ import { App, Editor, FileSystemAdapter, MarkdownFileInfo, MarkdownView, Menu, M
 import type { CardImage, CardRecord } from './src/card';
 import { clozeGroups, renderCloze, selectionToClozeText } from './src/cloze';
 import { ClozePanelModal } from './src/clozePanel';
+import { MapPanelModal } from './src/mapPanel';
+import { outlineGroups, parseOutline } from './src/outline';
 import type { ExamPlanConfig } from './src/examPlan';
 import { buildExamPlan as buildExamPlanImpl, legacyExamPlan } from './src/examPlan';
 import { tt, ttf } from './src/i18n';
@@ -65,6 +67,21 @@ export default class FakeCardPlugin extends Plugin {
         this.store = new CardStore(this.app, this.settings.libraryFolder);
         this.reviews = new ReviewStore(this.app, this.settings.libraryFolder);
         this.tempEdit = new TempEditor(this);
+
+        // Selected lines in a note → a map, the same way a Q&A card is made from
+        // a selection. The selection is the outline; the masks get drawn on the
+        // map afterwards.
+        this.registerEvent(this.app.workspace.on('editor-menu', (menu, editor, view) => {
+            const selection = editor.getSelection();
+            if (!selection.trim()) return;
+            menu.addItem((item) => item
+                .setTitle(tt('New mind map from the selection'))
+                .setIcon('git-fork')
+                .onClick(() => {
+                    new MapPanelModal(this.app, this, view.file?.path ?? '', undefined, selection).open();
+                }));
+        }));
+
         // Warm the per-note index so the reading-view badges can be injected
         // synchronously (post processors cannot await).
         await this.store.list();
@@ -958,6 +975,72 @@ export default class FakeCardPlugin extends Plugin {
         }));
     }
 
+    /**
+     * One card per hole group of an outline, exactly like a cloze card: the map
+     * text is the single source of truth, `front`/`back` are derived for search
+     * and export, and each card asks only its own group.
+     */
+    createMapCards(mapText: string, sourcePath: string, sourceText?: string, deck = this.settings.defaultDeck || 'default'): CardRecord[] {
+        const root = parseOutline(mapText);
+        const groups = outlineGroups(root);
+        const wanted = groups.length > 0 ? groups : [1];
+        const now = new Date().toISOString();
+        const plain = mapText.replace(/\{\{c\d+::([\s\S]*?)(?:::[^}]*?)?\}\}/g, '$1');
+
+        return wanted.map((group) => ({
+            id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            type: 'map' as const,
+            deck,
+            front: plain,
+            back: plain,
+            mapText,
+            mapGroup: group,
+            source: { path: sourcePath, snapshot: sourceText ?? mapText.slice(0, 80) },
+            tags: [],
+            created: now,
+            updated: now,
+        }));
+    }
+
+    /**
+     * Rewrite a whole map: every card cut from it shares `mapGroupId`, so an
+     * edit that adds c3 or drops c2 has to change the set of cards, not just the
+     * text of the one being edited.
+     */
+    async syncMapGroup(card: CardRecord, mapText: string): Promise<void> {
+        const all = await this.store.list();
+        const groupId = card.mapGroupId;
+        const siblings = all.filter((entry) => entry.type === 'map'
+            && (groupId ? entry.mapGroupId === groupId : entry.id === card.id));
+        const groups = outlineGroups(parseOutline(mapText));
+        const wanted = groups.length > 0 ? groups : [1];
+        const plain = mapText.replace(/\{\{c\d+::([\s\S]*?)(?:::[^}]*?)?\}\}/g, '$1');
+        const now = new Date().toISOString();
+
+        for (const group of wanted) {
+            const existing = siblings.find((entry) => entry.mapGroup === group);
+            if (existing) {
+                existing.mapText = mapText;
+                existing.front = plain;
+                existing.back = plain;
+                existing.updated = now;
+                await this.store.save(existing);
+                continue;
+            }
+            const [fresh] = this.createMapCards(mapText, card.source.path, undefined, card.deck)
+                .filter((entry) => entry.mapGroup === group);
+            if (!fresh) continue;
+            fresh.mapGroupId = groupId ?? card.id;
+            fresh.tags = [...card.tags];
+            await this.store.save(fresh);
+        }
+
+        for (const sibling of siblings) {
+            if (wanted.includes(sibling.mapGroup ?? 1)) continue;
+            await this.store.remove(sibling.id);
+        }
+    }
+
     createCards(draft: CardDraft, sourcePath: string): CardRecord[] {
         if (draft.type === 'cloze' && draft.clozeText) {
             return this.createClozeCards(draft.clozeText, sourcePath, draft.sourceText);
@@ -1013,6 +1096,11 @@ class CardTypeModal extends Modal {
                 undefined,
                 selectionToClozeText(this.selectionText),
             ).open();
+        });
+
+        row(tt('Mind map'), tt('Paste an outline - headings and list items become a map, {{c1::...}} the masks.'), () => {
+            this.close();
+            new MapPanelModal(this.app, this.plugin, this.sourcePath, undefined, this.selectionText).open();
         });
 
         row(tt('Image occlusion'), tt('Draw mask groups on an image (from the clipboard, or right-click any image).'), () => {

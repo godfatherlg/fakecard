@@ -123,6 +123,7 @@ function matchesToken(card: CardRecord, token: Token, ctx: SearchContext): boole
         card.front,
         card.back,
         card.clozeText ?? '',
+        card.mapText ?? '',
         (card.tags ?? []).join(' '),
         card.source.path,
     ].join(' ').toLowerCase();

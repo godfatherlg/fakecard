@@ -1738,3 +1738,445 @@ body.theme-dark .fakecard-image-mask-label {
   margin-bottom: 0.6em;
   line-height: 1.5;
 }
+
+/* ---------------------------------------------------------------- Mind map */
+
+/* A map card brings its own canvas: the review body must not scroll under it. */
+.fakecard-review-body.is-map {
+  padding: 0;
+  overflow: hidden;
+}
+
+.fakecard-map-host {
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+}
+
+.fakecard-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+  background: var(--background-primary);
+  border-radius: 8px;
+}
+
+.fakecard-map.is-panning {
+  cursor: grabbing;
+}
+
+.fakecard-map-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+.fakecard-map-links {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.fakecard-map-link {
+  fill: none;
+  stroke: var(--background-modifier-border);
+  stroke-width: 1.5;
+}
+
+.fakecard-map-node {
+  position: absolute;
+  max-width: 260px;
+  padding: 4px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  font-size: 0.9em;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fakecard-map-node.is-root {
+  background: var(--interactive-accent);
+  border-color: transparent;
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.fakecard-map-node.is-whole-mask {
+  border-style: dashed;
+  border-color: var(--color-orange);
+  background: color-mix(in srgb, var(--color-orange) 14%, transparent);
+  color: var(--text-muted);
+  min-width: 40px;
+  text-align: center;
+}
+
+.fakecard-map-question {
+  font-weight: 700;
+}
+
+.fakecard-map-hole {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-orange) 18%, transparent);
+  color: var(--color-orange);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The create/edit panel: outline on the left, the map on the right. */
+.fakecard-map-panel-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin: 10px 0;
+}
+
+.fakecard-map-text {
+  width: 100%;
+  min-height: 320px;
+  font-family: var(--font-monospace, monospace);
+  font-size: 0.85em;
+  resize: vertical;
+}
+
+.fakecard-map-preview {
+  position: relative;
+  height: 320px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* The map fills whatever box it is given: the review body, or a preview block
+   with a fixed height so the canvas has something to measure. */
+.fakecard-review-body.is-map > .fakecard-map-host {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.fakecard-card-view.fakecard-map-host {
+  height: 340px;
+  padding: 0;
+}
+
+.fakecard-map-node.is-clickable {
+  cursor: pointer;
+}
+
+.fakecard-map-node.is-clickable:hover {
+  border-color: var(--interactive-accent);
+}
+
+/* The review body must give the map a real height even when the card is short. */
+.fakecard-review-body.is-map > .fakecard-map-host {
+  min-height: 240px;
+}
+
+/* Panel: the map is primary, the outline source folds away underneath it. */
+.fakecard-map-source {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fakecard-map-source > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  margin-bottom: 6px;
+}
+
+/* Statistics header with its own "new card" button. */
+.fakecard-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fakecard-stats-new {
+  height: auto;
+  padding: 2px 10px;
+  font-size: 0.8em;
+}
+
+.fakecard-map-editor {
+  position: absolute;
+  z-index: 5;
+  min-height: 28px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--interactive-accent);
+  background: var(--background-primary);
+  font-size: 0.9em;
+  resize: none;
+}
+
+.fakecard-map-preview {
+  height: 56vh;
+  min-height: 280px;
+}
+
+/* Panel: paste at the top, map below - the map is where the work happens. */
+.fakecard-map-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fakecard-map-preview {
+  height: 52vh;
+  min-height: 300px;
+}
+
+.fakecard-map-text {
+  min-height: 120px;
+}
+
+/* The button that appears next to a selection inside a node. */
+.fakecard-map-float {
+  position: fixed;
+  z-index: 999;
+  padding: 2px 10px;
+  font-size: 0.8em;
+  border: none;
+  border-radius: 6px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  box-shadow: var(--shadow-s);
+  cursor: pointer;
+}
+
+/* The map owns the panel; the outline is a one-line strip underneath. */
+.fakecard-map-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fakecard-map-preview {
+  flex: 1 1 auto;
+  height: 60vh;
+  min-height: 320px;
+}
+
+.fakecard-map-source {
+  flex: 0 0 auto;
+}
+
+.fakecard-map-source > summary {
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+.fakecard-map-source > summary:hover {
+  background: var(--background-modifier-hover);
+}
+
+.fakecard-map-source[open] .fakecard-map-text {
+  min-height: 140px;
+}
+
+.fakecard-map-node.is-selected {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+/* Obsidian disables text selection on the body; a map node must opt back in or
+   the words in it cannot be selected - and selecting them is how a mask is made. */
+.fakecard-map,
+.fakecard-map * {
+  user-select: text;
+}
+
+/* The outline strip: a rendered list by default, a source box while editing. */
+.fakecard-map-source {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 6px;
+}
+
+.fakecard-map-source-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fakecard-map-source-title {
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+.fakecard-map-source-toggle {
+  height: auto;
+  padding: 1px 10px;
+  font-size: 0.78em;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.fakecard-map-source-toggle:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.fakecard-map-outline-view {
+  max-height: 120px;
+  overflow: auto;
+  padding: 4px 2px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.fakecard-map-text {
+  min-height: 60px;
+  max-height: 160px;
+}
+
+.fakecard-map-text.is-hidden,
+.fakecard-map-outline-view.is-hidden {
+  display: none;
+}
+
+/* Two stages in one box: outline while writing, map once done. Same size, so
+   switching between them cannot make the panel jump. */
+.fakecard-map-panel-body {
+  position: relative;
+  height: 62vh;
+  min-height: 320px;
+}
+
+.fakecard-map-preview {
+  height: 100%;
+}
+
+.fakecard-map-text {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  resize: none;
+}
+
+.fakecard-map-preview.is-hidden {
+  display: none;
+}
+
+/* New-card panels: one box, two stages. Editing fills it, then the rendered
+   card fills the same box, so switching cannot resize the dialog. */
+.fakecard-panel-body {
+  display: flex;
+  flex-direction: column;
+  height: 56vh;
+  min-height: 300px;
+}
+
+.fakecard-panel-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.fakecard-panel-stage.is-hidden {
+  display: none;
+}
+
+.fakecard-panel-stage .fakecard-cloze-editor {
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+
+.fakecard-panel-stage .fakecard-field-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.fakecard-panel-stage .fakecard-field-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Editing a node is a focus mode: the box is wide enough to read, and grows
+   with the text instead of scrolling inside two lines. */
+.fakecard-map-editor {
+  min-width: 260px;
+  min-height: 32px;
+  max-height: 360px;
+  padding: 6px 10px;
+  line-height: 1.45;
+  overflow-y: auto;
+}
+
+/* Previews inside a modal must opt back into text selection (Obsidian turns it
+   off on the body), or nothing can be selected - and selecting is how a hole is
+   made in the rendered card. */
+.fakecard-panel-stage .fakecard-field-preview-body,
+.fakecard-panel-stage .fakecard-field-preview-body * {
+  user-select: text;
+}
+
+/* Both sides of a Q&A card are shown, even when one of them is still empty:
+   a missing question block reads as a broken preview. */
+.fakecard-panel-stage .fakecard-field-preview {
+  display: block;
+  min-height: 48px;
+}
+
+/* Inside a new-card panel the preview is the card itself: no "Preview" caption
+   and no indent line - those belong to the inline preview under a field. */
+.fakecard-panel-stage .fakecard-field-preview-label {
+  display: none;
+}
+
+.fakecard-panel-stage .fakecard-field-preview {
+  border-left: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+/* Plain rendered block inside a panel stage (no field-preview chrome). */
+.fakecard-md-render {
+  margin: 0 0 10px;
+  min-height: 24px;
+  color: var(--text-normal);
+}
+
+/* Q&A preview: question, a divider, then the answer - the review view's shape,
+   without captions. */
+.fakecard-md-answer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* The rendered stage is the card, so it uses the reader's own text size - the
+   same numbers the review view uses, not the plugin default. */
+.fakecard-md-render {
+  font-size: var(--font-text-size, 16px);
+  line-height: 1.7;
+}
+
+.fakecard-md-render:first-child {
+  font-size: calc(var(--font-text-size, 16px) * 1.15);
+}
+
+/* Holes of other groups stay visible but fade: the group being edited is the
+   one to look at. */
+.fakecard-cloze-answer.is-dim {
+  opacity: 0.4;
+}

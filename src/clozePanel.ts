@@ -4,7 +4,8 @@ import type FakeCardPlugin from '../main';
 import { clozeGroups, renderClozeHtml, unwrapSelection, wrapBlockLines, wrapSelection } from './cloze';
 import { FieldPreview } from './fieldPreview';
 import { HistoryStack } from './history';
-import { tt } from './i18n';
+import { tt, ttf } from './i18n';
+import { clozeVisibleMap, plainOf, wrapSelectionLines } from './inlineMd';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 
 /**
@@ -54,14 +55,19 @@ export class ClozePanelModal extends Modal {
             text: tt('Anki cloze format: {{c1::answer}} hides "answer" in group 1. Append ::note to show a note while hidden, e.g. {{c1::answer::dose}}. Select text and press "Wrap" to create a hole; use "New group" to create c2, c3 ...'),
         });
 
-        this.textarea = contentEl.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
+        // One area, two stages: the source while typing, the rendered card once
+        // "Done" is pressed. Same height for both, so switching cannot jump.
+        const body = contentEl.createDiv({ cls: 'fakecard-panel-body' });
+        const editStage = body.createDiv({ cls: 'fakecard-panel-stage' });
+        const previewStage = body.createDiv({ cls: 'fakecard-panel-stage is-hidden' });
+        this.textarea = editStage.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
         this.textarea.value = this.text;
         this.textarea.rows = 3;
         // Nothing is hidden in the preview: every hole is marked where it is, so
         // the editor shows what is asked and what the answer is, not just braces.
         this.preview = new FieldPreview(
             this.app,
-            contentEl,
+            previewStage,
             this.sourcePath,
             (text) => renderClozeHtml(text, new Set<number>()),
         );
@@ -96,6 +102,88 @@ export class ClozePanelModal extends Modal {
 
         this.groupSelect = toolbar.createEl('select', { cls: 'dropdown' });
         this.rebuildGroupOptions();
+
+        // The same box, two stages: editing, then the rendered card.
+        let showingPreview = false;
+        const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
+        const setStage = (preview: boolean): void => {
+            showingPreview = preview;
+            editStage.toggleClass('is-hidden', preview);
+            previewStage.toggleClass('is-hidden', !preview);
+            modeButton.setText(preview ? tt('Edit') : tt('Done'));
+            if (preview) {
+                this.preview.show(this.textarea.value);
+                window.setTimeout(() => this.dimGroups(), 60);
+            } else {
+                this.textarea.focus();
+            }
+        };
+        modeButton.addEventListener('click', () => setStage(!showingPreview));
+
+        // Selecting words in the rendered card wraps them, the same gesture as
+        // on a mind map. The selection is found in the source by its text: the
+        // preview has no offsets of its own.
+        const onSelectionUp = (): void => {
+            window.setTimeout(() => {
+                this.hideFloat();
+                if (!showingPreview) return;
+                const selection = window.getSelection();
+                if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+                const range = selection.getRangeAt(0);
+                if (!previewStage.contains(range.commonAncestorContainer)) return;
+                const content = this.preview.content;
+                if (!content.contains(range.commonAncestorContainer)) return;
+
+                // Selecting inside an existing hole is how you take it away.
+                const hole = (range.startContainer.parentElement ?? null)
+                    ?.closest<HTMLElement>('[data-cloze-group]') ?? null;
+                if (hole && content.contains(hole)) {
+                    this.showFloat(range.getBoundingClientRect(), 0, 0, undefined, hole);
+                    return;
+                }
+
+                // Count visible characters up to the selection, then read their
+                // raw offsets off the map: the preview has dropped both the
+                // `{{c1::}}` markers and the `**` ones.
+                const pre = document.createRange();
+                pre.selectNodeContents(content);
+                pre.setEnd(range.startContainer, range.startOffset);
+                const start = pre.toString().length;
+                const length = range.toString().length;
+                if (length === 0) return;
+                if (!selection.toString().trim()) return;
+
+                const { visible, map } = clozeVisibleMap(this.text);
+                if (map.length === 0) return;
+
+                // Counting characters can still be off by one wherever the
+                // renderer and the source disagree about a character. The
+                // selected text itself is a far stronger hint: if it occurs in
+                // the visible text, prefer the occurrence nearest the count.
+                const picked = selection.toString();
+                let at = start;
+                const first = visible.indexOf(picked);
+                if (first >= 0) {
+                    const last = visible.lastIndexOf(picked);
+                    at = first === last || Math.abs(first - start) <= Math.abs(last - start)
+                        ? first
+                        : last;
+                }
+
+                const from = map[Math.min(at, map.length - 1)];
+                const to = map[Math.min(at + length - 1, map.length - 1)] + 1;
+                if (to <= from) return;
+
+                // Several lines: match the first and last selected lines by text
+                // and wrap every line between them, which is how a block wrap has
+                // always worked here.
+                const pickedLines = picked.trim().split('\n').map((line) => line.trim()).filter(Boolean);
+                const lines = pickedLines.length > 1 ? this.findLineRange(pickedLines) : null;
+                this.showFloat(range.getBoundingClientRect(), from, to, lines ?? undefined);
+            }, 0);
+        };
+        document.addEventListener('mouseup', onSelectionUp);
+        this.selectionHandler = onSelectionUp;
 
         toolbar.createEl('button', { text: tt('New group') })
             .addEventListener('click', () => {
@@ -165,7 +253,113 @@ export class ClozePanelModal extends Modal {
         await this.plugin.tempEdit.open(card, 'clozeText');
     }
 
+    /** Floating "wrap this selection" button, mirroring the mind map's. */
+    private floatEl: HTMLElement | null = null;
+    private selectionHandler: (() => void) | null = null;
+
+    private showFloat(
+        box: DOMRect,
+        from: number,
+        to: number,
+        lines?: { start: number; end: number },
+        hole?: HTMLElement | null,
+    ): void {
+        this.hideFloat();
+        const button = createEl('button', {
+            cls: 'fakecard-map-float',
+            text: hole ? tt('Remove mask') : ttf('Mask c{group}', { group: this.groupSelect.value }),
+            attr: { type: 'button' },
+        });
+        button.setCssStyles({
+            left: `${Math.round(box.left + box.width / 2 - 40)}px`,
+            top: `${Math.round(box.bottom + 6)}px`,
+        });
+        button.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const group = Number.parseInt(this.groupSelect.value, 10) || 1;
+            this.text = hole
+                ? this.removeHole(hole)
+                : lines
+                    ? this.wrapWholeLines(lines.start, lines.end, group)
+                    : wrapSelectionLines(this.text, from, to, group);
+            this.textarea.value = this.text;
+            this.history.push(this.text);
+            this.rebuildGroupOptions();
+            autoSizeTextarea(this.textarea);
+            this.preview.show(this.text);
+            window.setTimeout(() => this.dimGroups(), 60);
+            this.hideFloat();
+        });
+        document.body.appendChild(button);
+        this.floatEl = button;
+    }
+
+    /** Dim every hole that is not the group being edited. */
+    private dimGroups(): void {
+        const group = Number.parseInt(this.groupSelect.value, 10) || 1;
+        const holes = this.preview.content.querySelectorAll<HTMLElement>('[data-cloze-group]');
+        for (let index = 0; index < holes.length; index++) {
+            const hole = holes[index];
+            hole.toggleClass('is-dim', Number(hole.dataset.clozeGroup) !== group);
+        }
+    }
+
+    /** Drop one hole, keeping its text: the raw offsets come from the span. */
+    private removeHole(hole: HTMLElement): string {
+        const from = Number(hole.dataset.from ?? '-1');
+        const to = Number(hole.dataset.to ?? '-1');
+        if (from < 0 || to <= from) return this.text;
+        return `${this.text.slice(0, from)}${hole.textContent ?? ''}${this.text.slice(to)}`;
+    }
+
+    /** Wrap every line a multi-line selection touches, one hole per line. */
+    private wrapWholeLines(start: number, end: number, group: number): string {
+        const lines = this.text.split('\n');
+        for (let index = start; index <= end && index < lines.length; index++) {
+            const line = lines[index];
+            if (!line.trim() || /\{\{c\d+::/.test(line)) continue;
+            const marker = /^[\s]*(?:[-*+] |\d+[.)] |> ?|#{1,6} )/.exec(line)?.[0] ?? '';
+            const body = plainOf(line.slice(marker.length)).plain.trim();
+            if (body) lines[index] = `${marker}{{c${group}::${body}}}`;
+        }
+        return lines.join('\n');
+    }
+
+    /**
+     * Source line range of a selection that covers several lines.
+     *
+     * Character offsets are fragile once a preview line differs from its source
+     * line by a list marker; the first and last selected lines are compared as
+     * text instead, which is what people see.
+     */
+    private findLineRange(picked: string[]): { start: number; end: number } | null {
+        const lines = this.text.split('\n');
+        const plain = (line: string): string => plainOf(
+            line.replace(/^\s*(?:[-*+] |\d+[.)] |> ?|#{1,6} )/, ''),
+        ).plain.trim();
+        const first = picked[0].slice(0, 12);
+        const last = picked[picked.length - 1].slice(0, 12);
+        const start = lines.findIndex((line) => plain(line).startsWith(first));
+        if (start < 0) return null;
+        let end = start;
+        for (let index = start; index < lines.length; index++) {
+            if (plain(lines[index]).startsWith(last)) {
+                end = index;
+                break;
+            }
+        }
+        return { start, end };
+    }
+
+    private hideFloat(): void {
+        this.floatEl?.remove();
+        this.floatEl = null;
+    }
+
     onClose(): void {
+        if (this.selectionHandler) document.removeEventListener('mouseup', this.selectionHandler);
+        this.hideFloat();
         this.preview?.dispose();
         if (this.historyTimer !== null) window.clearTimeout(this.historyTimer);
         this.contentEl.empty();

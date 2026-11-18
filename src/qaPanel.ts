@@ -1,7 +1,6 @@
-import { App, Modal, Notice, Setting } from 'obsidian';
+import { App, Component, MarkdownRenderer, Modal, Notice, Setting } from 'obsidian';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
-import { FieldPreview } from './fieldPreview';
 import { HistoryStack } from './history';
 import { tt } from './i18n';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
@@ -16,8 +15,8 @@ import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 export class QaPanelModal extends Modal {
     private frontEl!: HTMLTextAreaElement;
     private backEl!: HTMLTextAreaElement;
-    private frontPreview!: FieldPreview;
-    private backPreview!: FieldPreview;
+    private frontOut!: HTMLElement;
+    private backOut!: HTMLElement;
     private history!: HistoryStack<{ front: string; back: string }>;
     private historyTimer: number | null = null;
     private deckEl!: HTMLSelectElement;
@@ -57,25 +56,50 @@ export class QaPanelModal extends Modal {
         contentEl.empty();
         contentEl.createEl('h2', { text: this.card ? tt('Edit Q&A card') : tt('New Q&A card') });
 
-        const frontHead = contentEl.createDiv({ cls: 'fakecard-field-head' });
+        // Two stages in one box: the fields while writing, the rendered card
+        // afterwards. The box keeps its size, so "Done" cannot make it jump.
+        const toolbar = contentEl.createDiv({ cls: 'fakecard-toolbar' });
+        let showingPreview = false;
+        const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
+
+        const body = contentEl.createDiv({ cls: 'fakecard-panel-body' });
+        const editStage = body.createDiv({ cls: 'fakecard-panel-stage' });
+        const previewStage = body.createDiv({ cls: 'fakecard-panel-stage is-hidden' });
+
+        const frontHead = editStage.createDiv({ cls: 'fakecard-field-head' });
         frontHead.createEl('label', { cls: 'fakecard-field-label', text: tt('Question') });
         this.addEditorButton(frontHead, 'front');
 
-        this.frontEl = contentEl.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
+        this.frontEl = editStage.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
         this.frontEl.rows = 1;
         this.frontEl.value = this.initialFront;
         bindAutoSize(this.frontEl);
-        this.frontPreview = new FieldPreview(this.app, contentEl, this.sourcePath);
+        // No captions: the card reads like it does in review, question then a
+        // divider then the answer.
+        // Rendered straight into a plain container: the field preview's own
+        // show/hide rules are for the inline block under a textarea, and inside
+        // a fixed stage they made the question disappear.
+        this.frontOut = previewStage.createDiv({ cls: 'fakecard-md-render' });
 
-        const backHead = contentEl.createDiv({ cls: 'fakecard-field-head' });
+        const backHead = editStage.createDiv({ cls: 'fakecard-field-head' });
         backHead.createEl('label', { cls: 'fakecard-field-label', text: tt('Answer') });
         this.addEditorButton(backHead, 'back');
 
-        this.backEl = contentEl.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
+        this.backEl = editStage.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
         this.backEl.rows = 3;
         this.backEl.value = this.initialBack;
         bindAutoSize(this.backEl);
-        this.backPreview = new FieldPreview(this.app, contentEl, this.sourcePath);
+        this.backOut = previewStage.createDiv({ cls: 'fakecard-md-render fakecard-md-answer' });
+
+        const setStage = (preview: boolean): void => {
+            showingPreview = preview;
+            editStage.toggleClass('is-hidden', preview);
+            previewStage.toggleClass('is-hidden', !preview);
+            modeButton.setText(preview ? tt('Edit') : tt('Done'));
+            if (preview) void this.renderStage();
+            else this.frontEl.focus();
+        };
+        modeButton.addEventListener('click', () => setStage(!showingPreview));
 
         contentEl.createEl('label', { cls: 'fakecard-field-label', text: tt('Deck') });
         this.deckEl = contentEl.createEl('select', { cls: 'dropdown' });
@@ -97,10 +121,12 @@ export class QaPanelModal extends Modal {
         };
         this.frontEl.addEventListener('input', onInput);
         this.backEl.addEventListener('input', onInput);
-        this.frontEl.addEventListener('input', () => this.frontPreview.queue(this.frontEl.value));
-        this.backEl.addEventListener('input', () => this.backPreview.queue(this.backEl.value));
-        this.frontPreview.show(this.frontEl.value);
-        this.backPreview.show(this.backEl.value);
+        this.frontEl.addEventListener('input', () => {
+            if (showingPreview) void this.renderStage();
+        });
+        this.backEl.addEventListener('input', () => {
+            if (showingPreview) void this.renderStage();
+        });
 
         this.contentEl.addEventListener('keydown', (event: KeyboardEvent) => {
             if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
@@ -111,8 +137,7 @@ export class QaPanelModal extends Modal {
             this.backEl.value = next.back;
             autoSizeTextarea(this.frontEl);
             autoSizeTextarea(this.backEl);
-            this.frontPreview.show(next.front);
-            this.backPreview.show(next.back);
+            if (showingPreview) void this.renderStage();
         });
 
         new Setting(contentEl)
@@ -154,9 +179,17 @@ export class QaPanelModal extends Modal {
             });
     }
 
+    /** Draw the card the way review will: question, then answer. */
+    private async renderStage(): Promise<void> {
+        const front = this.frontEl.value.trim() || tt('(empty)');
+        const back = this.backEl.value.trim() || tt('(empty)');
+        this.frontOut.empty();
+        this.backOut.empty();
+        await MarkdownRenderer.render(this.app, front, this.frontOut, this.sourcePath, new Component());
+        await MarkdownRenderer.render(this.app, back, this.backOut, this.sourcePath, new Component());
+    }
+
     onClose(): void {
-        this.frontPreview?.dispose();
-        this.backPreview?.dispose();
         if (this.historyTimer !== null) window.clearTimeout(this.historyTimer);
         this.contentEl.empty();
     }
