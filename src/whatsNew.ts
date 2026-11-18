@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.25';
+export const WHATS_NEW_VERSION = '1.0.26';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'A map card in review centres on the node it asks about and stays there when the answer appears. Holes are blue like a cloze hole, and the revealed words turn green - the same colours a cloze card uses.',
-        zh: '复习导图卡时会居中到这张卡所问的节点，翻面后仍停在原处；挖空改成和填空卡一样的蓝底，揭示的答案标绿。',
-    },
-    {
-        en: 'Browse: click a node in the preview and "edit" opens the outline at that line. The map panel gained a "fill screen" button, and the type filter knows about mind maps.',
-        zh: '浏览视图里先点节点再点编辑，会直接定位到大纲对应那行；导图面板新增「铺满」，类型筛选也支持思维导图了。',
-    },
-    {
-        en: 'Generating a map from a note now includes its paragraphs, and goes through the cloze conversion: ==highlight== becomes a hole, a following %%note%% becomes that hole\'s hint.',
-        zh: '从笔记生成导图现在连正文段落一起收进来，并沿用填空卡的转换：==高亮== 变成挖空，其后的 %%注释%% 成为该挖空的提示。',
+        en: 'The Q&A and cloze panels now have the same "fill screen" button the map panel got: the dialog grows to nearly the whole window, and the input and the rendered card grow with it.',
+        zh: '问答和填空面板也有了「铺满」按钮：弹窗放大到接近整个窗口，输入区和渲染后的卡片一起变大。三个新建面板现在行为一致。',
     },
 ];
 

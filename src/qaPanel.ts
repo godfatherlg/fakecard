@@ -2,6 +2,7 @@ import { App, Component, MarkdownRenderer, Modal, Notice, Setting } from 'obsidi
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { HistoryStack } from './history';
+import { addFillScreenButton } from './panelFill';
 import { tt } from './i18n';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 
@@ -61,6 +62,7 @@ export class QaPanelModal extends Modal {
         const toolbar = contentEl.createDiv({ cls: 'fakecard-toolbar' });
         let showingPreview = false;
         const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
+        addFillScreenButton(this, toolbar);
 
         const body = contentEl.createDiv({ cls: 'fakecard-panel-body' });
         const editStage = body.createDiv({ cls: 'fakecard-panel-stage' });

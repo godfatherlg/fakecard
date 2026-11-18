@@ -6,6 +6,7 @@ import { FieldPreview } from './fieldPreview';
 import { HistoryStack } from './history';
 import { tt, ttf } from './i18n';
 import { clozeVisibleMap, plainOf, wrapSelectionLines } from './inlineMd';
+import { addFillScreenButton } from './panelFill';
 import { autoSizeTextarea, bindAutoSize, parseTags } from './ui';
 
 /**
@@ -106,6 +107,7 @@ export class ClozePanelModal extends Modal {
         // The same box, two stages: editing, then the rendered card.
         let showingPreview = false;
         const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
+        addFillScreenButton(this, toolbar);
         const setStage = (preview: boolean): void => {
             showingPreview = preview;
             editStage.toggleClass('is-hidden', preview);
