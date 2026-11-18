@@ -112,6 +112,25 @@ export function parseOutline(source: string): OutlineNode {
     return root;
 }
 
+/**
+ * The node a card asks about: the first one carrying a hole of that group, or
+ * the one whose whole text is that hole. Used to centre the map on the question
+ * - and on the same node again once the answer is showing.
+ */
+export function findQuestionNode(root: OutlineNode, group: number): OutlineNode | null {
+    let found: OutlineNode | null = null;
+    const visit = (node: OutlineNode): void => {
+        if (found) return;
+        if (node.wholeHole === group || node.holes.some((hole) => hole.group === group)) {
+            found = node;
+            return;
+        }
+        node.children.forEach(visit);
+    };
+    visit(root);
+    return found;
+}
+
 /** Every hole group used anywhere in the tree, ascending. */
 export function outlineGroups(root: OutlineNode): number[] {
     const groups = new Set<number>();

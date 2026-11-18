@@ -20,6 +20,8 @@ import { splitNodeText } from './outline';
 export interface MapRenderOptions {
     /** Groups to hide. Empty means the answer side: everything is shown. */
     maskGroups: ReadonlySet<number>;
+    /** Groups to mark as answers once revealed: the words that were hidden. */
+    highlightGroups?: ReadonlySet<number>;
     /** A fully masked node also hides its children. */
     maskSubtree: boolean;
     /** When given, a node can be clicked - the panel uses it to toggle a mask. */
@@ -34,6 +36,11 @@ export interface MapRenderOptions {
      * on every keystroke is worse than an off-screen node.
      */
     autoCenter?: boolean;
+    /**
+     * Node to centre on, by id. Review passes the node the card asks about, so
+     * the answer side keeps looking at the same place as the question side.
+     */
+    focusNodeId?: string;
     /** When given, node text is rendered by Obsidian instead of the fallback. */
     app?: App;
     /** Vault path used to resolve links and embeds inside a node. */
@@ -101,6 +108,10 @@ export async function renderMindmap(
                 el.createSpan({ cls: 'fakecard-map-question', text: '?' });
                 firstMasked ??= el;
             } else {
+                // A whole node that was the answer shows as one green block.
+                if (node.wholeHole !== undefined && options.highlightGroups?.has(node.wholeHole)) {
+                    el.addClass('is-whole-answer');
+                }
                 for (const piece of splitNodeText(node.text, options.maskGroups)) {
                     // One span per raw piece, carrying its offsets: that is what
                     // turns a selection in the rendered node back into text.
@@ -113,6 +124,11 @@ export async function renderMindmap(
                         span.setText('[___]');
                         firstMasked ??= span;
                         continue;
+                    }
+                    // The words that were hidden are marked as the answer once
+                    // revealed - the same green a cloze card gives its holes.
+                    if (piece.group !== undefined && options.highlightGroups?.has(piece.group)) {
+                        span.addClass('fakecard-map-answer');
                     }
                     // Fallback drawing first, so the node is never blank while
                     // Obsidian's renderer is still working on it.
@@ -334,10 +350,13 @@ export async function renderMindmap(
     };
 
     const centerOnQuestion = (): void => {
-        // With a mask, that is the question. Without one, the root is the
-        // centre of the map - fitting the whole thing would leave it small and
-        // off in a corner.
-        const target = firstMasked ?? boxes.get(root)?.el ?? null;
+        // An explicit node wins (review passes the one the card asks about, so
+        // the answer side stays where the question was). Then the first mask,
+        // then the root - fitting everything would leave it small and askew.
+        const focus = options.focusNodeId
+            ? [...boxes.entries()].find(([node]) => node.id === options.focusNodeId)?.[1]
+            : undefined;
+        const target = focus?.el ?? firstMasked ?? boxes.get(root)?.el ?? null;
         if (target) {
             centerOn(target);
             return;

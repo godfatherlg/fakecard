@@ -68,19 +68,7 @@ export default class FakeCardPlugin extends Plugin {
         this.reviews = new ReviewStore(this.app, this.settings.libraryFolder);
         this.tempEdit = new TempEditor(this);
 
-        // Selected lines in a note → a map, the same way a Q&A card is made from
-        // a selection. The selection is the outline; the masks get drawn on the
-        // map afterwards.
-        this.registerEvent(this.app.workspace.on('editor-menu', (menu, editor, view) => {
-            const selection = editor.getSelection();
-            if (!selection.trim()) return;
-            menu.addItem((item) => item
-                .setTitle(tt('New mind map from the selection'))
-                .setIcon('git-fork')
-                .onClick(() => {
-                    new MapPanelModal(this.app, this, view.file?.path ?? '', undefined, selection).open();
-                }));
-        }));
+
 
         // Warm the per-note index so the reading-view badges can be injected
         // synchronously (post processors cannot await).
@@ -114,6 +102,34 @@ export default class FakeCardPlugin extends Plugin {
             name: tt('Generate cloze cards from the whole note'),
             callback: () => {
                 void this.generateFromNote('cloze');
+            },
+        });
+
+        this.addCommand({
+            id: 'generate-map-from-note',
+            name: tt('Generate a mind map from this note'),
+            callback: () => {
+                void this.generateMapFromNote();
+            },
+        });
+
+        this.addCommand({
+            id: 'generate-map-from-selection',
+            name: tt('Generate a mind map from the selected lines'),
+            callback: () => {
+                const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+                const selection = view?.editor?.getSelection() ?? '';
+                if (!selection.trim()) {
+                    new Notice(tt('Select some lines first.'));
+                    return;
+                }
+                new MapPanelModal(
+                    this.app,
+                    this,
+                    view?.file?.path ?? '',
+                    undefined,
+                    this.mapTextFromSelection(selection),
+                ).open();
             },
         });
 
@@ -320,6 +336,18 @@ export default class FakeCardPlugin extends Plugin {
                         selectionToClozeText(selection),
                     ).open();
                 }));
+            menu.addItem((item) => item
+                .setTitle(tt('fakecard: new mind map from selection'))
+                .setIcon('git-fork')
+                .onClick(() => {
+                    new MapPanelModal(
+                        this.app,
+                        this,
+                        file.path,
+                        undefined,
+                        this.mapTextFromSelection(selection),
+                    ).open();
+                }));
         }));
 
         // Alt+click an image in the editor to mask it. The native right-click
@@ -358,10 +386,10 @@ export default class FakeCardPlugin extends Plugin {
                     void this.generateFromFile(file, 'cloze');
                 }));
             menu.addItem((item) => item
-                .setTitle(tt('fakecard: new card'))
-                .setIcon('edit')
+                .setTitle(tt('fakecard: generate a mind map'))
+                .setIcon('git-fork')
                 .onClick(() => {
-                    void this.newCard();
+                    void this.generateMapFromFile(file);
                 }));
         }));
 
@@ -610,6 +638,69 @@ export default class FakeCardPlugin extends Plugin {
     }
 
     // ----- Generation -----
+
+    /**
+     * A note's outline: its headings and list items, with `==highlight==`
+     * turned into holes - the same convention a cloze card uses, so a note
+     * written for one can produce the other.
+     */
+    mapTextFromNote(markdown: string): string {
+        const body = markdown
+            .replace(/^---\n[\s\S]*?\n---\n/, '')
+            .replace(/```[\s\S]*?```/g, '');
+        // Everything in the note takes part: headings and list items keep their
+        // shape, and a paragraph between them becomes its own node (joined into
+        // one line, so a wrapped paragraph is one node, not five).
+        const outline: string[] = [];
+        let paragraph: string[] = [];
+        const flush = (): void => {
+            if (paragraph.length === 0) return;
+            outline.push(`- ${paragraph.join(' ').trim()}`);
+            paragraph = [];
+        };
+        for (const line of body.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                flush();
+                continue;
+            }
+            if (/^#{1,6}\s/.test(trimmed) || /^\s*(?:[-*+]|\d+[.)])\s/.test(line)) {
+                flush();
+                outline.push(line);
+                continue;
+            }
+            paragraph.push(trimmed);
+        }
+        flush();
+        const text = outline.join('\n');
+        // Same conversion a cloze card gets: ==text== becomes a hole, and a
+        // following %%note%% becomes that hole's hint.
+        return selectionToClozeText(text);
+    }
+
+    /** A selection is already an outline: same cloze conversion, line by line. */
+    mapTextFromSelection(selection: string): string {
+        return selectionToClozeText(selection);
+    }
+
+    async generateMapFromFile(file: TFile): Promise<void> {
+        const markdown = await this.app.vault.read(file);
+        const text = this.mapTextFromNote(markdown);
+        if (!text.trim()) {
+            new Notice(tt('No headings or list items in this note.'));
+            return;
+        }
+        new MapPanelModal(this.app, this, file.path, undefined, text).open();
+    }
+
+    async generateMapFromNote(): Promise<void> {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) {
+            new Notice(tt('Open a note first.'));
+            return;
+        }
+        await this.generateMapFromFile(file);
+    }
 
     async generateFromNote(kind: 'qa' | 'cloze'): Promise<void> {
         const file = this.app.workspace.getActiveFile();
@@ -1100,7 +1191,15 @@ class CardTypeModal extends Modal {
 
         row(tt('Mind map'), tt('Paste an outline - headings and list items become a map, {{c1::...}} the masks.'), () => {
             this.close();
-            new MapPanelModal(this.app, this.plugin, this.sourcePath, undefined, this.selectionText).open();
+            // Highlights become holes and a following %%note%% becomes that
+            // hole's hint, exactly as for a cloze card.
+            new MapPanelModal(
+                this.app,
+                this.plugin,
+                this.sourcePath,
+                undefined,
+                selectionToClozeText(this.selectionText),
+            ).open();
         });
 
         row(tt('Image occlusion'), tt('Draw mask groups on an image (from the clipboard, or right-click any image).'), () => {

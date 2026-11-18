@@ -37,6 +37,10 @@ export class BrowseView extends ItemView {
     private sortAsc = true;
     /** Row last ticked, the anchor for Shift+click ranges. */
     private lastChecked: string | null = null;
+    /** Source line of the node last clicked in a map preview, for editing. */
+    private mapFocusLine: number | null = null;
+    /** Which card that line belongs to, so a stale line is never used. */
+    private mapFocusCardId: string | null = null;
     /** Caret and focus of the search box, restored after a repaint. */
     private searchCaret = 0;
     private searchHadFocus = false;
@@ -335,6 +339,7 @@ export class BrowseView extends ItemView {
         add(tt('Type: Q&A') + '  type:qa', 'type:qa');
         add(tt('Type: cloze') + '  type:cloze', 'type:cloze');
         add(tt('Type: image') + '  type:image', 'type:image');
+        add(tt('Type: mind map') + '  type:map', 'type:map');
 
         menu.addSeparator();
         for (const deck of this.decks) add(`${tt('Deck')}: ${deck}`, `deck:${deck}`);
@@ -666,15 +671,21 @@ export class BrowseView extends ItemView {
         // The text itself is edited in Obsidian's own editor, one button per
         // field: live preview, links, math - everything a note gets.
         const editors = previewEl.createDiv({ cls: 'fakecard-browse-editors' });
-        const addEditor = (field: EditableField, label: string): void => {
+        const addEditor = (field: EditableField, label: string, line?: number): void => {
             editors.createEl('button', { text: label }).addEventListener('click', () => {
-                void this.plugin.tempEdit.open(selected, field);
+                void this.plugin.tempEdit.open(selected, field, line);
             });
         };
         if (selected.type === 'cloze') {
             addEditor('clozeText', tt('✎ Edit cloze text'));
         } else if (selected.type === 'map') {
-            addEditor('mapText', tt('✎ Edit mind map'));
+            // A node clicked in the preview first makes "edit" open the outline
+            // at that line; without one it opens at the top, as before.
+            addEditor(
+                'mapText',
+                tt('✎ Edit mind map'),
+                this.mapFocusCardId === selected.id ? this.mapFocusLine ?? undefined : undefined,
+            );
         } else if (selected.type === 'image') {
             // Only the masks are real content: `front`/`back` are `![[image]]`
             // copies the review view never reads (it draws `card.image`), so
@@ -738,9 +749,16 @@ export class BrowseView extends ItemView {
         if (card.type === 'map') {
             void renderMindmap(el, parseOutline(card.mapText ?? ''), {
                 maskGroups: revealed ? new Set<number>() : new Set([card.mapGroup ?? 1]),
+                highlightGroups: revealed ? new Set([card.mapGroup ?? 1]) : undefined,
                 maskSubtree: this.plugin.settings.mapMaskSubtree,
                 app: this.app,
                 sourcePath: card.source.path,
+                // Remember which node was clicked: "edit" then opens the outline
+                // at that line instead of at the top.
+                onNodeFocus: (node) => {
+                    this.mapFocusLine = node.line;
+                    this.mapFocusCardId = card.id;
+                },
             });
             el.addClass('fakecard-map-host');
             return;

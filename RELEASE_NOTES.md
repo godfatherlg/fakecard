@@ -1,103 +1,85 @@
-# 1.0.24
+# 1.0.25
 
 ## 中文
 
-### 第四种卡片：思维导图
+### 思维导图：复习时定位与配色
 
-把大纲粘进来，标题和列表项会变成节点，画成向右生长的导图：
+- 复习打开导图卡，自动**居中到这张卡所问的那个节点**；翻到答案后仍停在同一个节点，不会跳回根节点
+- 节点框宽度从 260px 放宽到 420px，长句少折行
+- 问题面的挖空改成和填空卡相同的**蓝底**（整节点遮罩也是蓝色虚线），答案面被揭示的文字标**绿底**——一蓝一绿，和填空卡的语义一致
 
-- 层级来自标题级别或列表缩进（1/2/4 空格与 Tab 都能识别，自动判断单位）
-- 列表项的续行并进同一节点
-- 节点内容由 Obsidian 自己渲染：加粗、高亮、公式、表格、链接都和笔记一致
-- 一组建一张卡，和填空卡一样进同一个队列、走 FSRS、参与统计与搜索
+### 问答卡答案块显色
 
-### 在导图上直接操作
+答案块加了淡绿底与圆角，和填空卡的答案用同一个绿色系，问题、答案在视觉上分开。
 
-- **拖动**平移，**Ctrl+滚轮**缩放，双击空白处回到挖空位置
-- **双击节点**改字：先把该节点摆到正中并恢复到 100%，输入框随内容长高，回车保存、Esc 取消
-- **划选文字** → 浮动按钮「遮罩选中」，选中的字变成 `[___]`
-- 选中节点后点工具条「遮住整节点」：整块遮罩；子树里没有别的挖空时，整支一起隐藏（设置里可关）
-- 选中已有 `[___]` → 按钮变成「移除挖空」
+### 浏览视图：先点节点再编辑
 
-### 三个新建面板统一成“同区域两阶段”
+在右栏导图里点一个节点（蓝色描边），再点 `✎ 编辑导图`，分栏编辑器会**停在该节点所在行**并滚动到可见位置；不点节点时仍从头打开。
 
-```
-输入（占满）  →  完成  →  渲染后的卡片（同一块区域、同一尺寸）
-```
+### 新建面板「铺满」
 
-- 导图：大纲 → 导图
-- 填空：源码 → 渲染后的卡片，**完成页里可以直接划选挖空**（跨行时每行一个洞，序号留在洞外）
-- 问答：问题/答案 → 与之相同的版式（问题、分隔线、答案），字号跟随你的笔记设置
-- 因为外框尺寸不变，点「完成」不再闪动
+导图面板工具条新增 `铺满`，一键把弹窗放大到接近全屏，导图区域跟着变高；再点恢复。
 
-### 编辑与显示
+### 从笔记生成导图
 
-- 浏览视图右栏的导图预览同样可拖动缩放
-- `✎ 编辑导图` 打开分栏编辑器改整份大纲，关闭时同步增删对应的卡片
-- 笔记里选中若干行 → 右键「用选中的笔记内容新建思维导图」
-- 统计页右上角新增「新建卡片」
-- 浏览视图：类型列显示「思维导图」，搜索能搜到大纲文本
+- **文件列表右键**任意 Markdown：`fakecard: 生成思维导图`（与其他生成项同一套命名）
+- **编辑区选中右键**：`fakecard: 用选中内容新建思维导图`
+- **命令面板**：从整篇笔记 / 从选中内容生成
+- 整篇笔记现在**正文段落也进导图**（每段一个节点，自动合并折行）；标题与列表保持层级
+- 转换规则与填空卡完全一致：`==高亮==` → 挖空，`==高亮== %%注释%%` → 带提示的挖空（注释归属前面最近的洞），已有的 `{{c1::x::提示}}` 原样保留
+- 文件菜单里的「新建卡片」已移除（它属于新建入口，不属于文件右键）
 
-### 其他
+### 筛选与搜索
 
-- 填空卡分组切换时，其他组的洞变暗，只突出当前组
-- 图片遮挡卡的答题时间按遮罩面积估算（1.0.23 已发布，这里一并说明）
+- 类型筛选新增 **思维导图**：`⌄` 菜单里的「类型：思维导图」，以及 `type:` 的补全候选 `map`
+- 列表的「类型」列同样显示「思维导图」
 
 ### 请测试
 
-- 新建导图卡：粘贴多行大纲（含标题与列表）→ 是否成树、层级正确
-- 双击节点改字、划选文字遮罩、点选整节点遮罩、移除挖空
-- 复习该卡：是否居中到挖空、拖动/缩放、翻面后遮罩消失
-- 填空卡完成页：划选挖空（含加粗/高亮、跨行）是否准确；其他组是否变暗
-- 问答卡完成页：问题/答案版式与字号
+- 复习导图卡：打开是否居中在挖空节点、翻面是否停在原处
+- 问题面 `[___]` 是否蓝色、答案面是否绿色
+- 浏览：点节点后编辑是否定位到该行
+- 新建导图：`铺满` 是否把面板放大
+- 文件右键与选中右键的导图生成，含 `%%注释%%` 的句子是否正确带提示
 
 ## English
 
-### A fourth card type: mind map
+### Mind map: where it looks, and its colours
 
-Paste an outline, and headings and list items become nodes of a right-growing map:
+- Opening a map card in review centres the window on **the node that card asks about**, and revealing the answer keeps it there instead of jumping back to the root
+- Node boxes are 420px wide instead of 260px, so long labels wrap less
+- A hole is now the **same blue** a cloze hole uses (a whole-node mask is a blue dashed box), and the words revealed on the answer side are marked **green** - blue for the question, green for the answer, exactly like a cloze card
 
-- Depth comes from heading level or list indentation (1/2/4 spaces and tabs are all detected, the unit is inferred)
-- Wrapped lines of a list item join the same node
-- Node text is rendered by Obsidian itself: bold, highlight, math, tables and links look like the note
-- One card per hole group, in the same queue, FSRS, stats and search as everything else
+### Q&A answer block
 
-### Working directly on the map
+The answer block gets a light green background and rounded corners, the same family as the cloze answer, so question and answer are visually distinct.
 
-- **Drag** to pan, **Ctrl+wheel** to zoom, double-click empty space to return to the question
-- **Double-click a node** to edit it: the node is centred at 100% first, the box grows with the text, Enter saves, Esc cancels
-- **Select words** → the floating "Mask selection" button turns them into `[___]`
-- With a node selected, "Mask whole node" hides it entirely; a subtree with no other holes is hidden with it (switchable in settings)
-- Selecting an existing `[___]` turns the button into "Remove mask"
+### Browse: click a node, then edit
 
-### The three new-card panels share one two-stage layout
+Click a node in the preview (it gets a blue outline), then `✎ Edit mind map`: the split editor opens **at that node's line** and scrolls it into view. Without a click it opens at the top, as before.
 
-```
-input (fills the box)  →  Done  →  the rendered card (same box, same size)
-```
+### Fill screen in the new-card panel
 
-- Mind map: outline → map
-- Cloze: source → rendered card, and **words can be selected on that card to mask them** (across lines, one hole per line, list markers kept outside)
-- Q&A: question/answer → the same shape as review (question, divider, answer), at your note font size
-- The box keeps its size, so pressing "Done" no longer flickers
+The map panel's toolbar has a `Fill screen` button that grows the dialog to nearly the whole window and the map with it; press again to go back.
 
-### Editing and display
+### Making a map from a note
 
-- The browse preview pans and zooms the same way
-- `✎ Edit mind map` opens the outline in a split editor and rewrites the matching cards on close
-- Select lines in a note → right-click → "New mind map from the selection"
-- A "New card" button on the statistics page
-- Browse shows the type as "Mind map" and search covers the outline text
+- **Right-click a Markdown file** in the file list: `fakecard: generate a mind map` (same naming as the other generators)
+- **Right-click a selection** in the editor: `fakecard: new mind map from selection`
+- **Command palette**: from the whole note, or from the selection
+- A whole note now brings its **paragraphs** into the map too (one node per paragraph, wrapped lines joined); headings and list items keep their levels
+- The conversion is the cloze card's: `==highlight==` becomes a hole, `==highlight== %%note%%` becomes a hole with that hint (a note attaches to the closest hole before it), and existing `{{c1::x::hint}}` is left alone
+- The "new card" item is gone from the file menu: creating a card is not a file action
 
-### Also
+### Filtering
 
-- Switching cloze groups dims the holes of the other groups
-- Occlusion cards estimate their answer time from the masked area (shipped in 1.0.23, noted here)
+- The type filter gained **mind map**: "Type: mind map" in the `⌄` menu, and `map` among the `type:` completions
+- The Type column shows "Mind map" as well
 
 ### Please test
 
-- Create a mind map from a pasted outline and check the tree and its levels
-- Double-click editing, selection masking, whole-node masking, removing a mask
-- Review the card: centring on the hole, panning, zooming, and the mask disappearing on reveal
-- Cloze stage: wrapping by selection (bold/highlight, several lines) and dimming of other groups
-- Q&A stage: layout and font size
+- Review a map card: does it centre on the hole, and stay put on reveal
+- Is the question side blue and the answer side green
+- Browse: click a node, edit, and check the caret lands on that line
+- New map: does `Fill screen` grow the panel
+- Generate from the file menu and from a selection, including a sentence with `%%note%%`

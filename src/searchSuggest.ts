@@ -60,6 +60,7 @@ const TYPE_VALUES: ReadonlyArray<{ value: string; hint: string }> = [
     { value: 'qa', hint: 'question and answer' },
     { value: 'cloze', hint: 'cloze' },
     { value: 'image', hint: 'image occlusion' },
+    { value: 'map', hint: 'mind map' },
 ];
 
 /** `prop:` takes a comparison, then a number. */

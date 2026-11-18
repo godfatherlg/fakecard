@@ -8,7 +8,7 @@ import { hardStreakScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
 import { renderMindmap } from './mapView';
-import { parseOutline } from './outline';
+import { findQuestionNode, parseOutline } from './outline';
 import { ClozePanelModal } from './clozePanel';
 import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan } from './examPlan';
@@ -419,9 +419,17 @@ export class ReviewView extends ItemView {
      */
     private renderMapBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
         const group = card.mapGroup ?? 1;
-        void renderMindmap(el, parseOutline(card.mapText ?? ''), {
+        const root = parseOutline(card.mapText ?? '');
+        // Centred on the node this card asks about, on both sides: revealing the
+        // answer should not scroll the map away from the question.
+        const focus = findQuestionNode(root, group);
+        void renderMindmap(el, root, {
             maskGroups: revealed ? new Set<number>() : new Set([group]),
+            // Revealed: mark the words that were hidden, the way a cloze card
+            // marks its answers.
+            highlightGroups: revealed ? new Set([group]) : undefined,
             maskSubtree: this.plugin.settings.mapMaskSubtree,
+            focusNodeId: focus?.id,
             app: this.app,
             sourcePath: card.source.path,
         });

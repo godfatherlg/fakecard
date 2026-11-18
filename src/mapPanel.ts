@@ -98,6 +98,21 @@ export class MapPanelModal extends Modal {
 
         const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
 
+        // Room to work: a big map in the default dialog is a postage stamp.
+        const fillButton = toolbar.createEl('button', {
+            cls: 'fakecard-panel-fill',
+            text: tt('Fill screen'),
+            attr: { type: 'button' },
+        });
+        setTooltip(fillButton, tt('Make the panel as large as the window'));
+        let filled = false;
+        fillButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            filled = !filled;
+            this.modalEl.toggleClass('fakecard-panel-full', filled);
+            fillButton.setText(filled ? tt('Exit fill screen') : tt('Fill screen'));
+        });
+
         const showSource = (): void => {
             this.editingSource = true;
             this.textarea.removeClass('is-hidden');

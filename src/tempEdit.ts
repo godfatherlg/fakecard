@@ -76,9 +76,10 @@ export class TempEditor {
      * panel's current text into the card, so the file starts from what was on
      * screen rather than from something older.
      */
-    async open(card: CardRecord, field: EditableField): Promise<void> {
+    /** `line` walks the caret to that source line once the split is up. */
+    async open(card: CardRecord, field: EditableField, line?: number): Promise<void> {
         try {
-            await this.openField(card, field);
+            await this.openField(card, field, line);
         } catch (error) {
             // Nothing else would report this: the split simply never appears.
             console.error('[fakecard] could not open the editor', error);
@@ -86,7 +87,7 @@ export class TempEditor {
         }
     }
 
-    private async openField(card: CardRecord, field: EditableField): Promise<void> {
+    private async openField(card: CardRecord, field: EditableField, line?: number): Promise<void> {
         const folder = this.folderPath;
         if (!(this.app.vault.getAbstractFileByPath(folder) instanceof TFolder)) {
             await this.app.vault.createFolder(folder);
@@ -137,6 +138,13 @@ export class TempEditor {
         this.sessions.set(path, session);
 
         const leaf = await this.leafFor(opened);
+        // Land on the line that was clicked in the preview, not line 1.
+        if (line !== undefined && leaf.view instanceof MarkdownView) {
+            const editor = leaf.view.editor;
+            const at = Math.max(0, Math.min(line, editor.lineCount() - 1));
+            editor.setCursor({ line: at, ch: 0 });
+            editor.scrollIntoView({ from: { line: at, ch: 0 }, to: { line: at, ch: 0 } }, true);
+        }
         this.attachHeader(session, leaf, path);
 
         // Watch for the split going away only now: the layout-changing events
