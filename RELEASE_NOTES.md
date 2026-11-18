@@ -1,57 +1,55 @@
-# 1.0.32
+# 1.0.33
 
 ## 中文
 
-### 撤回：触屏拖动与捏合缩放
+### 修复：浏览页搜索框按空格之后输不进去
 
-1.0.31 给导图加了 `pointerdown` / `pointermove` 那一套触屏手势。这一版把它撤掉了，导图回到只认鼠标：
+浏览页每敲一个字符都会整块重绘，搜索框的 DOM 节点被删掉重建。旧代码虽然用 `focus()` 把焦点塞回去，但每换一个节点就会丢光标、丢选区，也会打断中文输入法的组合——空格正是上屏键，所以一到空格就表现为「输入结束」，之后再也敲不进去。
 
-- 按住拖动 = 平移，`Ctrl` + 滚轮 = 缩放，双击 = 回中，和 1.0.30 完全一致
-- 触摸板仍然可用：双指滑动产生的是滚轮事件，所以照样能平移和缩放
-- 样式表里的 `touch-action: none` 一并删除，页面不再因此禁用触屏滚动
+现在工具栏和搜索框只创建一次，按键只重绘下面的结果区（快捷筛选、批量按钮、表格、预览、补全列表）：
 
-### 修复：社区审核报的两个问题
+- 空格、多条件查询（`deck:方剂 tag:麻黄 is:due`）都能正常输入
+- 光标停在敲字的位置，不会每次按键跳到末尾
+- 中文输入法：拼音组合不再被打断，空格上屏正常
+- 从 `⌄` 菜单插入条件、点快捷筛选时，光标落到插入内容的末尾
 
-审核在 `src/mapView.ts` 报了两条，来源都是同一处：
+顺带：牌组下拉的选项会在卡片库变化时重建，新建牌组不必重开标签页。
 
-- **Error**：Unsafe assignment to innerHTML（第 247 行）
-- **Warning**：Do not write to DOM directly using innerHTML/outerHTML
+### 说明：多条件搜索语法
 
-原因是节点文本的渲染缓存：为了在遮罩切换时少解析一遍 Markdown，之前把 `MarkdownRenderer.render` 的结果存进 `span.innerHTML`，下次同一个词直接写回去。现在整块缓存已经删掉，节点文本每次重绘都交给 `MarkdownRenderer.render` 重新渲染——不再有任何 `innerHTML` / `outerHTML` 赋值。
-
-代价是：遮罩切换、连线重算这类重绘会把可见节点的文本重新渲染一次，超大导图上会略慢。换来的是审核可以过，而且没有把外部 HTML 拼进 DOM 的路径。
+README 中英文两段都补上了完整的筛选语法表，并加了组合示例（`deck:x tag:y is:due`、`tag:x -is:paused`、`prop:due<7 prop:ivl>=21`、`added:7 rated:1` 等），同时说明空格 = AND、`-` 取反、带空格的值用 `"` 包起来。
 
 ### 请测试
 
-- 鼠标：拖动平移、`Ctrl` + 滚轮缩放、双击回中是否正常
-- 触摸板：双指滑动是否还能平移、`Ctrl` + 双指滑动是否还能缩放
-- 遮罩切换（点击节点、按住 `Alt` 点选）：文字是否仍然正确显示、是否出现闪烁
-- 导图节点宽度：短标签是否仍是窄框、长句是否在 420px 处折行
+- 在搜索框输入 `deck:xxx tag:yyy is:due`：空格能否连续输入、光标是否停在原处
+- 用中文输入法打中文再按空格上屏，能否继续输入
+- 点 `⌄` 插入条件、点快捷筛选 chip：搜索框内容与光标是否正确
+- 勾选多张卡：批量移动 / 暂停 / 删除按钮是否照常出现，排版有没有变
+- 牌组下拉是否列出全部牌组；新建牌组后是否出现
 
 ## English
 
-### Reverted: touch panning and pinching
+### Fixed: the browse search box stopped accepting input after a space
 
-1.0.31 added a `pointerdown` / `pointermove` gesture layer to the mind map. This release takes it out again, so the map is back to being mouse-only:
+Every keystroke repainted the whole Browse view, so the search field was torn down and rebuilt. The old code called `focus()` on the replacement, but a new node still loses the caret and the selection, and it cuts an input method's composition short - and the space bar is the key that commits a Chinese candidate. Typing therefore ended at the first space.
 
-- Drag to pan, `Ctrl`+wheel to zoom, double-click to re-centre - exactly as in 1.0.30
-- A trackpad still works: two-finger scrolling arrives as wheel events, so it pans and zooms as before
-- `touch-action: none` is gone from the stylesheet, so the page no longer blocks touch scrolling for the map
+The toolbar and the field are now built once; a keystroke only repaints what sits below it (quick filters, batch buttons, table, preview, completion list):
 
-### Fixed: the two issues from the community review
+- Spaces and multi-term queries such as `deck:方剂 tag:麻黄 is:due` type normally
+- The caret stays where you typed instead of jumping to the end on every key
+- Chinese input methods keep their composition; the space bar commits as usual
+- Inserting a term from the `⌄` menu or clicking a quick filter puts the caret after the inserted text
 
-The review reported two things in `src/mapView.ts`, both from the same place:
+Also: the deck dropdown is rebuilt when the card library changes, so a new deck shows up without reopening the tab.
 
-- **Error**: Unsafe assignment to innerHTML (line 247)
-- **Warning**: Do not write to DOM directly using innerHTML/outerHTML
+### Docs: multi-term search syntax
 
-The cause was the node render cache: to avoid re-parsing the same Markdown on every mask toggle, the output of `MarkdownRenderer.render` was copied into `span.innerHTML` and written back for repeated text. That cache is now removed entirely - every repaint hands the node text to `MarkdownRenderer.render`, and no `innerHTML` / `outerHTML` assignment remains anywhere.
-
-The cost: a repaint (mask toggle, edge re-layout) re-renders the visible labels, which is a little slower on a very large map. In exchange the plugin is clean under review and no external HTML is ever spliced into the DOM.
+Both the Chinese and the English part of the README now carry the full filter table plus combination examples (`deck:x tag:y is:due`, `tag:x -is:paused`, `prop:due<7 prop:ivl>=21`, `added:7 rated:1`), and state that spaces mean AND, `-` negates and a value with spaces goes in quotes.
 
 ### Please test
 
-- Mouse: drag to pan, `Ctrl`+wheel to zoom, double-click to re-centre
-- Trackpad: does two-finger scrolling still pan, and `Ctrl`+two-finger still zoom
-- Mask toggling (clicking a node, `Alt`-clicking): do labels still show correctly, is there any flicker
-- Node widths: short labels still narrow, long sentences still wrap at 420px
+- Type `deck:xxx tag:yyy is:due` in the search box: do the spaces go in, does the caret stay put
+- Type Chinese with an input method and press space to commit, then keep typing
+- Insert a term from the `⌄` menu, click a quick filter: is the field content and caret right
+- Tick several cards: do the batch move / pause / delete buttons still appear, is the layout unchanged
+- Does the deck dropdown list every deck, including one created just now

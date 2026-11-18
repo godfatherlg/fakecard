@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.32';
+export const WHATS_NEW_VERSION = '1.0.33';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The touch panning and pinching added in 1.0.31 is gone again: the mind map is mouse and trackpad only, exactly as in 1.0.30.',
-        zh: '撤回 1.0.31 加入的触屏拖动与捏合缩放：导图恢复为只支持鼠标与触摸板，行为与 1.0.30 一致。',
+        en: 'The Browse search box takes spaces again. The whole view was rebuilt on every keystroke, which dropped the caret and cut Chinese input methods short; the field is now built once and only the results below it are repainted.',
+        zh: '浏览页的搜索框能正常输入空格了。以前每敲一个字符都会整块重绘界面，光标丢失、中文输入法被打断；现在搜索框只创建一次，按键时只重绘下面的结果区。',
     },
     {
-        en: 'Mind map nodes no longer cache their rendered HTML, so the plugin passes the community review. A mask toggle re-renders the labels, which is slightly slower on a very large map.',
-        zh: '导图节点不再缓存渲染后的 HTML，插件因此能通过社区审核。切换遮罩时会重新渲染节点文本，超大导图上会略慢一点。',
+        en: 'The search filter syntax now has a table and combination examples in the README: spaces mean AND, `-` negates, and `prop:reps` / `prop:lapses` are covered too.',
+        zh: 'README 补上了完整的搜索语法表和组合示例：空格表示 AND，`-` 取反，并新增了 `prop:reps` / `prop:lapses` 的说明。',
     },
 ];
 

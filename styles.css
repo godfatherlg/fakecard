@@ -1281,6 +1281,12 @@ body.theme-dark .fakecard-image-mask-label {
   flex: 1;
 }
 
+/* Batch actions sit in their own node so they can be repainted on their own;
+   it carries no box of its own and the buttons stay in the toolbar's row. */
+.fakecard-browse-selection {
+  display: contents;
+}
+
 /* Search box: the chevron lives inside the field, the completions under it. */
 .fakecard-search-wrap {
   position: relative;

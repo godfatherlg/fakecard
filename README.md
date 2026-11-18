@@ -34,6 +34,29 @@ Quick start:
 
 The settings tab follows the Obsidian language and switches between English and Chinese automatically.
 
+Browse & filter (**Browse and edit cards**): search box, quick filters, table and preview. Terms are separated by spaces and every one of them has to match; `-` excludes a term; wrap a value in `"` when it contains a space. The `⌄` button in the box inserts a term for you.
+
+| Term | Meaning |
+|---|---|
+| `deck:x` / `tag:x` / `type:qa` | deck (contains) / tag (exact) / type `qa` `cloze` `image` `map` |
+| `is:new` `is:learning` `is:review` `is:relearning` `is:due` | FSRS state |
+| `is:child` `is:paused` `is:graduated` `is:orphan` | child / suspended / graduated / source note gone |
+| `added:7` `rated:7` | created / reviewed within N days (`rated:1` = today) |
+| `prop:due<7` `prop:ivl>=21` `prop:difficulty>=7` `prop:reps>5` `prop:lapses>0` | due days / interval / FSRS difficulty / reviews / lapses |
+| `front:x` `back:x` | one field only |
+| `-tag:x` | exclusion |
+| plain words | full text (front, back, tags, source path) |
+
+Examples:
+
+```text
+deck:方剂 tag:麻黄 is:due      in the 方剂 deck, tagged 麻黄, due today
+tag:针灸 -is:paused            tagged 针灸 and not suspended
+type:cloze front:桂枝 back:芍药
+prop:due<7 prop:ivl>=21        due within a week, interval already 21+ days
+added:7 rated:1                added this week, reviewed today
+```
+
 Data and privacy: cards are stored in `fakecard/cards/`, review logs in `fakecard/reviews/`, backups in `fakecard/backup/`. Everything is local and the plugin makes no network requests. The system clipboard is read only when you run one of the import commands that takes cards from it, and the plugin never writes to it.
 
 The rest of this document is in Chinese.
@@ -144,23 +167,32 @@ obsidian://fakecard?data=<URL 编码的 JSON>
 
 命令 **Browse and edit cards** → 主区域标签：搜索框 + 快捷筛选 + 表格 + 右侧预览。
 
-搜索语法（空格分隔 = AND）：
+搜索语法：空格分隔多个条件，**全部满足**才命中（AND）；`-` 取反；值里有空格时用 `"` 包起来。搜索框左侧的 `⌄` 按钮可以直接插入条件，不用背。
 
 | 语法 | 含义 |
 |---|---|
-| `deck:方剂` / `tag:麻黄` / `type:qa` | 牌组 / 标签 / 类型 |
+| `deck:方剂` / `tag:麻黄` / `type:qa` | 牌组（包含即可）/ 标签（完全相同）/ 类型 `qa` `cloze` `image` `map` |
 | `is:new` `is:learning` `is:review` `is:relearning` | FSRS 状态 |
 | `is:due` | 已到期 |
 | `is:child` `is:paused` `is:graduated` | 子卡 / 挂起父卡 / 已毕业 |
 | `is:orphan` | 来源笔记已删除 |
 | `added:7` | 7 天内创建 |
-| `rated:7` | 7 天内复习过 |
-| `prop:due<7` `prop:ivl>=21` `prop:difficulty>=7` | 到期 / 间隔 / 难度 |
-| `front:x` `back:x` | 字段搜索 |
+| `rated:7` | 7 天内复习过（`rated:1` = 今天） |
+| `prop:due<7` `prop:ivl>=21` `prop:difficulty>=7` | 到期天数 / 间隔 / FSRS 难度（1–10） |
+| `prop:reps>5` `prop:lapses>0` | 复习次数 / 遗忘次数 |
+| `front:x` `back:x` | 只在问题 / 答案里找 |
 | `-tag:x` | 排除 |
-| 普通词 | 全文 |
+| 普通词 | 全文（问题、答案、标签、来源路径） |
 
-支持批量勾选 → 移动牌组 / 删除。
+组合示例：
+
+- `deck:方剂 tag:麻黄 is:due` —— 方剂牌组里、带麻黄标签、今天到期
+- `tag:针灸 -is:paused` —— 有针灸标签且没有被挂起
+- `type:cloze front:桂枝 back:芍药` —— 挖空卡，问题含桂枝、答案含芍药
+- `prop:due<7 prop:ivl>=21` —— 一周内到期、间隔已≥21 天
+- `added:7 rated:1` —— 一周内新建、今天复习过
+
+支持批量勾选 → 移动牌组 / 暂停 / 删除。
 
 ## 图片蒙板
 

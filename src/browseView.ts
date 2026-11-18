@@ -41,9 +41,27 @@ export class BrowseView extends ItemView {
     private mapFocusLine: number | null = null;
     /** Which card that line belongs to, so a stale line is never used. */
     private mapFocusCardId: string | null = null;
-    /** Caret and focus of the search box, restored after a repaint. */
+    /** Caret and focus of the search box, for a query changed from elsewhere. */
     private searchCaret = 0;
     private searchHadFocus = false;
+    /**
+     * Toolbar and the areas below it.
+     *
+     * The toolbar is built once and never rebuilt: it holds the search field,
+     * and replacing that field while it is being typed into loses the caret and
+     * kills the input method's composition - typing a space then stops working.
+     */
+    private shell: {
+        deckSelect: HTMLSelectElement;
+        search: HTMLInputElement;
+        suggest: HTMLElement;
+        count: HTMLElement;
+        selection: HTMLElement;
+        chips: HTMLElement;
+        body: HTMLElement;
+    } | null = null;
+    /** Decks the filter currently lists, so the options are only rebuilt on a change. */
+    private deckOptionsKey = '';
     /** Suggestion list currently on screen, and which row is highlighted. */
     private suggestions: Suggestion[] = [];
     private suggestRange: { from: number; to: number } | null = null;
@@ -234,10 +252,12 @@ export class BrowseView extends ItemView {
     /**
      * The completion list under the search box.
      *
-     * It is rebuilt with the view, so it always belongs to the query as it is
-     * now - no stale popup from a previous render can linger.
+     * It is rebuilt on every repaint, so it always belongs to the query as it is
+     * now - no stale popup from a previous render can linger - while the field
+     * itself is left alone.
      */
     private renderSuggestions(host: HTMLElement): void {
+        host.empty();
         this.suggestions = [];
         this.suggestRange = null;
         if (!this.searchHadFocus || this.suggestionsHidden || this.query.trim().length === 0) return;
@@ -359,20 +379,48 @@ export class BrowseView extends ItemView {
 
     private render(): void {
         const container = this.contentEl;
-        container.empty();
         container.addClass('fakecard-browse');
+        if (!this.shell) this.buildShell(container);
+        const shell = this.shell;
+        if (!shell) return;
+
+        // The field is never rebuilt, so a keystroke keeps its caret and its
+        // input method to itself. Only a query set from outside (a chip, the
+        // filter menu, a suggestion) is written back here - and then the caret
+        // goes where that change left it.
+        if (shell.search.value !== this.query) {
+            shell.search.value = this.query;
+            if (this.searchHadFocus) {
+                shell.search.focus();
+                const caret = Math.min(this.searchCaret, this.query.length);
+                shell.search.setSelectionRange(caret, caret);
+            }
+        }
+
+        this.renderDeckOptions(shell.deckSelect);
+        shell.deckSelect.value = this.deckFilter;
+        shell.count.setText(`${this.filtered.length} / ${this.cards.length}`);
+        this.renderChips(shell.chips);
+        this.renderSelection(shell.selection);
+        this.renderBody(shell.body);
+        this.renderSuggestions(shell.suggest);
+    }
+
+    /**
+     * Build the parts that outlive a repaint.
+     *
+     * The toolbar in particular is created once: it holds the search field, and
+     * replacing that field while it is being typed into dropped the caret and
+     * cut the input method's composition short - typing a space ended the input.
+     */
+    private buildShell(container: HTMLElement): void {
+        container.empty();
         renderViewNav(container, this.plugin, this.leaf, 'browse');
 
         // Toolbar.
         const bar = container.createDiv({ cls: 'fakecard-browse-bar' });
 
         const deckSelect = bar.createEl('select', { cls: 'dropdown' });
-        for (const deck of ['all', ...this.decks]) {
-            const option = deckSelect.createEl('option');
-            option.value = deck;
-            option.textContent = deck === 'all' ? tt('All decks') : deck;
-        }
-        deckSelect.value = this.deckFilter;
         deckSelect.addEventListener('change', () => {
             this.deckFilter = deckSelect.value;
             this.applyFilter();
@@ -390,13 +438,6 @@ export class BrowseView extends ItemView {
         search.type = 'search';
         search.placeholder = tt('Search… (deck:deckname tag:tag is:due is:child -tag:x prop:due<7)');
         search.value = this.query;
-        // Every keystroke repaints the view, which replaces this input: without
-        // putting the caret back, typing would stop after one character.
-        if (this.searchHadFocus) {
-            search.focus();
-            const caret = Math.min(this.searchCaret, search.value.length);
-            search.setSelectionRange(caret, caret);
-        }
         search.addEventListener('input', () => {
             this.query = search.value;
             this.searchCaret = search.selectionStart ?? search.value.length;
@@ -413,63 +454,44 @@ export class BrowseView extends ItemView {
         });
         search.addEventListener('keydown', (event) => this.onSearchKey(event));
 
-        this.renderSuggestions(searchWrap);
+        // The completion list hangs under the field. It lives in its own node so
+        // a repaint swaps the rows without touching the input beside it.
+        const suggest = searchWrap.createDiv();
 
-        bar.createSpan({
-            cls: 'fakecard-browse-count',
-            text: `${this.filtered.length} / ${this.cards.length}`,
-        });
-
-        if (this.checked.size > 0) {
-            bar.createSpan({
-                cls: 'fakecard-browse-count',
-                text: ttf('{count} selected', { count: this.checked.size }),
-            });
-
-            const moveSelect = bar.createEl('select', { cls: 'dropdown' });
-            const placeholder = moveSelect.createEl('option');
-            placeholder.value = '';
-            placeholder.textContent = tt('Move to…');
-            for (const deck of this.decks) {
-                const option = moveSelect.createEl('option');
-                option.value = deck;
-                option.textContent = deck;
-            }
-            moveSelect.addEventListener('change', () => {
-                if (moveSelect.value) void this.moveChecked(moveSelect.value);
-            });
-
-            // Pause / resume the selection: a card kept out of the queue without
-            // being deleted, which is what "not now" usually means.
-            const checkedCards = this.cards.filter((card) => this.checked.has(card.id));
-            const allPaused = checkedCards.length > 0 && checkedCards.every((card) => card.suspended);
-            bar.createEl('button', {
-                text: allPaused ? tt('Resume selected') : tt('Pause selected'),
-            }).addEventListener('click', () => {
-                void this.setSuspended(this.checked, !allPaused);
-            });
-
-            bar.createEl('button', { text: tt('Delete selected') }).addEventListener('click', () => {
-                new ConfirmDialog(
-                    this.app,
-                    ttf('Delete {count} card(s)?', { count: this.checked.size }),
-                    tt('Delete'),
-                    async () => {
-                        for (const id of this.checked) await this.plugin.store.remove(id);
-                        this.checked.clear();
-                        new Notice(tt('Cards deleted.'));
-                        await this.reload();
-                    },
-                ).open();
-            });
-        }
+        const count = bar.createSpan({ cls: 'fakecard-browse-count' });
+        const selection = bar.createDiv({ cls: 'fakecard-browse-selection' });
 
         bar.createEl('button', { text: tt('New card') }).addEventListener('click', () => {
             void this.plugin.newCard();
         });
 
-        // Quick filters that just write into the search box.
         const chips = container.createDiv({ cls: 'fakecard-browse-chips' });
+        const body = container.createDiv({ cls: 'fakecard-browse-body' });
+
+        this.shell = { deckSelect, search, suggest, count, selection, chips, body };
+    }
+
+    /**
+     * Keep the deck filter in step with the library.
+     *
+     * The select outlives a repaint, so a deck created since the last render
+     * would otherwise be missing from it.
+     */
+    private renderDeckOptions(select: HTMLSelectElement): void {
+        const key = this.decks.join('\u0000');
+        if (key === this.deckOptionsKey) return;
+        this.deckOptionsKey = key;
+        select.empty();
+        for (const deck of ['all', ...this.decks]) {
+            const option = select.createEl('option');
+            option.value = deck;
+            option.textContent = deck === 'all' ? tt('All decks') : deck;
+        }
+    }
+
+    /** Quick filters that just write into the search box. */
+    private renderChips(host: HTMLElement): void {
+        host.empty();
         const presets: Array<[string, string]> = [
             ['All', ''],
             ['New', 'is:new'],
@@ -481,7 +503,7 @@ export class BrowseView extends ItemView {
             ['Orphan', 'is:orphan'],
         ];
         for (const [label, preset] of presets) {
-            const chip = chips.createEl('button', {
+            const chip = host.createEl('button', {
                 cls: `fakecard-chip${this.query === preset ? ' is-active' : ''}`,
                 text: tt(label),
             });
@@ -490,8 +512,60 @@ export class BrowseView extends ItemView {
                 this.applyFilter();
             });
         }
+    }
 
-        const body = container.createDiv({ cls: 'fakecard-browse-body' });
+    /** Batch actions for the ticked rows; nothing at all when nothing is ticked. */
+    private renderSelection(host: HTMLElement): void {
+        host.empty();
+        if (this.checked.size === 0) return;
+
+        host.createSpan({
+            cls: 'fakecard-browse-count',
+            text: ttf('{count} selected', { count: this.checked.size }),
+        });
+
+        const moveSelect = host.createEl('select', { cls: 'dropdown' });
+        const placeholder = moveSelect.createEl('option');
+        placeholder.value = '';
+        placeholder.textContent = tt('Move to…');
+        for (const deck of this.decks) {
+            const option = moveSelect.createEl('option');
+            option.value = deck;
+            option.textContent = deck;
+        }
+        moveSelect.addEventListener('change', () => {
+            if (moveSelect.value) void this.moveChecked(moveSelect.value);
+        });
+
+        // Pause / resume the selection: a card kept out of the queue without
+        // being deleted, which is what "not now" usually means.
+        const checkedCards = this.cards.filter((card) => this.checked.has(card.id));
+        const allPaused = checkedCards.length > 0 && checkedCards.every((card) => card.suspended);
+        host.createEl('button', {
+            text: allPaused ? tt('Resume selected') : tt('Pause selected'),
+        }).addEventListener('click', () => {
+            void this.setSuspended(this.checked, !allPaused);
+        });
+
+        host.createEl('button', { text: tt('Delete selected') }).addEventListener('click', () => {
+            new ConfirmDialog(
+                this.app,
+                ttf('Delete {count} card(s)?', { count: this.checked.size }),
+                tt('Delete'),
+                async () => {
+                    for (const id of this.checked) await this.plugin.store.remove(id);
+                    this.checked.clear();
+                    new Notice(tt('Cards deleted.'));
+                    await this.reload();
+                },
+            ).open();
+        });
+    }
+
+    /** The table at the left and the preview of the selected card at the right. */
+    private renderBody(host: HTMLElement): void {
+        host.empty();
+        const body = host;
 
         // Left: table.
         const listEl = body.createDiv({ cls: 'fakecard-browse-list' });
@@ -855,6 +929,9 @@ export class BrowseView extends ItemView {
 
     async onClose(): Promise<void> {
         this.contentEl.empty();
+        // The leaf may be reopened on this same instance: the shell's nodes went
+        // with the content, so the next render has to build it again.
+        this.shell = null;
     }
 }
 
