@@ -32,8 +32,9 @@
 
 ### 作答和记忆是两个计时
 
-- 问题面 `作答 0:28 / 4:47`：从卡片出现到揭示，量的是「一遍」的作答预算，只提醒别在一个词上耗太久；位置从工具栏挪到问题这一行。
-- 揭示后答案面 `记忆 0:05 / 10:00`：**从答案出现起重新计时**，不接着用作答的时间，量的是记忆正确答案的用时。也带 ↻，点一下从当前时刻重来，评分按重来后的数字算。
+- 两个胶囊都在顶部「全部牌组」那一行，位置和只有作答计时时一样。
+- 问题面 `作答 0:28 / 4:47`：从卡片出现到揭示，量的是「一遍」的作答预算，只提醒别在一个词上耗太久。
+- 揭示后同一个位置换成 `记忆 0:05 / 17:22`：**从答案出现起重新计时**，不接着用作答的时间，量的是记忆正确答案的用时。也带 ↻，点一下从当前时刻重来，评分按重来后的数字算。
 - **只有记忆预算超时才记分**：作答胶囊超时只是变红，不产生 Hard 分。
 - **超时记忆：每多几倍算一步**（新设置，默认 0.5）：超过预算后，每多半个预算算一步——1.5 倍一步，2 倍两步。
 - **超时记忆：每步记几个 Hard**（新设置，默认 0.5）：每一步给失败连击加这么多 Hard 分。默认下 1.5 倍记 0.5、2 倍记 1、2.5 倍记 1.5；设为 0 就只显示时间、不计分。
@@ -85,8 +86,9 @@ Two notes:
 
 ### One pill on both sides
 
-- The question side carries a pill labelled `Answering 0:28 / 4:47`, measured against ONE pass: it is the reminder not to linger on a word, and it moved from the toolbar to the question's own row.
-- After revealing, the answer side runs its own clock, `Recalling 0:05 / 10:00`: it starts when the answer appears instead of carrying the answering time over, and it measures how long the correct answer is being memorised. It has a ↻ too; a rating scores the number after the last reset.
+- Both pills sit in the toolbar row with the deck filter, where the old clock was.
+- The question side shows `Answering 0:28 / 4:47`, measured against ONE pass: the reminder not to linger on a word.
+- After revealing, the same spot shows `Recalling 0:05 / 17:22`: its own clock, started when the answer appears instead of carrying the answering time over, measuring how long the correct answer is being memorised. It has a ↻ too; a rating scores the number after the last reset.
 - **Only memory overtime scores**: the answering pill turning red does not earn any Hard points.
 - **Slow recall: extra budgets per step** (new setting, default 0.5): past the budget, every extra half budget is one step - 1.5x is one step, 2x is two.
 - **Slow recall: Hard points per step** (new setting, default 0.5): each step adds that much to the failing run. With the defaults, 1.5x gives 0.5, 2x gives 1 and 2.5x gives 1.5. Set it to 0 to show the time without scoring it.

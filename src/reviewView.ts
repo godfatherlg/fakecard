@@ -321,6 +321,16 @@ export class ReviewView extends ItemView {
             });
         }
 
+        // Both clocks live in the toolbar row, next to the deck filter: the
+        // card area stays what it is, the card. The answer side re-renders
+        // through here too, so it simply picks its own clock.
+        const clockHost = meta.createDiv({ cls: 'fakecard-review-clock' });
+        if (this.revealed) {
+            this.renderMemorizeClock(clockHost);
+        } else if (this.plugin.settings.answerTimeHint) {
+            this.renderQuestionClock(clockHost, card);
+        }
+
         // The card itself: centred while it is short, scrolling normally once
         // a long answer does not fit.
         const body = container.createDiv({ cls: 'fakecard-review-body' });
@@ -331,9 +341,6 @@ export class ReviewView extends ItemView {
         if (!this.revealed) {
             // Front. Q&A questions are centred; cloze fronts keep the text
             // flow; image cards draw the picture with the first group masked.
-            // The clock sits on the question's own row, above it, in the same
-            // pill the answer side reports in.
-            if (this.plugin.settings.answerTimeHint) this.renderQuestionClock(body, card);
             const frontEl = body.createDiv({ cls: 'fakecard-review-front' });
             if (card.type === 'qa') frontEl.addClass('fakecard-qa-front');
             this.renderCardBody(frontEl, card, false);
@@ -353,15 +360,11 @@ export class ReviewView extends ItemView {
             // Q&A keeps both sides: question above, answer below.
             const frontEl = body.createDiv({ cls: 'fakecard-review-front fakecard-qa-front' });
             this.renderCardBody(frontEl, card, false);
-            // Memorising starts with the answer, so this clock sits above it:
-            // at the end of a long answer it would be below the fold.
-            this.renderMemorizeClock(body);
             const backEl = body.createDiv({ cls: 'fakecard-review-back' });
             this.renderCardBody(backEl, card, true);
         } else {
             // Cloze and image cards reveal in place - the same block shows the
             // answer, there is no separate answer side.
-            this.renderMemorizeClock(body);
             const bodyEl = body.createDiv({ cls: 'fakecard-review-front' });
             this.renderCardBody(bodyEl, card, true);
         }

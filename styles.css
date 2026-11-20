@@ -548,6 +548,13 @@
   font-weight: 600;
 }
 
+/* Both clocks sit in the toolbar row, right after the deck filter. */
+.fakecard-review-clock {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 /* Settings: the formula under the switch, monospaced so the equal signs line
    up, and the reasoning as a short list under it. */
 .fakecard-settings-formula {
