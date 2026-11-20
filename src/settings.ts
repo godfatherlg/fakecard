@@ -11,7 +11,8 @@ import {
     DEFAULT_MEMORY_WEIGHT,
     DEFAULT_RECALL_PASSES,
     DEFAULT_SECONDS_PER_CHUNK,
-    DEFAULT_SLOW_RATIO,
+    DEFAULT_SLOW_POINTS,
+    DEFAULT_SLOW_STEP,
 } from './answerTime';
 import {
     buildExamPlan as buildExamPlanImpl,
@@ -93,10 +94,10 @@ export interface FakeCardSettings {
     answerTimeMemoryWeight: number;
     /** Characters a fully masked picture counts as, for occlusion cards. */
     answerTimeImageChars: number;
-    /** Recall slower than this many times the budget counts as failed. */
-    answerTimeSlowRatio: number;
-    /** Add one failing point to a recall that ran over that limit. */
-    answerTimeSlowPoint: boolean;
+    /** Extra multiples of the budget that make one slow step (0.5 = 1.5x, 2x). */
+    answerTimeSlowStep: number;
+    /** Failing points a slow step adds; 0 turns the scoring off. */
+    answerTimeSlowPoints: number;
     /** Rating shortcuts: a character, "Space", or empty for none. */
     ratingKeyAgain: string;
     ratingKeyHard: string;
@@ -169,8 +170,8 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     answerTimeHistoryWeight: DEFAULT_HISTORY_WEIGHT,
     answerTimeMemoryWeight: DEFAULT_MEMORY_WEIGHT,
     answerTimeImageChars: DEFAULT_IMAGE_CHARS,
-    answerTimeSlowRatio: DEFAULT_SLOW_RATIO,
-    answerTimeSlowPoint: true,
+    answerTimeSlowStep: DEFAULT_SLOW_STEP,
+    answerTimeSlowPoints: DEFAULT_SLOW_POINTS,
     // Anki's layout: 1-2-3 along the top row, Space on Good. Digits work on
     // the numpad too.
     ratingKeyAgain: '1',
@@ -209,8 +210,9 @@ const NUMBER_LIMITS: Record<string, { min: number; max?: number; decimals?: numb
     answerTimeHistoryWeight: { min: -60, max: 100 },
     answerTimeMemoryWeight: { min: -60, max: 100 },
     answerTimeImageChars: { min: 50, max: 2000 },
-    // A multiplier, not a count: 1.5x is a meaningful value here.
-    answerTimeSlowRatio: { min: 1.2, max: 4, decimals: 1 },
+    // Multipliers and fractional points: both need one decimal.
+    answerTimeSlowStep: { min: 0.1, max: 2, decimals: 1 },
+    answerTimeSlowPoints: { min: 0, max: 3, decimals: 1 },
 };
 
 /** Text settings that fall back to their default when the field is cleared. */
@@ -546,14 +548,14 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     control: { type: 'number', key: 'answerTimeImageChars', min: 50, max: 2000, step: 50 },
                 },
                 {
-                    name: t('review.answerSlowRatio.name'),
-                    desc: t('review.answerSlowRatio.desc'),
-                    control: { type: 'number', key: 'answerTimeSlowRatio', min: 1.2, max: 4, step: 0.1 },
+                    name: t('review.answerSlowStep.name'),
+                    desc: t('review.answerSlowStep.desc'),
+                    control: { type: 'number', key: 'answerTimeSlowStep', min: 0.1, max: 2, step: 0.1 },
                 },
                 {
-                    name: t('review.answerSlowPoint.name'),
-                    desc: t('review.answerSlowPoint.desc'),
-                    control: { type: 'toggle', key: 'answerTimeSlowPoint' },
+                    name: t('review.answerSlowPoints.name'),
+                    desc: t('review.answerSlowPoints.desc'),
+                    control: { type: 'number', key: 'answerTimeSlowPoints', min: 0, max: 3, step: 0.1 },
                 },
                 {
                     name: t('review.keyAgain.name'),

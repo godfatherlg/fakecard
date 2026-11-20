@@ -11,10 +11,12 @@ export interface ReviewLog {
     /** Time spent on the card, in milliseconds (front shown -> rated). */
     durationMs?: number;
     /**
-     * The recall ran past the slow-recall limit (a multiple of the suggested
-     * time). Such a review adds one failing point to the child-card run, the
-     * way a Hard does - the rating itself is unaffected.
+     * Hard points this review earned by recalling too slowly: one step past
+     * the budget is worth a fraction of a Hard (0.5 by default). The rating
+     * itself is unaffected.
      */
+    slowPoints?: number;
+    /** Older entries: a slow recall counted as one point. */
     slow?: boolean;
     /**
      * Rated before the card was due - "study ahead". Such a review does not

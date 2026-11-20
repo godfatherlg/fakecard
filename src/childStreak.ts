@@ -48,17 +48,19 @@ export function hasHardStreak(
 /** One review as the child-card score needs it. */
 export interface ScoredReview {
     rating: number;
-    /** The reveal ran past the slow-recall limit. */
+    /** Hard points earned by recalling too slowly (fractional by design). */
+    slowPoints?: number;
+    /** Older entries: a slow recall counted as one whole point. */
     slow?: boolean;
 }
 
 /**
  * The failing score, with slow recalls counted.
  *
- * A slow recall is one point on its own: taking twice the suggested time means
- * the card was not really there, whatever the rating says. A Good or Easy
- * normally ends the run, but a slow one keeps it alive - the card was slow, so
- * it is still part of the trouble - and a normal Good still ends it.
+ * Overtime is worth a fraction of a Hard per step past the budget, so it adds
+ * to the run instead of replacing the rating. A Good or Easy normally ends the
+ * run; a slow one keeps it alive with just its overtime points - the card was
+ * slow, so it is still part of the trouble.
  */
 export function childScore(
     logs: readonly ScoredReview[],
@@ -66,10 +68,11 @@ export function childScore(
 ): number {
     let score = 0;
     for (const log of logs) {
+        const slowPoints = log.slowPoints ?? (log.slow ? 1 : 0);
         if (log.rating === 2) score += 1;
         else if (log.rating === 1) score += againScore;
-        else if (!log.slow) break;
-        if (log.slow) score += 1;
+        else if (slowPoints <= 0) break;
+        score += slowPoints;
     }
     return score;
 }

@@ -26,23 +26,25 @@
 
 ### 问题面与答案面共用同一个胶囊
 
-- 问题面上方现在是同一个胶囊：`记忆 0:28 / 1:10`，右侧 ↻ 重新计时。位置从工具栏挪到问题这一行，和答案面的胶囊读起来是同一个测量。
-- 揭示后同一个胶囊冻结成 `记忆 28s / 1:10`：刚才真实回忆用时对比建议预算，颜色分档（≤1× 灰、1–1.5× 橙、≥1.5× 红）。两边的 tooltip 都有公式拆解。
-- **超时判定倍数**（新设置，默认 2.0）：用时达到预算的这个倍数，算一次失败回忆。
-- **超时给失败分 +1**（新设置，默认开）：超时的那次复习在 `fakecard/reviews/` 里记 `slow: true`，给这张卡的失败连击加 1 分——和 Hard 记 1 分同一个计数器。累计到「失败分阈值」（默认 4）时「建子卡」按钮变红，点它才进入建卡流程，不会弹窗打断。
-- 评分 Good/Easy 但超时：失败连击不中断，但只保留这 1 分慢记分；正常 Good 仍然清零。
-- 按 ↻ 重置计时后从新起点计算；没揭示就评分（跳过）不记分；关闭「显示建议作答时间」时整个机制不启用。
+- 问题面上方是同一个胶囊，写作 `作答 0:28 / 1:10`，右侧 ↻ 重新计时；位置从工具栏挪到问题这一行。
+- 揭示后同一个胶囊冻结成 `记忆 0:28 / 1:10`，也带 ↻：点一下就从当前时刻重新计时，答案留在屏幕上，评分按新的数字算。
+- **超时记忆：每多几倍算一步**（新设置，默认 0.5）：超过预算后，每多半个预算算一步——1.5 倍一步，2 倍两步。
+- **超时记忆：每步记几个 Hard**（新设置，默认 0.5）：每一步给失败连击加这么多 Hard 分。默认下 1.5 倍记 0.5、2 倍记 1、2.5 倍记 1.5；设为 0 就只显示时间、不计分。
+- 这些分数写进 `fakecard/reviews/` 的 `slowPoints` 字段，和 Hard 的 1 分进同一个计数器；到「失败分阈值」（默认 4）时「建子卡」按钮变红，点它才进入建卡流程，不会弹窗打断。
+- 评分 Good/Easy 但超时：失败连击不中断，但只保留超时那几分；正常 Good 仍然清零。
+- 没揭示就评分（跳过）不记分；关闭「显示建议作答时间」时整个机制不启用。
 
 ### 请测试
 
-- 问题面：胶囊是否在问题上方、数字是否每半秒跳动
-- 点 ↻ 重置：是否从 0 重新走，揭示后的数字是否对应新起点
+- 问题面：胶囊是否在问题上方、是否写作「作答」、数字是否每半秒跳动
+- ↻：问题面点一次是否从当前时刻重计；揭示后再点答案面的 ↻，数字是否重新开始跑
 - 揭示后：胶囊是否换成冻结的 `记忆 x / y`，位置和样式与问题面一致
 - 设置里分别改「作答时间：评分历史权重」和「记忆时间：评分历史权重」，预算是否一边变少一边变多
 - 改「记忆几遍算过关」「首遍基础秒数」，预算是否按公式变化（可对照 tooltip）
-- 把「超时判定倍数」调到 1.2，故意停久一点再揭示：是否出现「超时 · 失败分 +1」
-- 连点几次超时后，「+ Child」按钮是否变红
-- 关掉「超时：失败分 +1」：答案面仍显示时间，但不再记为超时
+- 把「每多几倍算一步」保持 0.5，停到 1.5 倍再揭示：是否显示 `超时：Hard +0.5`；停到 2 倍：`+1`
+- 把「每步记几个 Hard」改成 1：2 倍时是否变成 `+2`
+- 把它改成 0：答案面仍显示时间，但不再记分
+- 连做几次超时后，「+ Child」按钮是否变红
 
 ## English
 
@@ -70,20 +72,22 @@ With the defaults (10s base, 10s per 40 characters, 3 passes, 20s first pass):
 
 ### One pill on both sides
 
-- The question side now carries the same pill: `Recall 0:28 / 1:10` with a ↻ reset. It moved from the toolbar to the question's own row, so the two sides read as one measurement.
-- After revealing, the same pill freezes into `Recall 28s / 1:10`: the real time spent recalling next to the suggested budget, colour-coded (≤1× muted, 1–1.5× orange, ≥1.5× red). Both tooltips break the formula down.
-- **Slow-recall limit** (new setting, default 2.0): a reveal at this multiple of the budget counts as a failed recall.
-- **Add one failing point** (new setting, on by default): the review is logged with `slow: true` in `fakecard/reviews/`, adding one point to the card's failing run - the same counter Hard feeds. At the failing-score threshold (default 4) the "Child" button turns red; clicking it opens the child-card flow. Nothing pops up on its own.
-- A Good/Easy that was slow keeps the run alive with that one point; a normal Good still resets it.
-- Resetting the clock with ↻ measures from the new start; skipping the card without revealing scores nothing; turning off "Show suggested answer time" disables the whole mechanism.
+- The question side carries the same pill, labelled `Answering 0:28 / 1:10`, with a ↻ reset. It moved from the toolbar to the question's own row.
+- After revealing, the same pill freezes into `Recalling 0:28 / 1:10`, also with a ↻: pressing it starts the measurement again from now, with the answer still on screen, and the rating scores the new number.
+- **Slow recall: extra budgets per step** (new setting, default 0.5): past the budget, every extra half budget is one step - 1.5x is one step, 2x is two.
+- **Slow recall: Hard points per step** (new setting, default 0.5): each step adds that much to the failing run. With the defaults, 1.5x gives 0.5, 2x gives 1 and 2.5x gives 1.5. Set it to 0 to show the time without scoring it.
+- Those points are logged as `slowPoints` in `fakecard/reviews/` and counted with Hard's one point. At the failing-score threshold (default 4) the "Child" button turns red; clicking it opens the child-card flow. Nothing pops up on its own.
+- A Good/Easy that was slow keeps the run alive with only its overtime points; a normal Good still resets it.
+- Skipping the card without revealing scores nothing; turning off "Show suggested answer time" disables the whole mechanism.
 
 ### Please test
 
-- Question side: is the pill above the question, do the digits move every half second
-- Press ↻: does it restart from zero, and does the answer show the new measurement
-- After revealing: does the pill become the frozen `Recall x / y`, in the same place and style as the question side
+- Question side: is the pill above the question, labelled `Answering`, with the digits moving every half second
+- Press ↻ on the question side: does it restart from now; after revealing, press ↻ on the answer side: does the number start running again
+- After revealing: does the pill become the frozen `Recalling x / y`, in the same place and style as the question side
 - Change the answering weight and the recall weight separately: does one shrink the budget and the other grow it
 - Change passes / first-pass base seconds: does the budget follow the formula shown in the tooltip
-- Set the slow limit to 1.2 and wait a little longer: does `Too slow · +1 failing point` appear
+- Keep the step at 0.5 and wait until 1.5x before revealing: does `Too slow: +0.5 Hard` appear; at 2x, `+1`
+- Set the points per step to 1: is 2x then `+2`
+- Set it to 0: the time still shows, but nothing is scored
 - Do that a few times: does the "+ Child" button turn red
-- Turn "Slow recall: add one failing point" off: the time still shows, but nothing is scored

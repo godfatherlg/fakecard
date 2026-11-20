@@ -52,8 +52,10 @@ export const DEFAULT_RECALL_PASSES = 3;
  * structure out costs more than a plain recall of a short answer.
  */
 export const DEFAULT_FIRST_PASS_SECONDS = 20;
-/** Times the budget at which a recall counts as failed. */
-export const DEFAULT_SLOW_RATIO = 2;
+/** Extra multiples of the budget that count as one slow step. */
+export const DEFAULT_SLOW_STEP = 0.5;
+/** Hard points a slow step adds (and 0 turns the scoring off). */
+export const DEFAULT_SLOW_POINTS = 0.5;
 /** Characters a completely masked picture is worth, for an occlusion card. */
 export const DEFAULT_IMAGE_CHARS = 200;
 
