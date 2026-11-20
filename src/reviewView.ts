@@ -67,11 +67,12 @@ export class ReviewView extends ItemView {
     /** When that clock started; kept so a repaint resumes instead of resetting. */
     private recallStartedAt = 0;
     /**
-     * Card whose clock the user switched off. A clock that is off measures
-     * nothing and scores nothing, so a distraction cannot leave a wrong Hard
-     * point behind; the card id makes it reset by itself on the next card.
+     * The clock was switched off. It stays off for the cards after this one
+     * too - a distraction lasts longer than one card - until the small clock
+     * button turns it back on. A clock that is off measures nothing and scores
+     * nothing, so it cannot leave a wrong Hard point behind.
      */
-    private clockHiddenFor: string | null = null;
+    private clockHidden = false;
     /** Ratings that can still be taken back with Ctrl+Z, newest last. */
     private undoStack: UndoEntry[] = [];
     /** Link under the pointer, waiting for Ctrl+hover to turn into a preview. */
@@ -332,7 +333,7 @@ export class ReviewView extends ItemView {
         // through here too, so it simply picks its own clock.
         const clockHost = meta.createDiv({ cls: 'fakecard-review-clock' });
         if (this.plugin.settings.answerTimeHint) {
-            if (this.clockHiddenFor === card.id) {
+            if (this.clockHidden) {
                 this.renderClockRestore(clockHost, card);
             } else if (this.revealed) {
                 this.renderMemorizeClock(clockHost, card);
@@ -845,9 +846,9 @@ export class ReviewView extends ItemView {
     }
 
     private recallPoints(): number {
-        // Only the answer-side clock is scored; a card skipped without revealing
-        // was never memorised.
-        if (!this.revealed || !this.recall) return 0;
+        // Only the answer-side clock is scored; a skipped card, or one whose
+        // clock was switched off, was not measured at all.
+        if (this.clockHidden || !this.revealed || !this.recall) return 0;
         return this.pointsForRatio(this.recall.ratio);
     }
 
@@ -880,13 +881,13 @@ export class ReviewView extends ItemView {
         setTooltip(reset, tt('Restart the timer'));
         const hide = chip.createEl('button', { cls: 'fakecard-recall-reset' });
         setIcon(hide, 'eye-off');
-        setTooltip(hide, tt('Turn the clock off for this card'));
+        setTooltip(hide, tt('Turn the clock off'));
         return { chip, timeEl, reset, hide };
     }
 
     /** Switch the clock off: nothing is measured, so nothing can be scored. */
-    private hideClock(card: CardRecord): void {
-        this.clockHiddenFor = card.id;
+    private hideClock(): void {
+        this.clockHidden = true;
         this.recall = null;
         this.recallStartedAt = 0;
         this.render();
@@ -898,13 +899,17 @@ export class ReviewView extends ItemView {
         setIcon(button, 'clock');
         setTooltip(button, tt('Turn the clock back on'));
         button.addEventListener('click', () => {
-            this.clockHiddenFor = null;
+            this.clockHidden = false;
             if (this.revealed) {
                 // Measuring starts again from now: the hidden stretch is not
                 // part of the memory and must not be scored.
                 const breakdown = this.recallBudget(card);
                 this.recall = { seconds: 0, ratio: 0, breakdown };
                 this.recallStartedAt = Date.now();
+            } else {
+                // Same on the question side: the time with the clock off is not
+                // answering time either.
+                this.cardShownAt = Date.now();
             }
             this.render();
         });
@@ -1006,7 +1011,7 @@ export class ReviewView extends ItemView {
         });
         hide.addEventListener('click', (event) => {
             event.stopPropagation();
-            this.hideClock(card);
+            this.hideClock();
         });
     }
 
@@ -1262,7 +1267,7 @@ export class ReviewView extends ItemView {
         // Memorising starts with the answer: a fresh clock, not the question
         // count carried over. The question clock measured answering, which is a
         // different thing and is never scored.
-        if (this.plugin.settings.answerTimeHint) {
+        if (this.plugin.settings.answerTimeHint && !this.clockHidden) {
             const card = this.cards[this.index];
             const breakdown = this.recallBudget(card);
             this.recall = { seconds: 0, ratio: 0, breakdown };
@@ -1326,7 +1331,7 @@ export class ReviewView extends ItemView {
         });
         hide.addEventListener('click', (event) => {
             event.stopPropagation();
-            this.hideClock(card);
+            this.hideClock();
         });
     }
 

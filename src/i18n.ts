@@ -459,7 +459,7 @@ const UI_ZH: Record<string, string> = {
     '{label} {elapsed} / {budget}': '{label} {elapsed} / {budget}',
     'Too slow: +{points} Hard': '超时：Hard +{points}',
     'Restart the timer': '重新计时',
-    'Turn the clock off for this card': '关闭这张卡的计时',
+    'Turn the clock off': '关闭计时',
     'Turn the clock back on': '重新打开计时',
     'Fill screen': '铺满',
     'Exit fill screen': '退出铺满',
