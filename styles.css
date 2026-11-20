@@ -548,6 +548,29 @@
   font-weight: 600;
 }
 
+/* Settings: the formula under the switch, monospaced so the equal signs line
+   up, and the reasoning as a short list under it. */
+.fakecard-settings-formula {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.7;
+}
+
+.fakecard-settings-why {
+  margin-top: 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.fakecard-settings-why-item {
+  margin: 2px 0;
+}
+
 /* The running half of the same measurement: the question side counts in it,
    the answer side freezes it. */
 .fakecard-recall.is-live {

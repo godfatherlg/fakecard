@@ -839,7 +839,7 @@ export class ReviewView extends ItemView {
     }
 
     private budgetTooltip(breakdown: AnswerTimeBreakdown): string {
-        const parts = ttf(
+        return ttf(
             'Budget {budget}: one pass {pass} × {passes} + {first} for the first pass, then adjusted by difficulty',
             {
                 budget: formatClock(breakdown.seconds),
@@ -848,15 +848,6 @@ export class ReviewView extends ItemView {
                 first: formatClock(Math.round(breakdown.firstPass)),
             },
         );
-        // A capped budget should say so: 10:00 on every long answer otherwise
-        // looks like the same number twice.
-        if (breakdown.rawSeconds > breakdown.seconds + 1) {
-            return `${parts}\n${ttf('Capped at {budget} from {raw}', {
-                budget: formatClock(breakdown.seconds),
-                raw: formatClock(breakdown.rawSeconds),
-            })}`;
-        }
-        return parts;
     }
 
     /** The pill both sides use: the number, and a reset that starts it over. */

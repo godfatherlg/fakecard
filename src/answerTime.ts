@@ -21,9 +21,9 @@ import { parseCloze } from './cloze';
  *     default) gives a hard card more time, because it needs it.
  *
  * Combined as `((base + length) * passes + firstPass) * memoryFactor`, with
- * the per-pass parts scaled by the answering factor, then clamped so a
- * pathological card never suggests more than 600 seconds, and never less than
- * 5.
+ * the per-pass parts scaled by the answering factor. There is no upper bound:
+ * a long answer gone over three times honestly takes twenty minutes, and a
+ * ceiling only hid the real number. The floor stays at 5 seconds.
  */
 const CHARS_PER_CHUNK = 40;
 
@@ -34,7 +34,6 @@ const DIFFICULTY_SPAN = 9;
 const MIN_HISTORY_FACTOR = 0.3;
 
 const MIN_SECONDS = 5;
-const MAX_SECONDS = 600;
 
 export const DEFAULT_ANSWER_SECONDS = 10;
 export const DEFAULT_SECONDS_PER_CHUNK = 10;
@@ -95,9 +94,8 @@ export interface AnswerTimeBreakdown {
     historyFactor: number;
     /** Factor applied to the whole budget (recall). */
     memoryFactor: number;
-    /** Seconds before the 600s clamp, so a capped budget can say so. */
-    rawSeconds: number;
-    /** The final budget, clamped. */
+    /** The budget. No upper bound: going over a long answer three times is
+     *  meant to be minutes, and a ceiling only hid the real number. */
     seconds: number;
 }
 
@@ -268,8 +266,7 @@ export function answerTimeBreakdown(
         firstPass,
         historyFactor,
         memoryFactor,
-        rawSeconds: Math.round(total),
-        seconds: Math.max(MIN_SECONDS, Math.round(Math.min(total, MAX_SECONDS))),
+        seconds: Math.max(MIN_SECONDS, Math.round(total)),
     };
 }
 

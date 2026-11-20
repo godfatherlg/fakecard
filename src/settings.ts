@@ -513,6 +513,24 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     control: { type: 'toggle', key: 'answerTimeHint' },
                 },
                 {
+                    // The formula and the reason, right under the switch that
+                    // turns the feature on: a number with no explanation reads
+                    // like a mystery, and this one decides when a card is too
+                    // slow.
+                    name: t('review.answerHow.name'),
+                    desc: t('review.answerHow.desc'),
+                    render: (setting) => {
+                        const formula = setting.descEl.createDiv({ cls: 'fakecard-settings-formula' });
+                        for (const line of t('review.answerHow.formula').split('\n')) {
+                            formula.createDiv({ text: line });
+                        }
+                        const why = setting.descEl.createDiv({ cls: 'fakecard-settings-why' });
+                        for (const line of t('review.answerHow.why').split('\n')) {
+                            why.createDiv({ cls: 'fakecard-settings-why-item', text: `• ${line}` });
+                        }
+                    },
+                },
+                {
                     name: t('review.answerBase.name'),
                     desc: t('review.answerBase.desc'),
                     control: { type: 'number', key: 'answerTimeBase', min: 5, max: 120, step: 5 },

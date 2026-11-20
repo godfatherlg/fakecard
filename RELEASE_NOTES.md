@@ -24,10 +24,10 @@
 | 100 字方剂组成 | 35s | 150s |
 | 400 字条文 | 110s | 450s |
 
-两点容易误会的地方：
+两点说明：
 
-- 预算上限是 **600 秒**。超长答案（或者把「每 40 字」调得很大）会直接顶到 10:00，那是被夹住；tooltip 会写出夹之前的实际值。
-- 字数统计现在忽略 `**`、`==`、`~~` 这类强调标记和链接，只算真正要读的字。
+- **没有上限了**。以前的 600 秒封顶会把长答案一律显示成 10:00；现在长答案记三遍就是二十几分钟，照实显示。
+- 字数统计忽略 `**`、`==`、`~~` 这类强调标记和链接，只算真正要读的字。
 
 ### 作答和记忆是两个计时
 
@@ -76,10 +76,10 @@ With the defaults (10s base, 10s per 40 characters, 3 passes, 20s first pass):
 | 100-character answer | 35s | 150s |
 | 400-character passage | 110s | 450s |
 
-Two things that look like bugs but are not:
+Two notes:
 
-- The budget is capped at **600 seconds**. A very long answer (or a large "seconds per 40 characters") lands exactly on 10:00 - that is the clamp, not a calculation error.
-- Answer length now ignores `**`, `==`, `~~` and links, so it counts only the words to be read.
+- **There is no upper bound any more.** The old 600-second clamp turned every long answer into 10:00; a long answer gone over three times now shows its real twenty-odd minutes.
+- Answer length ignores `**`, `==`, `~~` and links, so it counts only the words to be read.
 
 ### One pill on both sides
 
