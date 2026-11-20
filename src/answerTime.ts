@@ -17,13 +17,14 @@ import { parseCloze } from './cloze';
  *   (1 = trivial, 10 = hard), with two separate weights:
  *   - `historyWeight` moves ONE PASS: the answering speed. Negative (the
  *     default) flags a hard card earlier, countering overthinking.
- *   - `memoryWeight` moves the WHOLE budget: the recall. Positive (the
- *     default) gives a hard card more time, because it needs it.
+ *   - `memoryWeight` moves the first pass: the one that builds the memory.
+ *     Positive (the default) gives a hard card more time, because it needs it.
  *
- * Combined as `((base + length) * passes + firstPass) * memoryFactor`, with
- * the per-pass parts scaled by the answering factor. There is no upper bound:
- * a long answer gone over three times honestly takes twenty minutes, and a
- * ceiling only hid the real number. The floor stays at 5 seconds.
+ * Combined as `onePass * (passes - 1) + firstPass`, where the first pass is a
+ * whole pass plus the organising time and already counts as one of the passes.
+ * There is no upper bound: a long answer gone over three times honestly takes
+ * twenty minutes, and a ceiling only hid the real number. The floor stays at 5
+ * seconds.
  */
 const CHARS_PER_CHUNK = 40;
 
@@ -88,7 +89,7 @@ export interface AnswerTimeBreakdown {
     /** Base plus reading time, after the answering-speed factor. */
     onePass: number;
     passes: number;
-    /** The first pass: its own base plus reading time, after the same factor. */
+    /** The first pass: a whole pass plus the organising base, under the memory weight. */
     firstPass: number;
     /** Factor applied to one pass (answering speed). */
     historyFactor: number;
@@ -248,16 +249,17 @@ export function answerTimeBreakdown(
     const historyFactor = factor(answerWeight);
     const memoryFactor = factor(memoryWeight);
 
-    // A full recall is one pass; more passes cost their own budget. The first
-    // pass is the only one that has to build the structure, so it is a whole
-    // pass PLUS the organising time: base + first-pass base + reading time.
-    // It is added once and is not multiplied.
+    // The first pass IS one of the passes: it costs a whole pass plus the extra
+    // time needed to build the structure the later ones read from (base + extra
+    // base + reading time), and it carries the memory weight. Every further
+    // pass is a plain recall, so only `passes - 1` of them are added on top -
+    // multiplying by `passes` counted the first one twice.
     const passes = clamp(Math.round(weights.passes ?? DEFAULT_RECALL_PASSES), 1, 5);
     const firstPassBase = Math.max(0, weights.firstPassSeconds ?? DEFAULT_FIRST_PASS_SECONDS);
     const onePass = (base + lengthSeconds) * historyFactor;
-    const firstPass = (base + firstPassBase + lengthSeconds) * historyFactor;
+    const firstPass = (base + firstPassBase + lengthSeconds) * memoryFactor;
 
-    const total = (onePass * passes + firstPass) * memoryFactor;
+    const total = onePass * (passes - 1) + firstPass;
     return {
         characters,
         lengthSeconds,

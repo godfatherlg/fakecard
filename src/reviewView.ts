@@ -840,11 +840,11 @@ export class ReviewView extends ItemView {
 
     private budgetTooltip(breakdown: AnswerTimeBreakdown): string {
         return ttf(
-            'Budget {budget}: one pass {pass} × {passes} + {first} for the first pass, then adjusted by difficulty',
+            'Budget {budget}: one pass {pass} × {repeat} more + first pass {first}',
             {
                 budget: formatClock(breakdown.seconds),
                 pass: formatClock(Math.round(breakdown.onePass)),
-                passes: String(breakdown.passes),
+                repeat: String(Math.max(0, breakdown.passes - 1)),
                 first: formatClock(Math.round(breakdown.firstPass)),
             },
         );

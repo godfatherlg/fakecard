@@ -8,21 +8,21 @@
 
 ```
 一遍   = (基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 作答系数
-首遍   = (基础秒数 + 首遍基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 作答系数
-总预算 = (一遍 × 记忆遍数 + 首遍) × 记忆系数
+首遍   = (基础秒数 + 首遍基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 记忆系数
+总预算 = 一遍 × (记忆遍数 − 1) + 首遍
 ```
 
-- **记忆遍数**（新设置，默认 3）：一遍过关要完整回忆几次，就乘几份预算。
-- **首遍基础秒数**（新设置，默认 20）：第一遍是「一遍 + 额外整理思路的时间」，所以首遍 = 基础 + 首遍额外 + 阅读时间，只加一次、不参与乘法。
-- **两条权重分开**：作答权重默认 **−20%**（越难给得越少，避免在一个词上过度纠结），记忆权重默认 **+20%**（越难给得越多）。原来的「评分历史权重」行变成「作答时间：评分历史权重」，另加一行「记忆时间：评分历史权重」。
+- **记忆遍数**（新设置，默认 3）：一共过几遍。**首遍已经算一遍**，所以后面只再加「遍数 − 1」遍。
+- **首遍基础秒数**（新设置，默认 20）：第一遍是「一遍 + 额外整理思路的时间」，所以首遍 = 基础 + 首遍额外 + 阅读时间，乘记忆系数。
+- **两条权重分开**：作答系数默认 **−20%**（越难给得越少，避免在一个词上过度纠结），记忆系数默认 **+20%**（越难的首遍给得越多）。设置里这两行就叫「作答系数（%）」和「记忆系数（%）」。
 
 默认值下的变化（基础 10s、每 40 字 10s、3 遍、首遍 20s）：
 
 | 卡片 | 原来 | 现在 |
 |---|---|---|
-| 20 字短问答 | 15s | 70s |
-| 100 字方剂组成 | 35s | 150s |
-| 400 字条文 | 110s | 450s |
+| 20 字短问答 | 15s | 65s |
+| 100 字方剂组成 | 35s | 125s |
+| 400 字条文 | 110s | 350s |
 
 两点说明：
 
@@ -59,22 +59,22 @@
 The old budget only paid for one quick look, and it had a single history weight. Answering and recall are now separate:
 
 ```
-one pass   = (base + answer characters / 40 × seconds per chunk) × answering factor
-first pass = (base + first-pass base + characters / 40 × seconds per chunk) × answering factor
-budget     = (one pass × passes + first pass) × recall factor
+one pass   = (base + characters / 40 × seconds per chunk) × answering weight
+first pass = (base + first-pass base + characters / 40 × seconds per chunk) × memory weight
+budget     = one pass × (passes − 1) + first pass
 ```
 
-- **Passes** (new setting, default 3): how many times the answer is gone over; each gets its own budget, so the time is multiplied by it.
-- **First-pass base seconds** (new setting, default 20): the first pass is "one pass plus the time to sort the structure out", so it is base + first-pass base + reading time. It is added once and not multiplied.
-- **Two weights, separately set**: the answering weight defaults to **-20%** (a hard card gets less time, so overthinking is flagged), the recall weight to **+20%** (a hard card gets more time). The old "rating history weight" row is now "Answer time: rating history weight", with "Recall time: rating history weight" beside it.
+- **Passes** (new setting, default 3): how many times the answer is gone over. The **first pass already counts as one**, so only `passes − 1` more are added on top.
+- **First-pass base seconds** (new setting, default 20): the first pass is "one pass plus the time to sort the structure out", so it is base + first-pass base + reading time, under the memory weight.
+- **Two weights, separately set**: the answering weight defaults to **-20%** (a hard card gets less time, so overthinking is flagged), the memory weight to **+20%** (a hard card's first pass gets more time). The Settings rows are now called "Answering weight (%)" and "Memory weight (%)".
 
 With the defaults (10s base, 10s per 40 characters, 3 passes, 20s first pass):
 
 | Card | Before | Now |
 |---|---|---|
-| 20-character question | 15s | 70s |
-| 100-character answer | 35s | 150s |
-| 400-character passage | 110s | 450s |
+| 20-character question | 15s | 65s |
+| 100-character answer | 35s | 125s |
+| 400-character passage | 110s | 350s |
 
 Two notes:
 
