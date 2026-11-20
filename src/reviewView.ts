@@ -319,10 +319,6 @@ export class ReviewView extends ItemView {
             });
         }
 
-        if (this.plugin.settings.answerTimeHint) {
-            this.startAnswerTimeHint(meta, card);
-        }
-
         // The card itself: centred while it is short, scrolling normally once
         // a long answer does not fit.
         const body = container.createDiv({ cls: 'fakecard-review-body' });
@@ -333,6 +329,9 @@ export class ReviewView extends ItemView {
         if (!this.revealed) {
             // Front. Q&A questions are centred; cloze fronts keep the text
             // flow; image cards draw the picture with the first group masked.
+            // The clock sits on the question's own row, above it, in the same
+            // pill the answer side reports in.
+            if (this.plugin.settings.answerTimeHint) this.startRecallClock(body, card);
             const frontEl = body.createDiv({ cls: 'fakecard-review-front' });
             if (card.type === 'qa') frontEl.addClass('fakecard-qa-front');
             this.renderCardBody(frontEl, card, false);
@@ -783,49 +782,40 @@ export class ReviewView extends ItemView {
     }
 
     /**
-     * Show how long the card has been on screen once it passes its suggested
-     * time. Nothing appears before that: the point is to break a long
-     * hesitation, not to put a stopwatch on every card. Time spent with the
-     * window hidden does not count.
-     */
-    /**
-     * How long the card has been on screen, once it passes its budget.
+     * The recall clock, on the question's own row.
      *
      * Plain wall-clock time from when the card first appeared: pausing while
      * the window was hidden made the number stop for no visible reason and
      * disagree with the clock on the wall, and switching panes inside Obsidian
      * never paused it at all - the same card behaved differently depending on
-     * where the user looked. The chip is small enough to sit in the toolbar
-     * without reflowing it; the budget is in its tooltip.
+     * where the user looked. It is the same pill the answer side reports in, so
+     * the two read as one measurement; the budget is in its tooltip.
      */
-    private startAnswerTimeHint(host: HTMLElement, card: CardRecord): void {
-        // The clock belongs to the question: on the answer side there is nothing
-        // left to recall, so the live clock is not built there. The answer side
-        // gets the result instead (see renderRecallPill).
+    private startRecallClock(host: HTMLElement, card: CardRecord): void {
         if (this.revealed) return;
         const breakdown = answerTimeBreakdown(card, this.plugin.settings.answerTimeBase, {
             secondsPerChunk: this.plugin.settings.answerTimeSecondsPerChunk,
             passes: this.plugin.settings.answerTimePasses,
             firstPassSeconds: this.plugin.settings.answerTimeFirstPass,
             historyWeight: this.plugin.settings.answerTimeHistoryWeight,
+            memoryWeight: this.plugin.settings.answerTimeMemoryWeight,
             imageChars: this.plugin.settings.answerTimeImageChars,
         });
         const budget = breakdown.seconds;
         // Measuring from when the card was first shown (not from this render)
-        // keeps the clock honest across a reveal, which rebuilds the view.
+        // keeps the clock honest across a repaint.
         let startedAt = this.cardShownAt || Date.now();
         this.hintStartedAt = startedAt;
         this.hintBreakdown = breakdown;
-        /** Set once the clock passes the slow-recall limit - it stops there. */
-        const stopAt = Math.max(1.5, this.plugin.settings.answerTimeSlowRatio);
+        // Never let a missing or zero setting freeze the clock on the spot.
+        const stopAt = Math.max(1.5, Number(this.plugin.settings.answerTimeSlowRatio) || 2);
         let frozen = false;
 
-        // Elapsed on the left, the budget it is measured against on the right,
-        // and a reset in between: one pill, three things to read.
-        const chip = createDiv({ cls: 'fakecard-timer' });
-        const elapsedEl = chip.createSpan({ cls: 'fakecard-timer-elapsed', text: formatClock(0) });
-        chip.createSpan({ cls: 'fakecard-timer-budget', text: formatClock(budget) });
-        const reset = chip.createEl('button', { cls: 'fakecard-timer-reset' });
+        // The same pill the answer side reports in: one measurement, counted
+        // here and frozen there.
+        const chip = host.createDiv({ cls: 'fakecard-recall is-live' });
+        const timeEl = chip.createSpan({ cls: 'fakecard-recall-time' });
+        const reset = chip.createEl('button', { cls: 'fakecard-recall-reset' });
         setIcon(reset, 'refresh-cw');
         setTooltip(reset, tt('Restart the timer'));
         reset.addEventListener('click', (event) => {
@@ -836,19 +826,21 @@ export class ReviewView extends ItemView {
             tick();
         });
         setTooltip(chip, ttf(
-            'Suggested {budget} - based on answer length and this card\'s rating history',
-            { budget: formatClock(budget) },
+            'Budget {budget}: one pass {pass} × {passes} + {first} for the first pass, then adjusted by difficulty',
+            {
+                budget: formatClock(budget),
+                pass: formatClock(Math.round(breakdown.onePass)),
+                passes: String(breakdown.passes),
+                first: formatClock(Math.round(breakdown.firstPass)),
+            },
         ));
-        host.appendChild(chip);
 
         const tick = (): void => {
+            // A repaint replaces the pill; this closure belongs to the old one.
+            if (!chip.isConnected) return;
             // Once the answer is on screen the wait is over: the clock has no
-            // meaning there (the time it measured was for recalling, not for
-            // reading), so it leaves instead of freezing at a number.
-            if (this.revealed) {
-                chip.remove();
-                return;
-            }
+            // meaning there, so the answer side reports the result instead.
+            if (this.revealed) return;
             // Past the slow-recall limit the number is no longer news - it
             // stops, keeps its colour, and waits for a deliberate reset.
             if (frozen) return;
@@ -857,7 +849,10 @@ export class ReviewView extends ItemView {
             const ratio = budget > 0 ? elapsed / budget : 0;
             if (ratio >= stopAt) frozen = true;
 
-            elapsedEl.setText(formatClock(elapsed));
+            timeEl.setText(ttf('Recall {elapsed} / {budget}', {
+                elapsed: formatClock(elapsed),
+                budget: formatClock(budget),
+            }));
             chip.toggleClass('is-warning', ratio >= 1);
             chip.toggleClass('is-late', ratio >= 1.5);
             chip.toggleClass('is-stop', ratio >= stopAt);

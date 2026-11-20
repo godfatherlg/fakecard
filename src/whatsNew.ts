@@ -25,12 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The suggested time now covers a full recall: one pass × 3 by default, plus a first pass (base 20s, growing with answer length), and hard cards get more time instead of less.',
-        zh: '建议用时改成按完整回忆计算：一遍预算 × 记忆遍数（默认 3 遍），再加首遍的思考时间（基础 20 秒，同样按字数增加）；越难的卡反而给得更多。',
+        en: 'The suggested time now covers a full recall: one pass × 3 by default, plus a first pass (base 20s, growing with answer length). Answering and recall have separate history weights: -20% for answers, +20% for memory.',
+        zh: '建议用时改成按完整回忆计算：一遍预算 × 记忆遍数（默认 3 遍），再加首遍的思考时间（基础 20 秒，同样按字数增加）。作答与记忆的评分历史权重分开：作答 −20%、记忆 +20%。',
     },
     {
-        en: 'The answer side shows how long the recall took next to the budget. A recall past the limit adds one failing point, which lights up the "Child" button - both the limit and the point can be turned off in Settings.',
-        zh: '答案面会显示这次回忆用时与建议预算的对比。超过判定倍数记一次失败分，用来点亮「建子卡」；倍数和是否记分都能在设置里改。',
+        en: 'Question and answer share one pill now: the question side counts up, the answer side freezes the same number next to the budget. A recall past the limit adds one failing point, which lights up the "Child" button - both the limit and the point can be turned off.',
+        zh: '问题面和答案面用同一个胶囊：问题面实时计时，揭示后冻结成同一个数字并显示建议预算。超过判定倍数记一次失败分，用来点亮「建子卡」；倍数和是否记分都能在设置里改。',
     },
 ];
 

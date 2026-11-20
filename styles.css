@@ -548,6 +548,46 @@
   font-weight: 600;
 }
 
+/* The running half of the same measurement: the question side counts in it,
+   the answer side freezes it. */
+.fakecard-recall.is-live {
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.fakecard-recall.is-stop {
+  border-color: var(--color-red);
+  background: color-mix(in srgb, var(--color-red) 20%, transparent);
+  color: var(--color-red);
+  font-weight: 600;
+}
+
+.fakecard-recall-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.fakecard-recall-reset:hover {
+  opacity: 1;
+  background: var(--background-modifier-hover);
+}
+
+.fakecard-recall-reset .svg-icon {
+  width: 12px;
+  height: 12px;
+}
+
 .fakecard-review-time {
   font-size: 0.8em;
   opacity: 0.55;

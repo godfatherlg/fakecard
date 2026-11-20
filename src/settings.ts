@@ -8,6 +8,7 @@ import {
     DEFAULT_FIRST_PASS_SECONDS,
     DEFAULT_HISTORY_WEIGHT,
     DEFAULT_IMAGE_CHARS,
+    DEFAULT_MEMORY_WEIGHT,
     DEFAULT_RECALL_PASSES,
     DEFAULT_SECONDS_PER_CHUNK,
     DEFAULT_SLOW_RATIO,
@@ -86,8 +87,10 @@ export interface FakeCardSettings {
      * pass that has to build the structure to follow.
      */
     answerTimeFirstPass: number;
-    /** Maximum bonus from rating history, in percent (0 ignores history). */
+    /** Answering speed: how much difficulty moves one pass, in percent. */
     answerTimeHistoryWeight: number;
+    /** Recall: how much difficulty moves the whole budget, in percent. */
+    answerTimeMemoryWeight: number;
     /** Characters a fully masked picture counts as, for occlusion cards. */
     answerTimeImageChars: number;
     /** Recall slower than this many times the budget counts as failed. */
@@ -164,6 +167,7 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     answerTimePasses: DEFAULT_RECALL_PASSES,
     answerTimeFirstPass: DEFAULT_FIRST_PASS_SECONDS,
     answerTimeHistoryWeight: DEFAULT_HISTORY_WEIGHT,
+    answerTimeMemoryWeight: DEFAULT_MEMORY_WEIGHT,
     answerTimeImageChars: DEFAULT_IMAGE_CHARS,
     answerTimeSlowRatio: DEFAULT_SLOW_RATIO,
     answerTimeSlowPoint: true,
@@ -203,6 +207,7 @@ const NUMBER_LIMITS: Record<string, { min: number; max?: number; decimals?: numb
     answerTimePasses: { min: 1, max: 5 },
     answerTimeFirstPass: { min: 0, max: 120 },
     answerTimeHistoryWeight: { min: -60, max: 100 },
+    answerTimeMemoryWeight: { min: -60, max: 100 },
     answerTimeImageChars: { min: 50, max: 2000 },
     // A multiplier, not a count: 1.5x is a meaningful value here.
     answerTimeSlowRatio: { min: 1.2, max: 4, decimals: 1 },
@@ -511,6 +516,11 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     control: { type: 'number', key: 'answerTimeBase', min: 5, max: 120, step: 5 },
                 },
                 {
+                    name: t('review.answerChunk.name'),
+                    desc: t('review.answerChunk.desc'),
+                    control: { type: 'number', key: 'answerTimeSecondsPerChunk', min: 0, max: 120, step: 5 },
+                },
+                {
                     name: t('review.answerPasses.name'),
                     desc: t('review.answerPasses.desc'),
                     control: { type: 'number', key: 'answerTimePasses', min: 1, max: 5, step: 1 },
@@ -521,14 +531,14 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     control: { type: 'number', key: 'answerTimeFirstPass', min: 0, max: 120, step: 5 },
                 },
                 {
-                    name: t('review.answerChunk.name'),
-                    desc: t('review.answerChunk.desc'),
-                    control: { type: 'number', key: 'answerTimeSecondsPerChunk', min: 0, max: 120, step: 5 },
-                },
-                {
                     name: t('review.answerWeight.name'),
                     desc: t('review.answerWeight.desc'),
                     control: { type: 'number', key: 'answerTimeHistoryWeight', min: -60, max: 100, step: 5 },
+                },
+                {
+                    name: t('review.answerMemoryWeight.name'),
+                    desc: t('review.answerMemoryWeight.desc'),
+                    control: { type: 'number', key: 'answerTimeMemoryWeight', min: -60, max: 100, step: 5 },
                 },
                 {
                     name: t('review.answerImageChars.name'),

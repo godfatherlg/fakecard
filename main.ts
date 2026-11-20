@@ -447,12 +447,12 @@ export default class FakeCardPlugin extends Plugin {
         // version. Empty means "never seen" and used to be read as a fresh
         // install, which disabled the notes for good.
         this.upgradedWithoutVersion = !!loaded && !loaded.lastSeenVersion;
-        // 1.0.35 turned the history weight around: hard cards now get MORE time
-        // instead of less. A settings file written before that has no
-        // `answerTimePasses` and still carries the old default (-20); move it to
-        // the new default once, so the upgrade behaves like a fresh install.
-        if (loaded && loaded.answerTimePasses === undefined
-            && this.settings.answerTimeHistoryWeight === -20) {
+        // 1.0.35 splits the history weight in two: answering (-20) and recall
+        // (+20). A settings file saved while this was a single +20 weight has no
+        // `answerTimeMemoryWeight`; put the answering default back, so the pair
+        // starts out as intended instead of both being positive.
+        if (loaded && loaded.answerTimeMemoryWeight === undefined
+            && this.settings.answerTimeHistoryWeight === 20) {
             this.settings.answerTimeHistoryWeight = DEFAULT_SETTINGS.answerTimeHistoryWeight;
         }
         if (!Array.isArray(this.settings.examPlans)) this.settings.examPlans = [];

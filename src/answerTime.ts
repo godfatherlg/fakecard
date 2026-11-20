@@ -14,14 +14,16 @@ import { parseCloze } from './cloze';
  *   is added once, because only the first pass builds the structure the later
  *   ones follow;
  * - difficulty: FSRS's learned summary of the Again/Hard/Good/Easy history
- *   (1 = trivial, 10 = hard), moved by `historyWeight` in percent. Positive
- *   gives hard cards more room - which is the default, since a hard card is
- *   also the one that needs the time; negative nudges them earlier; 0 ignores
- *   history entirely.
+ *   (1 = trivial, 10 = hard), with two separate weights:
+ *   - `historyWeight` moves ONE PASS: the answering speed. Negative (the
+ *     default) flags a hard card earlier, countering overthinking.
+ *   - `memoryWeight` moves the WHOLE budget: the recall. Positive (the
+ *     default) gives a hard card more time, because it needs it.
  *
- * Combined as `(base + length) * passes + firstPass`, then scaled by the
- * history factor and clamped so a pathological card never suggests more than
- * 600 seconds, and never less than 5.
+ * Combined as `((base + length) * passes + firstPass) * memoryFactor`, with
+ * the per-pass parts scaled by the answering factor, then clamped so a
+ * pathological card never suggests more than 600 seconds, and never less than
+ * 5.
  */
 const CHARS_PER_CHUNK = 40;
 
@@ -36,8 +38,13 @@ const MAX_SECONDS = 600;
 
 export const DEFAULT_ANSWER_SECONDS = 10;
 export const DEFAULT_SECONDS_PER_CHUNK = 10;
-/** Hard cards get more room by default: they are the ones that need it. */
-export const DEFAULT_HISTORY_WEIGHT = 20;
+/**
+ * Answering speed: a harder card gets LESS time, so overthinking is flagged
+ * early instead of being rewarded. The True Recall default.
+ */
+export const DEFAULT_HISTORY_WEIGHT = -20;
+/** Recalling: a harder card gets MORE time - it is the one that needs it. */
+export const DEFAULT_MEMORY_WEIGHT = 20;
 /** How many full recalls count as knowing the card. */
 export const DEFAULT_RECALL_PASSES = 3;
 /**
@@ -54,16 +61,22 @@ export interface AnswerTimeWeights {
     /** Extra seconds per 40 characters of answer. 0 ignores length. */
     secondsPerChunk?: number;
     /**
-     * How strongly difficulty moves the budget, in percent. Positive gives hard
-     * cards more time (slow recall); negative flags them earlier (stuck); 0
-     * ignores history.
+     * How strongly difficulty moves one pass, in percent. This is the answering
+     * speed: negative flags a hard card earlier (counters overthinking), which
+     * is the default; positive gives it more room; 0 ignores history.
      */
     historyWeight?: number;
+    /**
+     * How strongly difficulty moves the whole memory budget, in percent. This
+     * is the recall side: positive (the default) gives hard cards more time,
+     * because they are the ones that need it.
+     */
+    memoryWeight?: number;
     /** Characters an entirely masked picture counts as (occlusion cards). */
     imageChars?: number;
     /** Full recalls that count as knowing the card (1..5). */
     passes?: number;
-    /** Extra seconds for the first pass only, added once. */
+    /** Base seconds for the first pass; its reading time is added on top. */
     firstPassSeconds?: number;
 }
 
@@ -71,11 +84,15 @@ export interface AnswerTimeWeights {
 export interface AnswerTimeBreakdown {
     characters: number;
     lengthSeconds: number;
-    /** Base plus reading time: one full recall. */
+    /** Base plus reading time, after the answering-speed factor. */
     onePass: number;
     passes: number;
+    /** The first pass: its own base plus reading time, after the same factor. */
     firstPass: number;
+    /** Factor applied to one pass (answering speed). */
     historyFactor: number;
+    /** Factor applied to the whole budget (recall). */
+    memoryFactor: number;
     /** The final budget, clamped. */
     seconds: number;
 }
@@ -197,9 +214,11 @@ export function answerTimeBreakdown(
         0,
         weights.secondsPerChunk ?? DEFAULT_SECONDS_PER_CHUNK,
     );
-    // Positive by default: the harder the card, the more of that time is spent
-    // actually searching for the answer.
-    const historyWeight = (weights.historyWeight ?? DEFAULT_HISTORY_WEIGHT) / 100;
+    // Two knobs on purpose: answering speed (negative: a hard card is flagged
+    // earlier) and recall (positive: a hard card gets more room). One factor
+    // moves a single pass, the other the whole memory budget.
+    const answerWeight = (weights.historyWeight ?? DEFAULT_HISTORY_WEIGHT) / 100;
+    const memoryWeight = (weights.memoryWeight ?? DEFAULT_MEMORY_WEIGHT) / 100;
 
     // The base time covers a short answer; every 40 characters of answer adds
     // its own reading time on top, so the budget grows linearly with length.
@@ -217,10 +236,12 @@ export function answerTimeBreakdown(
     // by the weight. New cards have no history, so the weight never fires before
     // the first review.
     const spread = clamp((difficulty - NEUTRAL_DIFFICULTY) / DIFFICULTY_SPAN, -1, 1);
-    const historyFactor =
-        reps > 0 && historyWeight !== 0
-            ? Math.max(MIN_HISTORY_FACTOR, 1 + spread * historyWeight)
+    const factor = (weight: number): number =>
+        reps > 0 && weight !== 0
+            ? Math.max(MIN_HISTORY_FACTOR, 1 + spread * weight)
             : 1;
+    const historyFactor = factor(answerWeight);
+    const memoryFactor = factor(memoryWeight);
 
     // A full recall is one pass; more passes cost their own budget. The first
     // pass is the only one that has to build the structure, so it gets a base
@@ -228,10 +249,10 @@ export function answerTimeBreakdown(
     // longer to organise too. It is added once and is not multiplied.
     const passes = clamp(Math.round(weights.passes ?? DEFAULT_RECALL_PASSES), 1, 5);
     const firstPassBase = Math.max(0, weights.firstPassSeconds ?? DEFAULT_FIRST_PASS_SECONDS);
-    const onePass = base + lengthSeconds;
-    const firstPass = firstPassBase + lengthSeconds;
+    const onePass = (base + lengthSeconds) * historyFactor;
+    const firstPass = (firstPassBase + lengthSeconds) * historyFactor;
 
-    const total = (onePass * passes + firstPass) * historyFactor;
+    const total = (onePass * passes + firstPass) * memoryFactor;
     return {
         characters,
         lengthSeconds,
@@ -239,6 +260,7 @@ export function answerTimeBreakdown(
         passes,
         firstPass,
         historyFactor,
+        memoryFactor,
         seconds: Math.max(MIN_SECONDS, Math.round(Math.min(total, MAX_SECONDS))),
     };
 }
