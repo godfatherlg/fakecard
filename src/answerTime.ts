@@ -86,14 +86,16 @@ export interface AnswerTimeWeights {
 export interface AnswerTimeBreakdown {
     characters: number;
     lengthSeconds: number;
-    /** Base plus reading time, after the answering-speed factor. */
+    /** Base plus reading time, under the answering weight: the question clock. */
     onePass: number;
     passes: number;
-    /** The first pass: a whole pass plus the organising base, under the memory weight. */
+    /** The same pass under the memory weight: one memory pass. */
+    memoryOnePass: number;
+    /** The first memory pass: a whole pass plus the organising base. */
     firstPass: number;
-    /** Factor applied to one pass (answering speed). */
+    /** Factor applied to the answering pass. */
     historyFactor: number;
-    /** Factor applied to the whole budget (recall). */
+    /** Factor applied to every memory pass, first one included. */
     memoryFactor: number;
     /** The budget. No upper bound: going over a long answer three times is
      *  meant to be minutes, and a ceiling only hid the real number. */
@@ -249,22 +251,24 @@ export function answerTimeBreakdown(
     const historyFactor = factor(answerWeight);
     const memoryFactor = factor(memoryWeight);
 
-    // The first pass IS one of the passes: it costs a whole pass plus the extra
-    // time needed to build the structure the later ones read from (base + extra
-    // base + reading time), and it carries the memory weight. Every further
-    // pass is a plain recall, so only `passes - 1` of them are added on top -
-    // multiplying by `passes` counted the first one twice.
+    // Two separate measurements share the same base numbers:
+    // - answering (question side) uses the answering weight, one pass;
+    // - memorising (answer side) uses the memory weight on EVERY pass, and the
+    //   first pass also carries the organising base. The first pass is one of
+    //   the passes, so only `passes - 1` more are added on top.
     const passes = clamp(Math.round(weights.passes ?? DEFAULT_RECALL_PASSES), 1, 5);
     const firstPassBase = Math.max(0, weights.firstPassSeconds ?? DEFAULT_FIRST_PASS_SECONDS);
     const onePass = (base + lengthSeconds) * historyFactor;
+    const memoryOnePass = (base + lengthSeconds) * memoryFactor;
     const firstPass = (base + firstPassBase + lengthSeconds) * memoryFactor;
 
-    const total = onePass * (passes - 1) + firstPass;
+    const total = memoryOnePass * (passes - 1) + firstPass;
     return {
         characters,
         lengthSeconds,
         onePass,
         passes,
+        memoryOnePass,
         firstPass,
         historyFactor,
         memoryFactor,

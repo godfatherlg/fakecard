@@ -843,7 +843,7 @@ export class ReviewView extends ItemView {
             'Budget {budget}: one pass {pass} × {repeat} more + first pass {first}',
             {
                 budget: formatClock(breakdown.seconds),
-                pass: formatClock(Math.round(breakdown.onePass)),
+                pass: formatClock(Math.round(breakdown.memoryOnePass)),
                 repeat: String(Math.max(0, breakdown.passes - 1)),
                 first: formatClock(Math.round(breakdown.firstPass)),
             },

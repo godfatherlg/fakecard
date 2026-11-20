@@ -7,14 +7,15 @@
 原来的预算只够"看一眼、想一下"，而且只有一条历史权重。这一版把作答和记忆拆开：
 
 ```
-一遍   = (基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 作答系数
-首遍   = (基础秒数 + 首遍基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 记忆系数
-总预算 = 一遍 × (记忆遍数 − 1) + 首遍
+作答     = (基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 作答系数
+记忆一遍 = (基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 记忆系数
+记忆首遍 = (基础秒数 + 首遍基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 记忆系数
+记忆     = 记忆一遍 × (记忆遍数 − 1) + 记忆首遍
 ```
 
 - **记忆遍数**（新设置，默认 3）：一共过几遍。**首遍已经算一遍**，所以后面只再加「遍数 − 1」遍。
-- **首遍基础秒数**（新设置，默认 20）：第一遍是「一遍 + 额外整理思路的时间」，所以首遍 = 基础 + 首遍额外 + 阅读时间，乘记忆系数。
-- **两条权重分开**：作答系数默认 **−20%**（越难给得越少，避免在一个词上过度纠结），记忆系数默认 **+20%**（越难的首遍给得越多）。设置里这两行就叫「作答系数（%）」和「记忆系数（%）」。
+- **首遍基础秒数**（新设置，默认 20）：第一遍是「一遍 + 额外整理思路的时间」，所以首遍 = 基础 + 首遍额外 + 阅读时间。
+- **两条权重分开**：作答系数默认 **−20%**，只用于问题面的作答时间（越难给得越少，避免过度纠结）；记忆系数默认 **+20%**，用于记忆时间的每一遍（越难给得越多）。设置里这两行就叫「作答系数（%）」和「记忆系数（%）」。
 
 默认值下的变化（基础 10s、每 40 字 10s、3 遍、首遍 20s）：
 
@@ -59,14 +60,15 @@
 The old budget only paid for one quick look, and it had a single history weight. Answering and recall are now separate:
 
 ```
-one pass   = (base + characters / 40 × seconds per chunk) × answering weight
-first pass = (base + first-pass base + characters / 40 × seconds per chunk) × memory weight
-budget     = one pass × (passes − 1) + first pass
+Answering         = (base + characters / 40 × seconds per chunk) × answering weight
+One memory pass   = (base + characters / 40 × seconds per chunk) × memory weight
+First memory pass = (base + first-pass base + characters / 40 × seconds per chunk) × memory weight
+Remembering       = one memory pass × (passes − 1) + first memory pass
 ```
 
 - **Passes** (new setting, default 3): how many times the answer is gone over. The **first pass already counts as one**, so only `passes − 1` more are added on top.
-- **First-pass base seconds** (new setting, default 20): the first pass is "one pass plus the time to sort the structure out", so it is base + first-pass base + reading time, under the memory weight.
-- **Two weights, separately set**: the answering weight defaults to **-20%** (a hard card gets less time, so overthinking is flagged), the memory weight to **+20%** (a hard card's first pass gets more time). The Settings rows are now called "Answering weight (%)" and "Memory weight (%)".
+- **First-pass base seconds** (new setting, default 20): the first pass is "one pass plus the time to sort the structure out", so it is base + first-pass base + reading time.
+- **Two weights, separately set**: the answering weight defaults to **-20%** and only touches the question clock (a hard card gets less time, so overthinking is flagged); the memory weight defaults to **+20%** and touches every memory pass (a hard card needs the time). The Settings rows are "Answering weight (%)" and "Memory weight (%)".
 
 With the defaults (10s base, 10s per 40 characters, 3 passes, 20s first pass):
 
