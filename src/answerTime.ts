@@ -7,12 +7,12 @@ import { parseCloze } from './cloze';
  * Three inputs, all already known while the card is on screen:
  * - answer length: reading a long answer back costs time, up to +75% at the
  *   extremes of the usual range;
- * - how many passes count as "known": recalling three times costs three
- *   passes, so the per-pass budget is multiplied. The first pass alone also
- *   gets its own base for sorting the thoughts out - plus the same reading
- *   time, since a long answer takes longer to organise as well - and that part
- *   is added once, because only the first pass builds the structure the later
- *   ones follow;
+ * - how many passes count as "known": going over it three times costs three
+ *   passes, so the per-pass budget is multiplied. The first pass also gets an
+ *   extra base for sorting the thoughts out - on top of a whole pass, not
+ *   instead of it - and the reading time grows with length, so a long answer
+ *   gets longer to organise as well. It is added once, because only the first
+ *   pass builds the structure the later ones follow;
  * - difficulty: FSRS's learned summary of the Again/Hard/Good/Easy history
  *   (1 = trivial, 10 = hard), with two separate weights:
  *   - `historyWeight` moves ONE PASS: the answering speed. Negative (the
@@ -95,6 +95,8 @@ export interface AnswerTimeBreakdown {
     historyFactor: number;
     /** Factor applied to the whole budget (recall). */
     memoryFactor: number;
+    /** Seconds before the 600s clamp, so a capped budget can say so. */
+    rawSeconds: number;
     /** The final budget, clamped. */
     seconds: number;
 }
@@ -249,13 +251,13 @@ export function answerTimeBreakdown(
     const memoryFactor = factor(memoryWeight);
 
     // A full recall is one pass; more passes cost their own budget. The first
-    // pass is the only one that has to build the structure, so it gets a base
-    // of its own - and the same reading time, because a long answer takes
-    // longer to organise too. It is added once and is not multiplied.
+    // pass is the only one that has to build the structure, so it is a whole
+    // pass PLUS the organising time: base + first-pass base + reading time.
+    // It is added once and is not multiplied.
     const passes = clamp(Math.round(weights.passes ?? DEFAULT_RECALL_PASSES), 1, 5);
     const firstPassBase = Math.max(0, weights.firstPassSeconds ?? DEFAULT_FIRST_PASS_SECONDS);
     const onePass = (base + lengthSeconds) * historyFactor;
-    const firstPass = (firstPassBase + lengthSeconds) * historyFactor;
+    const firstPass = (base + firstPassBase + lengthSeconds) * historyFactor;
 
     const total = (onePass * passes + firstPass) * memoryFactor;
     return {
@@ -266,6 +268,7 @@ export function answerTimeBreakdown(
         firstPass,
         historyFactor,
         memoryFactor,
+        rawSeconds: Math.round(total),
         seconds: Math.max(MIN_SECONDS, Math.round(Math.min(total, MAX_SECONDS))),
     };
 }

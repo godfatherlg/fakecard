@@ -445,6 +445,7 @@ const UI_ZH: Record<string, string> = {
         '预算 {budget}：一遍 {pass} × {passes} 遍 + 首遍 {first}，再按难度调整',
     'Answering budget {budget}: base plus reading time for one pass':
         '作答预算 {budget}：基础秒数 + 一遍阅读时间',
+    'Capped at {budget} from {raw}': '上限 {budget}（实际算出来 {raw}）',
     'Answering': '作答',
     'Recalling': '记忆',
     '{label} {elapsed} / {budget}': '{label} {elapsed} / {budget}',
