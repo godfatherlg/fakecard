@@ -513,20 +513,20 @@
   font-weight: 700;
 }
 
-/* The same measurement, frozen on the answer side: how long the recall took,
-   next to the budget it was measured against. It is information, not a clock,
-   so it stays quiet until it has something to say. */
+/* The clock pill, in the toolbar: same size and weight the old answer-time
+   chip had, so it reads as one row with the deck filter. */
 .fakecard-recall {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  align-self: flex-start;
-  padding: 2px 10px;
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding: 2px 4px 2px 10px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 999px;
-  background: var(--background-secondary);
+  background: transparent;
   color: var(--text-muted);
-  font-size: 0.78em;
+  font-size: 0.95em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -546,6 +546,7 @@
 
 .fakecard-recall-badge {
   font-weight: 600;
+  font-size: 0.85em;
 }
 
 /* Both clocks sit in the toolbar row, right after the deck filter. */
@@ -576,13 +577,6 @@
 
 .fakecard-settings-why-item {
   margin: 2px 0;
-}
-
-/* The running half of the same measurement: the question side counts in it,
-   the answer side freezes it. */
-.fakecard-recall.is-live {
-  background: var(--background-secondary);
-  color: var(--text-muted);
 }
 
 .fakecard-recall.is-stop {
