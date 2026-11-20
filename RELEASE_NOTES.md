@@ -1,109 +1,53 @@
-# 1.0.35
+# 1.0.36
 
 ## 中文
 
-### 建议用时按"真的记住了"来算
+### 修正：超时的 Good / Easy 不再累计失败连击
 
-原来的预算只够"看一眼、想一下"，而且只有一条历史权重。这一版把作答和记忆拆开：
+原来「评了 Good / Easy 但超时」会让失败连击保持不断、只保留超时那几分。现在改成：
 
-```
-作答     = (基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 作答系数
-记忆一遍 = (基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 记忆系数
-记忆首遍 = (基础秒数 + 首遍基础秒数 + 答案字数 ÷ 40 × 每段秒数) × 记忆系数
-记忆     = 记忆一遍 × (记忆遍数 − 1) + 记忆首遍
-```
+- 超时分只在 **Again / Hard** 上折算
+- Good / Easy 无论用时多少，一律结束这一轮失败连击
+- 理由：用对了就是记住了；超时的 Good 多半是中途分心，不该让它留在失败连击里，否则分心反而能"攒"到建子卡
 
-- **记忆遍数**（新设置，默认 3）：一共过几遍。**首遍已经算一遍**，所以后面只再加「遍数 − 1」遍。
-- **首遍基础秒数**（新设置，默认 20）：第一遍是「一遍 + 额外整理思路的时间」，所以首遍 = 基础 + 首遍额外 + 阅读时间。
-- **两条权重分开**：作答系数默认 **−20%**，只用于问题面的作答时间（越难给得越少，避免过度纠结）；记忆系数默认 **+20%**，用于记忆时间的每一遍（越难给得越多）。设置里这两行就叫「作答系数（%）」和「记忆系数（%）」。
+### 新增：计时胶囊可以关掉
 
-默认值下的变化（基础 10s、每 40 字 10s、3 遍、首遍 20s）：
+两个胶囊（问题面「作答」、答案面「记忆」）右侧都多了一个眼睛按钮：
 
-| 卡片 | 原来 | 现在 |
-|---|---|---|
-| 20 字短问答 | 15s | 65s |
-| 100 字方剂组成 | 35s | 125s |
-| 400 字条文 | 110s | 350s |
-
-两点说明：
-
-- **没有上限了**。以前的 600 秒封顶会把长答案一律显示成 10:00；现在长答案记三遍就是二十几分钟，照实显示。
-- 字数统计忽略 `**`、`==`、`~~` 这类强调标记和链接，只算真正要读的字。
-
-### 作答和记忆是两个计时
-
-- 两个胶囊都在顶部「全部牌组」那一行，位置和只有作答计时时一样。
-- 问题面 `作答 0:28 / 4:47`：从卡片出现到揭示，量的是「一遍」的作答预算，只提醒别在一个词上耗太久。
-- 揭示后同一个位置换成 `记忆 0:05 / 17:22`：**从答案出现起重新计时**，不接着用作答的时间，量的是记忆正确答案的用时。也带 ↻，点一下从当前时刻重来，评分按重来后的数字算。
-- **只有记忆预算超时才记分**：作答胶囊超时只是变红，不产生 Hard 分。
-- **超时记忆：每多几倍算一步**（新设置，默认 0.5）：超过预算后，每多半个预算算一步——1.5 倍一步，2 倍两步。
-- **超时记忆：每步记几个 Hard**（新设置，默认 0.5）：每一步给失败连击加这么多 Hard 分。默认下 1.5 倍记 0.5、2 倍记 1、2.5 倍记 1.5；设为 0 就只显示时间、不计分。
-- 这些分数写进 `fakecard/reviews/` 的 `slowPoints` 字段，和 Hard 的 1 分进同一个计数器；到「失败分阈值」（默认 4）时「建子卡」按钮变红，点它才进入建卡流程，不会弹窗打断。
-- 评分 Good/Easy 但超时：失败连击不中断，但只保留超时那几分；正常 Good 仍然清零。
-- 没揭示就评分（跳过）不记分；关闭「显示建议作答时间」时整个机制不启用。
+- 点它 = 关闭这张卡的计时：**不测、也不记分**，本次复习不会因为关闭前的时间留下任何 Hard 分
+- 关闭后同一位置留一个小时钟按钮，点它重新打开；打开后从**那一刻**重新计时，关闭期间的时间不计入
+- 关闭是「按卡」的：换到下一张卡自动恢复显示，不需要手动再开
 
 ### 请测试
 
-- 问题面：胶囊是否在问题上方、是否写作「作答」、数字是否每半秒跳动
-- ↻：问题面点一次是否从当前时刻重计；揭示后再点答案面的 ↻，数字是否重新开始跑
-- 揭示后：答案面胶囊是否从 0 开始跑「记忆」，位置和样式与问题面一致
-- 设置里分别改「作答时间：评分历史权重」和「记忆时间：评分历史权重」，预算是否一边变少一边变多
-- 改「记忆几遍算过关」「首遍基础秒数」，预算是否按公式变化（可对照 tooltip）
-- 把「每多几倍算一步」保持 0.5，停到 1.5 倍再揭示：是否显示 `超时：Hard +0.5`；停到 2 倍：`+1`
-- 把「每步记几个 Hard」改成 1：2 倍时是否变成 `+2`
-- 把它改成 0：答案面仍显示时间，但不再记分
-- 连做几次超时后，「+ Child」按钮是否变红
+- 把「每步记几个 Hard」设为 1，停到 2 倍预算，评 Good：失败连击是否清零（`+ Child` 不因此变红）
+- 同样停到 2 倍，评 Hard：是否记 1 分（`超时：Hard +2`）
+- 问题面点眼睛：胶囊是否消失、出现小时钟按钮；揭示后再点小时钟，是否从 0 重新跑
+- 答案面点眼睛再评分：是否不产生任何超时分
+- 关闭后进入下一张卡：胶囊是否自动回来
 
 ## English
 
-### The suggested time now covers an actual recall
+### Fixed: a slow Good or Easy no longer keeps the failing run
 
-The old budget only paid for one quick look, and it had a single history weight. Answering and recall are now separate:
+A Good/Easy that ran long used to keep the failing run alive with only its overtime points. Now:
 
-```
-Answering         = (base + characters / 40 × seconds per chunk) × answering weight
-One memory pass   = (base + characters / 40 × seconds per chunk) × memory weight
-First memory pass = (base + first-pass base + characters / 40 × seconds per chunk) × memory weight
-Remembering       = one memory pass × (passes − 1) + first memory pass
-```
+- Overtime points only count on **Again / Hard**
+- Any Good or Easy ends the run, however long it took
+- The reason: getting it right is remembering it; a slow Good is usually a distraction, and letting it feed the run would reward wandering off
 
-- **Passes** (new setting, default 3): how many times the answer is gone over. The **first pass already counts as one**, so only `passes − 1` more are added on top.
-- **First-pass base seconds** (new setting, default 20): the first pass is "one pass plus the time to sort the structure out", so it is base + first-pass base + reading time.
-- **Two weights, separately set**: the answering weight defaults to **-20%** and only touches the question clock (a hard card gets less time, so overthinking is flagged); the memory weight defaults to **+20%** and touches every memory pass (a hard card needs the time). The Settings rows are "Answering weight (%)" and "Memory weight (%)".
+### New: the clock pills can be switched off
 
-With the defaults (10s base, 10s per 40 characters, 3 passes, 20s first pass):
+Both pills (Answering on the question side, Recalling on the answer side) carry an eye button:
 
-| Card | Before | Now |
-|---|---|---|
-| 20-character question | 15s | 65s |
-| 100-character answer | 35s | 125s |
-| 400-character passage | 110s | 350s |
-
-Two notes:
-
-- **There is no upper bound any more.** The old 600-second clamp turned every long answer into 10:00; a long answer gone over three times now shows its real twenty-odd minutes.
-- Answer length ignores `**`, `==`, `~~` and links, so it counts only the words to be read.
-
-### One pill on both sides
-
-- Both pills sit in the toolbar row with the deck filter, where the old clock was.
-- The question side shows `Answering 0:28 / 4:47`, measured against ONE pass: the reminder not to linger on a word.
-- After revealing, the same spot shows `Recalling 0:05 / 17:22`: its own clock, started when the answer appears instead of carrying the answering time over, measuring how long the correct answer is being memorised. It has a ↻ too; a rating scores the number after the last reset.
-- **Only memory overtime scores**: the answering pill turning red does not earn any Hard points.
-- **Slow recall: extra budgets per step** (new setting, default 0.5): past the budget, every extra half budget is one step - 1.5x is one step, 2x is two.
-- **Slow recall: Hard points per step** (new setting, default 0.5): each step adds that much to the failing run. With the defaults, 1.5x gives 0.5, 2x gives 1 and 2.5x gives 1.5. Set it to 0 to show the time without scoring it.
-- Those points are logged as `slowPoints` in `fakecard/reviews/` and counted with Hard's one point. At the failing-score threshold (default 4) the "Child" button turns red; clicking it opens the child-card flow. Nothing pops up on its own.
-- A Good/Easy that was slow keeps the run alive with only its overtime points; a normal Good still resets it.
-- Skipping the card without revealing scores nothing; turning off "Show suggested answer time" disables the whole mechanism.
+- It turns the clock off for that card: **nothing measured, nothing scored**, so the time before switching it off cannot leave a Hard point
+- A small clock button stays in the same spot to turn it back on; timing restarts from that moment, and the hidden stretch is not counted
+- The switch is per card: the next card shows its clock again without any action
 
 ### Please test
 
-- Question side: is the pill above the question, labelled `Answering`, with the digits moving every half second
-- Press ↻ on the question side: does it restart from now; after revealing, press ↻ on the answer side: does the clock restart
-- After revealing: does the answer pill start from 0 as `Recalling`, in the same place and style as the question side
-- Change the answering weight and the recall weight separately: does one shrink the budget and the other grow it
-- Change passes / first-pass base seconds: does the budget follow the formula shown in the tooltip
-- Keep the step at 0.5 and wait until 1.5x before revealing: does `Too slow: +0.5 Hard` appear; at 2x, `+1`
-- Set the points per step to 1: is 2x then `+2`
-- Set it to 0: the time still shows, but nothing is scored
-- Do that a few times: does the "+ Child" button turn red
+- Set "Hard points per step" to 1, wait until twice the budget, rate Good: does the failing run reset (the "+ Child" button stays calm)
+- Wait the same, rate Hard: does it score 1 point (`Too slow: +2 Hard`)
+- Press the eye on the question side: does the pill disappear and a small clock button appear; after revealing, does pressing the clock restart from 0
+- Press the eye on the answer side, then rate: does it score nothing
+- After switching off, move to the next card: does its clock come back

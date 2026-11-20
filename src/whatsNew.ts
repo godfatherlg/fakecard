@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.35';
+export const WHATS_NEW_VERSION = '1.0.36';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The suggested time now covers a full recall: one pass × 3 by default, plus a first pass (base 20s, growing with answer length). Answering and recall have separate history weights: -20% for answers, +20% for memory.',
-        zh: '建议用时改成按完整回忆计算：一遍预算 × 记忆遍数（默认 3 遍），再加首遍的思考时间（基础 20 秒，同样按字数增加）。作答与记忆的评分历史权重分开：作答 −20%、记忆 +20%。',
+        en: 'A slow Good or Easy now resets the failing run: getting it right while distracted is not a failure, and overtime only counts on Again or Hard.',
+        zh: '超时的 Good / Easy 不再保留失败连击：分心时答对不算失败，超时分只在 Again / Hard 上折算。',
     },
     {
-        en: 'Two clocks now: "Answering" on the question side counts against one pass and is only a reminder; "Recalling" on the answer side starts fresh when the answer appears and measures memorising it against the whole memory budget. Only memory overtime scores - a fraction of a Hard per step, feeding the "Child" button.',
-        zh: '现在是两个计时：问题面「作答」按一遍预算计时，只作提醒；揭示后答案面「记忆」从答案出现起重新计时，按整张卡的记忆预算衡量记忆用时。只有记忆超时才记分——每多一步记一部分 Hard，计入「建子卡」。',
+        en: 'Both clock pills have an eye button: it turns the clock off for that card - nothing measured, nothing scored - and leaves a small clock button that turns it back on from that moment.',
+        zh: '两个计时胶囊都多了一个眼睛按钮：关闭当前卡的计时（不测也不记分），同一位置留一个小时钟按钮，点它重新打开并从那一刻重新计时。',
     },
 ];
 

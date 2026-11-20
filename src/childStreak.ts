@@ -58,9 +58,9 @@ export interface ScoredReview {
  * The failing score, with slow recalls counted.
  *
  * Overtime is worth a fraction of a Hard per step past the budget, so it adds
- * to the run instead of replacing the rating. A Good or Easy normally ends the
- * run; a slow one keeps it alive with just its overtime points - the card was
- * slow, so it is still part of the trouble.
+ * to the run instead of replacing the rating. Any Good or Easy ends the run,
+ * slow or not: a card answered correctly while distracted was not a failure,
+ * and keeping the run alive would reward wandering off.
  */
 export function childScore(
     logs: readonly ScoredReview[],
@@ -68,10 +68,10 @@ export function childScore(
 ): number {
     let score = 0;
     for (const log of logs) {
+        // A pass ends the run, whatever the clock said.
+        if (log.rating >= 3) break;
         const slowPoints = log.slowPoints ?? (log.slow ? 1 : 0);
-        if (log.rating === 2) score += 1;
-        else if (log.rating === 1) score += againScore;
-        else if (slowPoints <= 0) break;
+        score += log.rating === 2 ? 1 : againScore;
         score += slowPoints;
     }
     return score;

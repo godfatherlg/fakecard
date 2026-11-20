@@ -556,6 +556,32 @@
   min-width: 0;
 }
 
+/* Clock switched off: one quiet icon brings it back. */
+.fakecard-recall-restore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.fakecard-recall-restore:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.fakecard-recall-restore .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
 /* Settings: the formula under the switch, monospaced so the equal signs line
    up, and the reasoning as a short list under it. */
 .fakecard-settings-formula {

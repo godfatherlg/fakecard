@@ -66,6 +66,12 @@ export class ReviewView extends ItemView {
     private recall: { seconds: number; ratio: number; breakdown: AnswerTimeBreakdown } | null = null;
     /** When that clock started; kept so a repaint resumes instead of resetting. */
     private recallStartedAt = 0;
+    /**
+     * Card whose clock the user switched off. A clock that is off measures
+     * nothing and scores nothing, so a distraction cannot leave a wrong Hard
+     * point behind; the card id makes it reset by itself on the next card.
+     */
+    private clockHiddenFor: string | null = null;
     /** Ratings that can still be taken back with Ctrl+Z, newest last. */
     private undoStack: UndoEntry[] = [];
     /** Link under the pointer, waiting for Ctrl+hover to turn into a preview. */
@@ -325,10 +331,14 @@ export class ReviewView extends ItemView {
         // card area stays what it is, the card. The answer side re-renders
         // through here too, so it simply picks its own clock.
         const clockHost = meta.createDiv({ cls: 'fakecard-review-clock' });
-        if (this.revealed) {
-            this.renderMemorizeClock(clockHost);
-        } else if (this.plugin.settings.answerTimeHint) {
-            this.renderQuestionClock(clockHost, card);
+        if (this.plugin.settings.answerTimeHint) {
+            if (this.clockHiddenFor === card.id) {
+                this.renderClockRestore(clockHost, card);
+            } else if (this.revealed) {
+                this.renderMemorizeClock(clockHost, card);
+            } else {
+                this.renderQuestionClock(clockHost, card);
+            }
         }
 
         // The card itself: centred while it is short, scrolling normally once
@@ -853,18 +863,51 @@ export class ReviewView extends ItemView {
         );
     }
 
-    /** The pill both sides use: the number, and a reset that starts it over. */
+    /**
+     * The pill both sides use: the number, a reset that starts it over, and a
+     * switch that turns the whole clock off for this card.
+     */
     private createRecallPill(host: HTMLElement): {
         chip: HTMLElement;
         timeEl: HTMLElement;
         reset: HTMLButtonElement;
+        hide: HTMLButtonElement;
     } {
         const chip = host.createDiv({ cls: 'fakecard-recall' });
         const timeEl = chip.createSpan({ cls: 'fakecard-recall-time' });
         const reset = chip.createEl('button', { cls: 'fakecard-recall-reset' });
         setIcon(reset, 'refresh-cw');
         setTooltip(reset, tt('Restart the timer'));
-        return { chip, timeEl, reset };
+        const hide = chip.createEl('button', { cls: 'fakecard-recall-reset' });
+        setIcon(hide, 'eye-off');
+        setTooltip(hide, tt('Turn the clock off for this card'));
+        return { chip, timeEl, reset, hide };
+    }
+
+    /** Switch the clock off: nothing is measured, so nothing can be scored. */
+    private hideClock(card: CardRecord): void {
+        this.clockHiddenFor = card.id;
+        this.recall = null;
+        this.recallStartedAt = 0;
+        this.render();
+    }
+
+    /** The small button that brings the clock back after it was switched off. */
+    private renderClockRestore(host: HTMLElement, card: CardRecord): void {
+        const button = host.createEl('button', { cls: 'fakecard-recall-restore' });
+        setIcon(button, 'clock');
+        setTooltip(button, tt('Turn the clock back on'));
+        button.addEventListener('click', () => {
+            this.clockHiddenFor = null;
+            if (this.revealed) {
+                // Measuring starts again from now: the hidden stretch is not
+                // part of the memory and must not be scored.
+                const breakdown = this.recallBudget(card);
+                this.recall = { seconds: 0, ratio: 0, breakdown };
+                this.recallStartedAt = Date.now();
+            }
+            this.render();
+        });
     }
 
     /**
@@ -938,7 +981,7 @@ export class ReviewView extends ItemView {
     private renderQuestionClock(host: HTMLElement, card: CardRecord): void {
         if (this.revealed) return;
         const breakdown = this.recallBudget(card);
-        const { chip, timeEl, reset } = this.createRecallPill(host);
+        const { chip, timeEl, reset, hide } = this.createRecallPill(host);
         chip.addClass('is-live');
         // One pass, not the whole memory budget: this clock is the reminder
         // that answering should not drag on, and nothing here is scored.
@@ -960,6 +1003,10 @@ export class ReviewView extends ItemView {
         reset.addEventListener('click', (event) => {
             event.stopPropagation();
             restart();
+        });
+        hide.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.hideClock(card);
         });
     }
 
@@ -1058,10 +1105,11 @@ export class ReviewView extends ItemView {
         if (rating >= Rating.Good) card.correct = (card.correct ?? 0) + 1;
         card.updated = new Date().toISOString();
         await this.plugin.store.save(card);
-        // Overtime counts against the card even when the rating is kind: the
-        // answer was not there in time. One step past the budget is worth
+        // Overtime only counts on a failing rating: a Good or Easy that ran long
+        // is usually distraction, not a missing memory, and must not keep the
+        // failing run alive. One step past the budget is worth
         // `answerTimeSlowPoints` Hard points (0.5 by default).
-        const slowPoints = this.recallPoints();
+        const slowPoints = rating <= Rating.Hard ? this.recallPoints() : 0;
         await this.plugin.reviews.append({
             cardId: card.id,
             at: card.updated,
@@ -1242,10 +1290,10 @@ export class ReviewView extends ItemView {
      * time passes the first slow step, so the price of the overtime is visible
      * before the rating is given.
      */
-    private renderMemorizeClock(host: HTMLElement): void {
+    private renderMemorizeClock(host: HTMLElement, card: CardRecord): void {
         const recall = this.recall;
         if (!recall || !this.plugin.settings.answerTimeHint) return;
-        const { chip, timeEl, reset } = this.createRecallPill(host);
+        const { chip, timeEl, reset, hide } = this.createRecallPill(host);
         chip.addClass('is-live');
         setTooltip(chip, this.budgetTooltip(recall.breakdown));
 
@@ -1275,6 +1323,10 @@ export class ReviewView extends ItemView {
             event.stopPropagation();
             this.recallStartedAt = Date.now();
             restart();
+        });
+        hide.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.hideClock(card);
         });
     }
 
