@@ -119,6 +119,9 @@ export function visibleAnswerLength(text: string): number {
         .replace(/!?\[\[[^\]]*\]\]/g, ' ')
         .replace(/!?\[[^\]]*\]\([^)]*\)/g, ' ')
         .replace(/https?:\/\/\S+/g, ' ')
+        // Emphasis markers are formatting, not words: `**` and `==` were
+        // inflating every highlighted answer by a few percent per pair.
+        .replace(/(\*\*|__|~~|==)/g, '')
         .replace(/\s+/g, ' ')
         .trim().length;
 }

@@ -872,6 +872,12 @@ export class ReviewView extends ItemView {
         startAt: number,
         label: string,
         stopWhenRevealed: boolean,
+        /**
+         * Budget the pill counts against. The question side counts against one
+         * pass (the answering time, a hint); the answer side and the score use
+         * the whole memory budget.
+         */
+        displayBudget = breakdown.seconds,
     ): () => void {
         if (this.hintTimer !== null) window.clearInterval(this.hintTimer);
         let startedAt = startAt;
@@ -889,20 +895,24 @@ export class ReviewView extends ItemView {
             if (frozen) return;
 
             const seconds = Math.floor((Date.now() - startedAt) / 1000);
-            const ratio = breakdown.seconds > 0 ? seconds / breakdown.seconds : 0;
-            if (ratio >= stopAt) frozen = true;
+            const shownRatio = displayBudget > 0 ? seconds / displayBudget : 0;
+            if (shownRatio >= stopAt) frozen = true;
 
-            // Kept current so a rating scores what is on screen, and so a clock
-            // restarted on the answer side replaces the number it replaced.
-            this.recall = { seconds, ratio, breakdown };
+            // The pill counts against its own budget; the stored measurement is
+            // always the memory one, because that is what a rating scores.
+            this.recall = {
+                seconds,
+                ratio: breakdown.seconds > 0 ? seconds / breakdown.seconds : 0,
+                breakdown,
+            };
             timeEl.setText(ttf('{label} {elapsed} / {budget}', {
                 label: tt(label),
                 elapsed: formatClock(seconds),
-                budget: formatClock(breakdown.seconds),
+                budget: formatClock(displayBudget),
             }));
-            chip.toggleClass('is-warning', ratio >= 1);
-            chip.toggleClass('is-late', ratio >= 1.5);
-            chip.toggleClass('is-stop', ratio >= stopAt);
+            chip.toggleClass('is-warning', shownRatio >= 1);
+            chip.toggleClass('is-late', shownRatio >= 1.5);
+            chip.toggleClass('is-stop', shownRatio >= stopAt);
         };
 
         this.hintTimer = window.setInterval(tick, 500);
@@ -923,7 +933,12 @@ export class ReviewView extends ItemView {
         const breakdown = this.recallBudget(card);
         const { chip, timeEl, reset } = this.createRecallPill(host);
         chip.addClass('is-live');
-        setTooltip(chip, this.budgetTooltip(breakdown));
+        // One pass, not the whole memory budget: this clock is the reminder
+        // that answering should not drag on, and nothing here is scored.
+        setTooltip(chip, ttf(
+            'Answering budget {budget}: base plus reading time for one pass',
+            { budget: formatClock(Math.round(breakdown.onePass)) },
+        ));
         // Measuring from when the card was first shown (not from this render)
         // keeps the clock honest across a repaint.
         const restart = this.runRecallClock(
@@ -933,6 +948,7 @@ export class ReviewView extends ItemView {
             this.cardShownAt || Date.now(),
             'Answering',
             true,
+            breakdown.onePass,
         );
         reset.addEventListener('click', (event) => {
             event.stopPropagation();

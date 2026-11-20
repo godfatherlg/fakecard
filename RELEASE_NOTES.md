@@ -24,10 +24,16 @@
 | 100 字方剂组成 | 35s | 150s |
 | 400 字条文 | 110s | 450s |
 
+两点容易误会的地方：
+
+- 预算上限是 **600 秒**。超长答案（或者把「每 40 字」调得很大）会直接顶到 10:00，那是被夹住，不是算错。
+- 字数统计现在忽略 `**`、`==`、`~~` 这类强调标记和链接，只算真正要读的字。
+
 ### 问题面与答案面共用同一个胶囊
 
-- 问题面上方是同一个胶囊，写作 `作答 0:28 / 1:10`，右侧 ↻ 重新计时；位置从工具栏挪到问题这一行。
-- 揭示后同一个胶囊冻结成 `记忆 0:28 / 1:10`，也带 ↻：点一下就从当前时刻重新计时，答案留在屏幕上，评分按新的数字算。
+- 问题面上方是同一个胶囊，写作 `作答 0:28 / 0:15`，量的是「一遍」的作答预算，只提醒别在一个词上耗太久；位置从工具栏挪到问题这一行。
+- 揭示后同一个胶囊冻结成 `记忆 0:28 / 1:10`，量的是整张卡的记忆预算，也带 ↻：点一下就从当前时刻重新计时，答案留在屏幕上，评分按新的数字算。
+- **只有记忆预算超时才记分**：作答胶囊超时只是变红，不产生 Hard 分。
 - **超时记忆：每多几倍算一步**（新设置，默认 0.5）：超过预算后，每多半个预算算一步——1.5 倍一步，2 倍两步。
 - **超时记忆：每步记几个 Hard**（新设置，默认 0.5）：每一步给失败连击加这么多 Hard 分。默认下 1.5 倍记 0.5、2 倍记 1、2.5 倍记 1.5；设为 0 就只显示时间、不计分。
 - 这些分数写进 `fakecard/reviews/` 的 `slowPoints` 字段，和 Hard 的 1 分进同一个计数器；到「失败分阈值」（默认 4）时「建子卡」按钮变红，点它才进入建卡流程，不会弹窗打断。
@@ -70,10 +76,16 @@ With the defaults (10s base, 10s per 40 characters, 3 passes, 20s first pass):
 | 100-character answer | 35s | 150s |
 | 400-character passage | 110s | 450s |
 
+Two things that look like bugs but are not:
+
+- The budget is capped at **600 seconds**. A very long answer (or a large "seconds per 40 characters") lands exactly on 10:00 - that is the clamp, not a calculation error.
+- Answer length now ignores `**`, `==`, `~~` and links, so it counts only the words to be read.
+
 ### One pill on both sides
 
-- The question side carries the same pill, labelled `Answering 0:28 / 1:10`, with a ↻ reset. It moved from the toolbar to the question's own row.
-- After revealing, the same pill freezes into `Recalling 0:28 / 1:10`, also with a ↻: pressing it starts the measurement again from now, with the answer still on screen, and the rating scores the new number.
+- The question side carries the same pill, labelled `Answering 0:28 / 0:15`, measured against ONE pass: it is the reminder not to linger on a word, and it moved from the toolbar to the question's own row.
+- After revealing, the same pill freezes into `Recalling 0:28 / 1:10`, measured against the card's whole memory budget, also with a ↻: pressing it starts the measurement again from now, with the answer still on screen, and the rating scores the new number.
+- **Only memory overtime scores**: the answering pill turning red does not earn any Hard points.
 - **Slow recall: extra budgets per step** (new setting, default 0.5): past the budget, every extra half budget is one step - 1.5x is one step, 2x is two.
 - **Slow recall: Hard points per step** (new setting, default 0.5): each step adds that much to the failing run. With the defaults, 1.5x gives 0.5, 2x gives 1 and 2.5x gives 1.5. Set it to 0 to show the time without scoring it.
 - Those points are logged as `slowPoints` in `fakecard/reviews/` and counted with Hard's one point. At the failing-score threshold (default 4) the "Child" button turns red; clicking it opens the child-card flow. Nothing pops up on its own.

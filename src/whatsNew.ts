@@ -29,8 +29,8 @@ const WHATS_NEW: WhatsNewEntry[] = [
         zh: '建议用时改成按完整回忆计算：一遍预算 × 记忆遍数（默认 3 遍），再加首遍的思考时间（基础 20 秒，同样按字数增加）。作答与记忆的评分历史权重分开：作答 −20%、记忆 +20%。',
     },
     {
-        en: 'Question and answer share one pill: "Answering" counts up, "Recalling" freezes the same number next to the budget, and both sides have a ↻ reset. Overtime adds a fraction of a Hard per step (1.5x = 0.5, 2x = 1 by default), which counts towards the "Child" button; step size and points per step are settings.',
-        zh: '问题面和答案面用同一个胶囊：问题面是「作答」实时计时，揭示后「记忆」冻结同一个数字并显示预算，两边都有 ↻ 重新计时。超时每多一步记一部分 Hard（默认 1.5 倍 0.5、2 倍 1），计入「建子卡」；步长和每步分数都能设置。',
+        en: 'Question and answer share one pill: "Answering" counts against one pass and is only a reminder, "Recalling" freezes the same number against the whole memory budget, and both sides have a ↻ reset. Only memory overtime scores: a fraction of a Hard per step (1.5x = 0.5, 2x = 1 by default), feeding the "Child" button.',
+        zh: '问题面和答案面用同一个胶囊：问题面「作答」按一遍预算计时，只作提醒；揭示后「记忆」冻结同一个数字、按整张卡的记忆预算衡量，两边都有 ↻ 重新计时。只有记忆超时才记分：每多一步记一部分 Hard（默认 1.5 倍 0.5、2 倍 1），计入「建子卡」。',
     },
 ];
 
