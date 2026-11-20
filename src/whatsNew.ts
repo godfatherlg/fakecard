@@ -25,8 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The suggested time now covers a full recall: one pass × how many passes count as known, plus a first-pass allowance, and hard cards get more time instead of less.',
-        zh: '建议用时改成按完整回忆计算：一遍预算 × 记忆遍数，再加首遍理思路的时间；越难的卡反而给得更多。',
+        en: 'The suggested time now covers a full recall: one pass × 3 by default, plus a first pass (base 20s, growing with answer length), and hard cards get more time instead of less.',
+        zh: '建议用时改成按完整回忆计算：一遍预算 × 记忆遍数（默认 3 遍），再加首遍的思考时间（基础 20 秒，同样按字数增加）；越难的卡反而给得更多。',
     },
     {
         en: 'The answer side shows how long the recall took next to the budget. A recall past the limit adds one failing point, which lights up the "Child" button - both the limit and the point can be turned off in Settings.',

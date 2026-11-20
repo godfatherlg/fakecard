@@ -7,10 +7,12 @@ import { parseCloze } from './cloze';
  * Three inputs, all already known while the card is on screen:
  * - answer length: reading a long answer back costs time, up to +75% at the
  *   extremes of the usual range;
- * - how many passes count as "known": recalling twice costs two passes, so
- *   the per-pass budget is multiplied. The first pass alone also gets a fixed
- *   allowance for sorting the thoughts out, added once, because only the first
- *   pass has to build the structure the later ones follow;
+ * - how many passes count as "known": recalling three times costs three
+ *   passes, so the per-pass budget is multiplied. The first pass alone also
+ *   gets its own base for sorting the thoughts out - plus the same reading
+ *   time, since a long answer takes longer to organise as well - and that part
+ *   is added once, because only the first pass builds the structure the later
+ *   ones follow;
  * - difficulty: FSRS's learned summary of the Again/Hard/Good/Easy history
  *   (1 = trivial, 10 = hard), moved by `historyWeight` in percent. Positive
  *   gives hard cards more room - which is the default, since a hard card is
@@ -37,9 +39,12 @@ export const DEFAULT_SECONDS_PER_CHUNK = 10;
 /** Hard cards get more room by default: they are the ones that need it. */
 export const DEFAULT_HISTORY_WEIGHT = 20;
 /** How many full recalls count as knowing the card. */
-export const DEFAULT_RECALL_PASSES = 2;
-/** Extra seconds for the first pass, to build the structure to follow. */
-export const DEFAULT_FIRST_PASS_SECONDS = 15;
+export const DEFAULT_RECALL_PASSES = 3;
+/**
+ * Base seconds for the first pass, before reading time is added: sorting the
+ * structure out costs more than a plain recall of a short answer.
+ */
+export const DEFAULT_FIRST_PASS_SECONDS = 20;
 /** Times the budget at which a recall counts as failed. */
 export const DEFAULT_SLOW_RATIO = 2;
 /** Characters a completely masked picture is worth, for an occlusion card. */
@@ -218,11 +223,13 @@ export function answerTimeBreakdown(
             : 1;
 
     // A full recall is one pass; more passes cost their own budget. The first
-    // pass is the only one that has to build the structure, so its extra
-    // allowance is added once and is not multiplied.
+    // pass is the only one that has to build the structure, so it gets a base
+    // of its own - and the same reading time, because a long answer takes
+    // longer to organise too. It is added once and is not multiplied.
     const passes = clamp(Math.round(weights.passes ?? DEFAULT_RECALL_PASSES), 1, 5);
-    const firstPass = Math.max(0, weights.firstPassSeconds ?? DEFAULT_FIRST_PASS_SECONDS);
+    const firstPassBase = Math.max(0, weights.firstPassSeconds ?? DEFAULT_FIRST_PASS_SECONDS);
     const onePass = base + lengthSeconds;
+    const firstPass = firstPassBase + lengthSeconds;
 
     const total = (onePass * passes + firstPass) * historyFactor;
     return {

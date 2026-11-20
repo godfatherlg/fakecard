@@ -81,7 +81,10 @@ export interface FakeCardSettings {
     answerTimeSecondsPerChunk: number;
     /** How many full recalls count as knowing the card (1..5). */
     answerTimePasses: number;
-    /** Extra seconds for the first pass only - building the structure. */
+    /**
+     * Base seconds for the first pass, before its reading time is added: the
+     * pass that has to build the structure to follow.
+     */
     answerTimeFirstPass: number;
     /** Maximum bonus from rating history, in percent (0 ignores history). */
     answerTimeHistoryWeight: number;
