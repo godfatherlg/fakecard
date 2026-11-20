@@ -11,6 +11,12 @@ export interface ReviewLog {
     /** Time spent on the card, in milliseconds (front shown -> rated). */
     durationMs?: number;
     /**
+     * The recall ran past the slow-recall limit (a multiple of the suggested
+     * time). Such a review adds one failing point to the child-card run, the
+     * way a Hard does - the rating itself is unaffected.
+     */
+    slow?: boolean;
+    /**
      * Rated before the card was due - "study ahead". Such a review does not
      * consume the day's allowance for due cards.
      */

@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.34';
+export const WHATS_NEW_VERSION = '1.0.35';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The batch-action row in Browse no longer relies on a CSS feature that the review flags as only partially supported. Nothing changes visually.',
-        zh: '浏览页批量操作那一行不再使用审核认为支持不完整的 CSS 特性，外观没有任何变化。',
+        en: 'The suggested time now covers a full recall: one pass × how many passes count as known, plus a first-pass allowance, and hard cards get more time instead of less.',
+        zh: '建议用时改成按完整回忆计算：一遍预算 × 记忆遍数，再加首遍理思路的时间；越难的卡反而给得更多。',
+    },
+    {
+        en: 'The answer side shows how long the recall took next to the budget. A recall past the limit adds one failing point, which lights up the "Child" button - both the limit and the point can be turned off in Settings.',
+        zh: '答案面会显示这次回忆用时与建议预算的对比。超过判定倍数记一次失败分，用来点亮「建子卡」；倍数和是否记分都能在设置里改。',
     },
 ];
 

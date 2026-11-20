@@ -44,3 +44,32 @@ export function hasHardStreak(
 ): boolean {
     return streak > 0 && hardStreakScore(ratings, againScore) >= streak;
 }
+
+/** One review as the child-card score needs it. */
+export interface ScoredReview {
+    rating: number;
+    /** The reveal ran past the slow-recall limit. */
+    slow?: boolean;
+}
+
+/**
+ * The failing score, with slow recalls counted.
+ *
+ * A slow recall is one point on its own: taking twice the suggested time means
+ * the card was not really there, whatever the rating says. A Good or Easy
+ * normally ends the run, but a slow one keeps it alive - the card was slow, so
+ * it is still part of the trouble - and a normal Good still ends it.
+ */
+export function childScore(
+    logs: readonly ScoredReview[],
+    againScore = 2,
+): number {
+    let score = 0;
+    for (const log of logs) {
+        if (log.rating === 2) score += 1;
+        else if (log.rating === 1) score += againScore;
+        else if (!log.slow) break;
+        if (log.slow) score += 1;
+    }
+    return score;
+}

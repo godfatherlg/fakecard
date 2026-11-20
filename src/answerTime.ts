@@ -2,20 +2,24 @@ import type { CardRecord } from './card';
 import { parseCloze } from './cloze';
 
 /**
- * Suggested answer time, ported from the True Recall PR.
+ * Suggested recall time, ported from the True Recall PR.
  *
- * Two inputs, both already known while the card is on screen:
+ * Three inputs, all already known while the card is on screen:
  * - answer length: reading a long answer back costs time, up to +75% at the
  *   extremes of the usual range;
+ * - how many passes count as "known": recalling twice costs two passes, so
+ *   the per-pass budget is multiplied. The first pass alone also gets a fixed
+ *   allowance for sorting the thoughts out, added once, because only the first
+ *   pass has to build the structure the later ones follow;
  * - difficulty: FSRS's learned summary of the Again/Hard/Good/Easy history
- *   (1 = trivial, 10 = hard), moved by `historyWeight` in percent. A negative
- *   weight pulls the nudge in earlier (counters overthinking), a positive one
- *   gives slow cards more room, 0 ignores history entirely.
+ *   (1 = trivial, 10 = hard), moved by `historyWeight` in percent. Positive
+ *   gives hard cards more room - which is the default, since a hard card is
+ *   also the one that needs the time; negative nudges them earlier; 0 ignores
+ *   history entirely.
  *
- * The two are combined as `(base + length) * historyFactor`, clamped so a
- * pathological card never suggests more than 600 seconds, and never less than
- * 5. Defaults follow the values the True Recall install uses: 10s base, 10s
- * per 40 characters, -20% difficulty weight.
+ * Combined as `(base + length) * passes + firstPass`, then scaled by the
+ * history factor and clamped so a pathological card never suggests more than
+ * 600 seconds, and never less than 5.
  */
 const CHARS_PER_CHUNK = 40;
 
@@ -30,7 +34,14 @@ const MAX_SECONDS = 600;
 
 export const DEFAULT_ANSWER_SECONDS = 10;
 export const DEFAULT_SECONDS_PER_CHUNK = 10;
-export const DEFAULT_HISTORY_WEIGHT = -20;
+/** Hard cards get more room by default: they are the ones that need it. */
+export const DEFAULT_HISTORY_WEIGHT = 20;
+/** How many full recalls count as knowing the card. */
+export const DEFAULT_RECALL_PASSES = 2;
+/** Extra seconds for the first pass, to build the structure to follow. */
+export const DEFAULT_FIRST_PASS_SECONDS = 15;
+/** Times the budget at which a recall counts as failed. */
+export const DEFAULT_SLOW_RATIO = 2;
 /** Characters a completely masked picture is worth, for an occlusion card. */
 export const DEFAULT_IMAGE_CHARS = 200;
 
@@ -45,6 +56,23 @@ export interface AnswerTimeWeights {
     historyWeight?: number;
     /** Characters an entirely masked picture counts as (occlusion cards). */
     imageChars?: number;
+    /** Full recalls that count as knowing the card (1..5). */
+    passes?: number;
+    /** Extra seconds for the first pass only, added once. */
+    firstPassSeconds?: number;
+}
+
+/** The parts of a budget, so the tooltip can show how it was built. */
+export interface AnswerTimeBreakdown {
+    characters: number;
+    lengthSeconds: number;
+    /** Base plus reading time: one full recall. */
+    onePass: number;
+    passes: number;
+    firstPass: number;
+    historyFactor: number;
+    /** The final budget, clamped. */
+    seconds: number;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -154,17 +182,18 @@ function answerText(card: CardRecord): string {
     return card.back ?? card.front ?? '';
 }
 
-export function suggestedAnswerSeconds(
+export function answerTimeBreakdown(
     card: CardRecord,
     baseSeconds = DEFAULT_ANSWER_SECONDS,
     weights: AnswerTimeWeights = {},
-): number {
+): AnswerTimeBreakdown {
     const base = Math.max(MIN_SECONDS, Math.round(baseSeconds));
     const secondsPerChunk = Math.max(
         0,
         weights.secondsPerChunk ?? DEFAULT_SECONDS_PER_CHUNK,
     );
-    // Negative on purpose: a hard card can also mean "nudge me sooner".
+    // Positive by default: the harder the card, the more of that time is spent
+    // actually searching for the answer.
     const historyWeight = (weights.historyWeight ?? DEFAULT_HISTORY_WEIGHT) / 100;
 
     // The base time covers a short answer; every 40 characters of answer adds
@@ -188,9 +217,29 @@ export function suggestedAnswerSeconds(
             ? Math.max(MIN_HISTORY_FACTOR, 1 + spread * historyWeight)
             : 1;
 
-    const total = (base + lengthSeconds) * historyFactor;
-    return Math.max(
-        MIN_SECONDS,
-        Math.round(Math.min(total, MAX_SECONDS)),
-    );
+    // A full recall is one pass; more passes cost their own budget. The first
+    // pass is the only one that has to build the structure, so its extra
+    // allowance is added once and is not multiplied.
+    const passes = clamp(Math.round(weights.passes ?? DEFAULT_RECALL_PASSES), 1, 5);
+    const firstPass = Math.max(0, weights.firstPassSeconds ?? DEFAULT_FIRST_PASS_SECONDS);
+    const onePass = base + lengthSeconds;
+
+    const total = (onePass * passes + firstPass) * historyFactor;
+    return {
+        characters,
+        lengthSeconds,
+        onePass,
+        passes,
+        firstPass,
+        historyFactor,
+        seconds: Math.max(MIN_SECONDS, Math.round(Math.min(total, MAX_SECONDS))),
+    };
+}
+
+export function suggestedAnswerSeconds(
+    card: CardRecord,
+    baseSeconds = DEFAULT_ANSWER_SECONDS,
+    weights: AnswerTimeWeights = {},
+): number {
+    return answerTimeBreakdown(card, baseSeconds, weights).seconds;
 }

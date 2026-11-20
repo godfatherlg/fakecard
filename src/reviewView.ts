@@ -2,9 +2,10 @@ import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setIcon, setTo
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
-import { suggestedAnswerSeconds } from './answerTime';
+import { answerTimeBreakdown } from './answerTime';
+import type { AnswerTimeBreakdown } from './answerTime';
 import { ChildCardPromptModal } from './childPrompt';
-import { hardStreakScore, isGraduatable } from './childStreak';
+import { childScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
 import { renderMindmap } from './mapView';
@@ -57,6 +58,15 @@ export class ReviewView extends ItemView {
     private ahead = false;
     /** Interval that reveals the answer-time hint; cleared on every render. */
     private hintTimer: number | null = null;
+    /** Wall-clock start of the current recall, moved by the reset button. */
+    private hintStartedAt = 0;
+    /** Budget the running hint is measured against; 0 when none is running. */
+    private hintBreakdown: AnswerTimeBreakdown | null = null;
+    /**
+     * What the last reveal measured. Kept on the view so the answer side can
+     * show how the recall went, and the rating can score a slow one.
+     */
+    private recall: { seconds: number; ratio: number; breakdown: AnswerTimeBreakdown } | null = null;
     /** Ratings that can still be taken back with Ctrl+Z, newest last. */
     private undoStack: UndoEntry[] = [];
     /** Link under the pointer, waiting for Ctrl+hover to turn into a preview. */
@@ -167,6 +177,9 @@ export class ReviewView extends ItemView {
     private render(): void {
         const container = this.contentEl;
         this.clearAnswerTimeHint();
+        // A card that is not revealed yet has no recall to report: the number
+        // belongs to the pair (this card, this reveal), not to the view.
+        if (!this.revealed) this.recall = null;
         if (this.flashTimer !== null) {
             window.clearTimeout(this.flashTimer);
             this.flashTimer = null;
@@ -339,11 +352,15 @@ export class ReviewView extends ItemView {
             // Q&A keeps both sides: question above, answer below.
             const frontEl = body.createDiv({ cls: 'fakecard-review-front fakecard-qa-front' });
             this.renderCardBody(frontEl, card, false);
+            // The recall result belongs to the answer side, and sits above it:
+            // at the end of a long answer it would be below the fold.
+            this.renderRecallPill(body);
             const backEl = body.createDiv({ cls: 'fakecard-review-back' });
             this.renderCardBody(backEl, card, true);
         } else {
             // Cloze and image cards reveal in place - the same block shows the
             // answer, there is no separate answer side.
+            this.renderRecallPill(body);
             const bodyEl = body.createDiv({ cls: 'fakecard-review-front' });
             this.renderCardBody(bodyEl, card, true);
         }
@@ -521,10 +538,7 @@ export class ReviewView extends ItemView {
         // Wide window on purpose: an imported Anki history is often months old
         // and must still count towards the failing streak.
         const logs = await this.plugin.reviews.recentForCard(card.id, streak, 365);
-        return hardStreakScore(
-            logs.map((log) => log.rating),
-            this.plugin.settings.childAgainScore,
-        );
+        return childScore(logs, this.plugin.settings.childAgainScore);
     }
 
     /** Colour the button once the card has failed often enough to deserve one. */
@@ -786,17 +800,24 @@ export class ReviewView extends ItemView {
      */
     private startAnswerTimeHint(host: HTMLElement, card: CardRecord): void {
         // The clock belongs to the question: on the answer side there is nothing
-        // to recall, so it is not built at all.
+        // left to recall, so the live clock is not built there. The answer side
+        // gets the result instead (see renderRecallPill).
         if (this.revealed) return;
-        const budget = suggestedAnswerSeconds(card, this.plugin.settings.answerTimeBase, {
+        const breakdown = answerTimeBreakdown(card, this.plugin.settings.answerTimeBase, {
             secondsPerChunk: this.plugin.settings.answerTimeSecondsPerChunk,
+            passes: this.plugin.settings.answerTimePasses,
+            firstPassSeconds: this.plugin.settings.answerTimeFirstPass,
             historyWeight: this.plugin.settings.answerTimeHistoryWeight,
             imageChars: this.plugin.settings.answerTimeImageChars,
         });
+        const budget = breakdown.seconds;
         // Measuring from when the card was first shown (not from this render)
         // keeps the clock honest across a reveal, which rebuilds the view.
         let startedAt = this.cardShownAt || Date.now();
-        /** Set once the clock passes twice the budget - it stops there. */
+        this.hintStartedAt = startedAt;
+        this.hintBreakdown = breakdown;
+        /** Set once the clock passes the slow-recall limit - it stops there. */
+        const stopAt = Math.max(1.5, this.plugin.settings.answerTimeSlowRatio);
         let frozen = false;
 
         // Elapsed on the left, the budget it is measured against on the right,
@@ -810,6 +831,7 @@ export class ReviewView extends ItemView {
         reset.addEventListener('click', (event) => {
             event.stopPropagation();
             startedAt = Date.now();
+            this.hintStartedAt = startedAt;
             frozen = false;
             tick();
         });
@@ -827,18 +849,18 @@ export class ReviewView extends ItemView {
                 chip.remove();
                 return;
             }
-            // Past twice the budget the number is no longer news - it stops,
-            // keeps its colour, and waits for a deliberate reset.
+            // Past the slow-recall limit the number is no longer news - it
+            // stops, keeps its colour, and waits for a deliberate reset.
             if (frozen) return;
 
             const elapsed = Math.floor((Date.now() - startedAt) / 1000);
             const ratio = budget > 0 ? elapsed / budget : 0;
-            if (ratio >= 2) frozen = true;
+            if (ratio >= stopAt) frozen = true;
 
             elapsedEl.setText(formatClock(elapsed));
             chip.toggleClass('is-warning', ratio >= 1);
             chip.toggleClass('is-late', ratio >= 1.5);
-            chip.toggleClass('is-stop', ratio >= 2);
+            chip.toggleClass('is-stop', ratio >= stopAt);
         };
 
         this.hintTimer = window.setInterval(tick, 500);
@@ -849,6 +871,10 @@ export class ReviewView extends ItemView {
     private clearAnswerTimeHint(): void {
         if (this.hintTimer !== null) window.clearInterval(this.hintTimer);
         this.hintTimer = null;
+        // The measurement itself was taken by reveal() before the repaint; the
+        // running clock is over now.
+        this.hintBreakdown = null;
+        this.hintStartedAt = 0;
     }
 
     /**
@@ -940,12 +966,18 @@ export class ReviewView extends ItemView {
         if (rating >= Rating.Good) card.correct = (card.correct ?? 0) + 1;
         card.updated = new Date().toISOString();
         await this.plugin.store.save(card);
+        // A recall that ran past the limit counts against the card even when
+        // the rating is kind: the answer was not there in time.
+        const slow = this.recall !== null
+            && this.plugin.settings.answerTimeSlowPoint
+            && this.recall.ratio >= this.plugin.settings.answerTimeSlowRatio;
         await this.plugin.reviews.append({
             cardId: card.id,
             at: card.updated,
             rating,
             wasNew,
             durationMs: this.cardShownAt > 0 ? Date.now() - this.cardShownAt : undefined,
+            slow: slow || undefined,
             // Rated before its due date: practice, not today's quota.
             ahead: new Date(fsrsCard.due).getTime() > now.getTime() || undefined,
         });
@@ -1088,8 +1120,63 @@ export class ReviewView extends ItemView {
 
     private reveal(): void {
         if (this.revealed) return;
+        // Snapshot before the repaint: render() clears the clock, and the answer
+        // side needs the number the question side was counting.
+        const breakdown = this.hintBreakdown;
+        if (this.plugin.settings.answerTimeHint && breakdown) {
+            const start = this.hintStartedAt || this.cardShownAt || Date.now();
+            const seconds = Math.max(0, Math.round((Date.now() - start) / 1000));
+            this.recall = {
+                seconds,
+                ratio: breakdown.seconds > 0 ? seconds / breakdown.seconds : 0,
+                breakdown,
+            };
+        } else {
+            this.recall = null;
+        }
         this.revealed = true;
         this.render();
+    }
+
+    /**
+     * How the recall went, on the answer side.
+     *
+     * The question side counts up; this is the same measurement, frozen and put
+     * next to the budget it was measured against, so the comparison is visible
+     * exactly when the answer appears instead of disappearing with the clock.
+     */
+    private renderRecallPill(host: HTMLElement): void {
+        const recall = this.recall;
+        if (!recall || !this.plugin.settings.answerTimeHint) return;
+        const { seconds, ratio, breakdown } = recall;
+        const chip = host.createDiv({ cls: 'fakecard-recall' });
+        chip.createSpan({
+            cls: 'fakecard-recall-time',
+            text: ttf('Recall {elapsed} / {budget}', {
+                elapsed: formatClock(seconds),
+                budget: formatClock(breakdown.seconds),
+            }),
+        });
+        chip.toggleClass('is-warning', ratio >= 1);
+        chip.toggleClass('is-late', ratio >= 1.5);
+        const slowLimit = this.plugin.settings.answerTimeSlowRatio;
+        const slow = this.plugin.settings.answerTimeSlowPoint && ratio >= slowLimit;
+        if (slow) {
+            chip.addClass('is-over');
+            chip.createSpan({
+                cls: 'fakecard-recall-badge',
+                text: tt('Too slow · +1 failing point'),
+            });
+        }
+        setTooltip(chip, ttf(
+            'Budget {budget}: one pass {pass} × {passes} + {first} for the first pass, then adjusted by difficulty',
+            {
+                budget: formatClock(breakdown.seconds),
+                pass: formatClock(Math.round(breakdown.onePass)),
+                passes: String(breakdown.passes),
+                first: formatClock(Math.round(breakdown.firstPass)),
+            },
+        ));
     }
 
     /**

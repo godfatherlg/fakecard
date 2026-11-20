@@ -5,9 +5,12 @@ import { ConfirmDialog } from './confirm';
 
 import {
     DEFAULT_ANSWER_SECONDS,
+    DEFAULT_FIRST_PASS_SECONDS,
     DEFAULT_HISTORY_WEIGHT,
     DEFAULT_IMAGE_CHARS,
+    DEFAULT_RECALL_PASSES,
     DEFAULT_SECONDS_PER_CHUNK,
+    DEFAULT_SLOW_RATIO,
 } from './answerTime';
 import {
     buildExamPlan as buildExamPlanImpl,
@@ -76,10 +79,18 @@ export interface FakeCardSettings {
     answerTimeBase: number;
     /** Extra seconds per 40 characters of answer (0 ignores length). */
     answerTimeSecondsPerChunk: number;
+    /** How many full recalls count as knowing the card (1..5). */
+    answerTimePasses: number;
+    /** Extra seconds for the first pass only - building the structure. */
+    answerTimeFirstPass: number;
     /** Maximum bonus from rating history, in percent (0 ignores history). */
     answerTimeHistoryWeight: number;
     /** Characters a fully masked picture counts as, for occlusion cards. */
     answerTimeImageChars: number;
+    /** Recall slower than this many times the budget counts as failed. */
+    answerTimeSlowRatio: number;
+    /** Add one failing point to a recall that ran over that limit. */
+    answerTimeSlowPoint: boolean;
     /** Rating shortcuts: a character, "Space", or empty for none. */
     ratingKeyAgain: string;
     ratingKeyHard: string;
@@ -142,12 +153,17 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     scaleEarlyReviews: true,
     showCardBadge: true,
     answerTimeHint: true,
-    // The three answer-time values below are the ones the True Recall install
-    // this plugin was ported from actually uses.
+    // Base, chunk and image values are the ones the True Recall install this
+    // plugin was ported from uses; passes and the first-pass allowance are what
+    // makes the budget cover a full recall instead of one quick answer.
     answerTimeBase: DEFAULT_ANSWER_SECONDS,
     answerTimeSecondsPerChunk: DEFAULT_SECONDS_PER_CHUNK,
+    answerTimePasses: DEFAULT_RECALL_PASSES,
+    answerTimeFirstPass: DEFAULT_FIRST_PASS_SECONDS,
     answerTimeHistoryWeight: DEFAULT_HISTORY_WEIGHT,
     answerTimeImageChars: DEFAULT_IMAGE_CHARS,
+    answerTimeSlowRatio: DEFAULT_SLOW_RATIO,
+    answerTimeSlowPoint: true,
     // Anki's layout: 1-2-3 along the top row, Space on Good. Digits work on
     // the numpad too.
     ratingKeyAgain: '1',
@@ -171,7 +187,7 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
  * Numeric settings are kept inside the range the slider or field advertises,
  * whatever gets typed. A missing `max` means "no upper bound".
  */
-const NUMBER_LIMITS: Record<string, { min: number; max?: number }> = {
+const NUMBER_LIMITS: Record<string, { min: number; max?: number; decimals?: number }> = {
     childGoodStreak: { min: 1, max: 6 },
     childHardStreak: { min: 2, max: 10 },
     childAgainScore: { min: 0, max: 3 },
@@ -181,8 +197,12 @@ const NUMBER_LIMITS: Record<string, { min: number; max?: number }> = {
     boostStep: { min: 0, max: 500 },
     answerTimeBase: { min: 5, max: 120 },
     answerTimeSecondsPerChunk: { min: 0, max: 120 },
+    answerTimePasses: { min: 1, max: 5 },
+    answerTimeFirstPass: { min: 0, max: 120 },
     answerTimeHistoryWeight: { min: -60, max: 100 },
     answerTimeImageChars: { min: 50, max: 2000 },
+    // A multiplier, not a count: 1.5x is a meaningful value here.
+    answerTimeSlowRatio: { min: 1.2, max: 4, decimals: 1 },
 };
 
 /** Text settings that fall back to their default when the field is cleared. */
@@ -232,7 +252,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
         if (limit !== undefined) {
             const parsed = Number(next);
             if (!Number.isFinite(parsed)) return;
-            const rounded = Math.round(parsed);
+            const scale = Math.pow(10, limit.decimals ?? 0);
+            const rounded = Math.round(parsed * scale) / scale;
             next = Math.min(Math.max(rounded, limit.min), limit.max ?? Number.POSITIVE_INFINITY);
         }
 
@@ -487,6 +508,16 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     control: { type: 'number', key: 'answerTimeBase', min: 5, max: 120, step: 5 },
                 },
                 {
+                    name: t('review.answerPasses.name'),
+                    desc: t('review.answerPasses.desc'),
+                    control: { type: 'number', key: 'answerTimePasses', min: 1, max: 5, step: 1 },
+                },
+                {
+                    name: t('review.answerFirstPass.name'),
+                    desc: t('review.answerFirstPass.desc'),
+                    control: { type: 'number', key: 'answerTimeFirstPass', min: 0, max: 120, step: 5 },
+                },
+                {
                     name: t('review.answerChunk.name'),
                     desc: t('review.answerChunk.desc'),
                     control: { type: 'number', key: 'answerTimeSecondsPerChunk', min: 0, max: 120, step: 5 },
@@ -500,6 +531,16 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     name: t('review.answerImageChars.name'),
                     desc: t('review.answerImageChars.desc'),
                     control: { type: 'number', key: 'answerTimeImageChars', min: 50, max: 2000, step: 50 },
+                },
+                {
+                    name: t('review.answerSlowRatio.name'),
+                    desc: t('review.answerSlowRatio.desc'),
+                    control: { type: 'number', key: 'answerTimeSlowRatio', min: 1.2, max: 4, step: 0.1 },
+                },
+                {
+                    name: t('review.answerSlowPoint.name'),
+                    desc: t('review.answerSlowPoint.desc'),
+                    control: { type: 'toggle', key: 'answerTimeSlowPoint' },
                 },
                 {
                     name: t('review.keyAgain.name'),
