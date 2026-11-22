@@ -491,7 +491,6 @@ const UI_ZH: Record<string, string> = {
     'Give Easy': '给 Easy',
     'Could not recall': '没想起来',
     'Mixed up': '想混了',
-    'Hide for this card': '这张卡先不提示',
     '{reviews} reviews, {mixed} of them mixed up ({percent}%)':
         '复习 {reviews} 次，其中记混 {mixed} 次（{percent}%）',
     'Fill screen': '铺满',

@@ -1,4 +1,4 @@
-﻿/* Card preview modal */
+/* Card preview modal */
 .fakecards-preview {
   display: flex;
   flex-direction: column;
@@ -570,15 +570,12 @@
 /* One suggestion line between the card and the rating buttons. It only
    appears when the timing is unusual, and it never takes a shortcut. */
 .fakecard-nudge {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
-  /* Symmetric padding: the dismiss sits absolute on the right, so the text and
-     its buttons stay centred even when a long label wraps. */
-  padding: 6px 34px 0;
+  padding: 6px 12px 0;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   text-align: center;
@@ -591,24 +588,7 @@
   line-height: 1.7;
 }
 
-.fakecard-nudge-dismiss {
-  position: absolute;
-  right: 12px;
-  top: 4px;
-  padding: 0 4px;
-  border: none;
-  background: none;
-  box-shadow: none;
-  color: var(--text-faint);
-  font-size: 1.1em;
-  line-height: 1.2;
-  cursor: pointer;
-}
 
-.fakecard-nudge-dismiss:hover {
-  color: var(--text-normal);
-  background: none;
-}
 
 /* Child prompt: the card's own record, under the failing score. */
 .fakecard-child-prompt-stats {

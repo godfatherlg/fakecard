@@ -70,8 +70,6 @@ export class ReviewView extends ItemView {
     private questionStartedAt = 0;
     /** Seconds the answer took to come out, frozen when the card is revealed. */
     private answeredSeconds = 0;
-    /** Cards whose nudge was dismissed; it must not come back on a repaint. */
-    private nudgeDismissedFor: string | null = null;
     /** Today's queue is ordered for coming back after a long gap. */
     private recovery = false;
     /**
@@ -1129,7 +1127,6 @@ export class ReviewView extends ItemView {
         const settings = this.plugin.settings;
         if (!settings.antiMiddleNudges || !this.revealed) return;
         if (!settings.answerTimeHint || this.clockHidden) return;
-        if (this.nudgeDismissedFor === card.id) return;
         const fsrsCard = card.fsrs;
         if (!fsrsCard || fsrsCard.state !== State.Review) return;
         // Learning cards live in minutes, where "fast" means nothing.
@@ -1169,13 +1166,6 @@ export class ReviewView extends ItemView {
             add(tt('Mixed up'), Rating.Hard, true);
         }
 
-        const dismiss = row.createEl('button', { cls: 'fakecard-nudge-dismiss', text: '×' });
-        setTooltip(dismiss, tt('Hide for this card'));
-        dismiss.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.nudgeDismissedFor = card.id;
-            row.remove();
-        });
     }
 
     /**
