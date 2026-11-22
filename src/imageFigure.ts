@@ -1,6 +1,5 @@
-﻿import { App, setTooltip } from 'obsidian';
+﻿import { App } from 'obsidian';
 import type { CardRecord } from './card';
-import { tt } from './i18n';
 
 /**
  * An occlusion card's picture with its masks on top.
@@ -64,7 +63,6 @@ export function makeImageZoomable(
     if (img.dataset.fcZoom === 'on') return;
     img.dataset.fcZoom = 'on';
     img.addClass('is-zoomable');
-    setTooltip(img, tt('Ctrl+wheel to zoom, double-click to fit'));
 
     const shell = host ?? (img.parentElement instanceof HTMLElement ? img.parentElement : null);
     let zoom = initialZoom;
