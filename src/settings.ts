@@ -98,6 +98,26 @@ export interface FakeCardSettings {
     answerTimeSlowStep: number;
     /** Failing points a slow step adds; 0 turns the scoring off. */
     answerTimeSlowPoints: number;
+
+    // --- Rating nudges (the middle-way problem) ----------------------------
+    /**
+     * When a card is recalled much faster or much slower than its answering
+     * budget, offer a one-click rating change instead of leaving the user
+     * parked on Good/Hard.
+     */
+    antiMiddleNudges: boolean;
+
+    // --- After a break -----------------------------------------------------
+    /** After a long gap, order the queue from freshest memory to weakest. */
+    recoveryMode: boolean;
+    /**
+     * A card reviewed long after its due date gets its next interval capped:
+     * one late success should not push it out for months.
+     */
+    gapIntervalCap: boolean;
+    /** Size today's queue from yesterday's success rate. */
+    adaptiveDailyLoad: boolean;
+
     /** Rating shortcuts: a character, "Space", or empty for none. */
     ratingKeyAgain: string;
     ratingKeyHard: string;
@@ -172,6 +192,10 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     answerTimeImageChars: DEFAULT_IMAGE_CHARS,
     answerTimeSlowStep: DEFAULT_SLOW_STEP,
     answerTimeSlowPoints: DEFAULT_SLOW_POINTS,
+    antiMiddleNudges: false,
+    recoveryMode: false,
+    gapIntervalCap: false,
+    adaptiveDailyLoad: false,
     // Anki's layout: 1-2-3 along the top row, Space on Good. Digits work on
     // the numpad too.
     ratingKeyAgain: '1',
@@ -242,6 +266,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
             this.paceGroup(),
             this.aheadGroup(),
             this.reviewGroup(),
+            this.nudgeGroup(),
+            this.recoveryGroup(),
             this.examGroup(),
             this.importExportGroup(),
             this.maintenanceGroup(),
@@ -594,6 +620,48 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     name: t('review.keyEasy.name'),
                     desc: t('review.keys.desc'),
                     control: { type: 'text', key: 'ratingKeyEasy', placeholder: '3' },
+                },
+            ],
+        };
+    }
+
+    // ------------------------------------------------------- Anti-middle nudges
+
+    private nudgeGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('nudge.heading'),
+            items: [
+                {
+                    name: t('nudge.antiMiddle.name'),
+                    desc: t('nudge.antiMiddle.desc'),
+                    control: { type: 'toggle', key: 'antiMiddleNudges' },
+                },
+            ],
+        };
+    }
+
+    // ------------------------------------------------------------ After a break
+
+    private recoveryGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('recovery.heading'),
+            items: [
+                {
+                    name: t('recovery.mode.name'),
+                    desc: t('recovery.mode.desc'),
+                    control: { type: 'toggle', key: 'recoveryMode' },
+                },
+                {
+                    name: t('recovery.cap.name'),
+                    desc: t('recovery.cap.desc'),
+                    control: { type: 'toggle', key: 'gapIntervalCap' },
+                },
+                {
+                    name: t('recovery.load.name'),
+                    desc: t('recovery.load.desc'),
+                    control: { type: 'toggle', key: 'adaptiveDailyLoad' },
                 },
             ],
         };

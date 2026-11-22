@@ -19,6 +19,12 @@ export interface ReviewLog {
     /** Older entries: a slow recall counted as one point. */
     slow?: boolean;
     /**
+     * The user said "mixed up" when a slow reveal asked: the two answers were
+     * fighting, rather than nothing coming back. Used to suggest a comparison
+     * child card later.
+     */
+    mixed?: boolean;
+    /**
      * Rated before the card was due - "study ahead". Such a review does not
      * consume the day's allowance for due cards.
      */

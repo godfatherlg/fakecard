@@ -556,6 +556,58 @@
   min-width: 0;
 }
 
+/* Recovery order: a quiet badge, not a second toolbar. */
+.fakecard-review-recovery {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-blue) 14%, transparent);
+  color: var(--color-blue);
+  font-size: 0.72em;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* One suggestion line between the card and the rating buttons. It only
+   appears when the timing is unusual, and it never takes a shortcut. */
+.fakecard-nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 12px 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.fakecard-nudge-button {
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 0.95em;
+  line-height: 1.7;
+}
+
+.fakecard-nudge-dismiss {
+  margin-left: auto;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--text-faint);
+  font-size: 1.1em;
+  cursor: pointer;
+}
+
+.fakecard-nudge-dismiss:hover {
+  color: var(--text-normal);
+  background: none;
+}
+
+/* Child prompt: the card's own record, under the failing score. */
+.fakecard-child-prompt-stats {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
 /* Clock switched off: one quiet icon brings it back. */
 .fakecard-recall-restore {
   display: inline-flex;

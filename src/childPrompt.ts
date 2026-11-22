@@ -14,6 +14,12 @@ export class ChildCardPromptModal extends Modal {
         private score: number,
         private target: number,
         private onConfirm: () => void,
+        /**
+         * How this card has actually gone: reviews and how many of them were
+         * "mixed up" answers. A high share is the signal for a comparison card
+         * rather than another cloze.
+         */
+        private stats: { reviews: number; mixed: number } | null = null,
     ) {
         super(app);
     }
@@ -32,6 +38,17 @@ export class ChildCardPromptModal extends Modal {
             cls: 'fakecard-child-prompt-score',
             text: ttf('Recent failing score: {score} / {target}', { score: this.score, target: this.target }),
         });
+        if (this.stats && this.stats.reviews > 0) {
+            const percent = Math.round((this.stats.mixed / this.stats.reviews) * 100);
+            contentEl.createEl('p', {
+                cls: 'fakecard-child-prompt-stats',
+                text: ttf('{reviews} reviews, {mixed} of them mixed up ({percent}%)', {
+                    reviews: this.stats.reviews,
+                    mixed: this.stats.mixed,
+                    percent,
+                }),
+            });
+        }
         contentEl.createEl('p', {
             cls: 'fakecard-child-prompt-note',
             text: tt('Each Hard or Again raises the score, any Good or Easy resets it. You can lower the threshold in Settings.'),

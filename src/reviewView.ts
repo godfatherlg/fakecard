@@ -66,6 +66,14 @@ export class ReviewView extends ItemView {
     private recall: { seconds: number; ratio: number; breakdown: AnswerTimeBreakdown } | null = null;
     /** When that clock started; kept so a repaint resumes instead of resetting. */
     private recallStartedAt = 0;
+    /** Start of the answering clock, for the fast/slow rating nudge. */
+    private questionStartedAt = 0;
+    /** Seconds the answer took to come out, frozen when the card is revealed. */
+    private answeredSeconds = 0;
+    /** Cards whose nudge was dismissed; it must not come back on a repaint. */
+    private nudgeDismissedFor: string | null = null;
+    /** Today's queue is ordered for coming back after a long gap. */
+    private recovery = false;
     /**
      * The clock was switched off. It stays off for the cards after this one
      * too - a distraction lasts longer than one card - until the small clock
@@ -166,12 +174,15 @@ export class ReviewView extends ItemView {
         this.decks = queue.decks;
         this.cards = queue.cards;
         this.backlog = queue.backlog;
+        this.recovery = queue.recovery;
         this.total = queue.total;
         this.index = 0;
         this.revealed = false;
         this.ahead = false;
         this.loading = false;
         this.cardShownAt = Date.now();
+        this.answeredSeconds = 0;
+        this.questionStartedAt = 0;
         this.render();
     }
 
@@ -341,6 +352,10 @@ export class ReviewView extends ItemView {
                 this.renderQuestionClock(clockHost, card);
             }
         }
+        if (this.recovery) {
+            const badge = meta.createSpan({ cls: 'fakecard-review-recovery', text: tt('Recovery mode') });
+            setTooltip(badge, tt('Ordered for coming back after a break: cards you still remember first, the weak ones mixed in a few at a time.'));
+        }
 
         // The card itself: centred while it is short, scrolling normally once
         // a long answer does not fit.
@@ -379,6 +394,10 @@ export class ReviewView extends ItemView {
             const bodyEl = body.createDiv({ cls: 'fakecard-review-front' });
             this.renderCardBody(bodyEl, card, true);
         }
+
+        // A one-line suggestion between the card and the buttons: noticeable,
+        // but it never blocks a key or a click.
+        this.renderRatingNudge(container, card);
 
         // Rating buttons: one cell each, with the shortcut under the label.
         const ratings = container.createDiv({ cls: 'fakecard-review-ratings' });
@@ -582,9 +601,17 @@ export class ReviewView extends ItemView {
             return;
         }
 
+        // The card's own history, so the child can be chosen with the evidence
+        // in sight: a card that keeps getting "mixed up" wants a comparison,
+        // not another lone cloze.
+        const logs = await this.plugin.reviews.recentForCard(parent.id, 100, 730);
+        const stats = {
+            reviews: logs.length,
+            mixed: logs.filter((log) => log.mixed).length,
+        };
         new ChildCardPromptModal(this.app, score, target, () => {
             this.chooseChildType(parent, at);
-        }).open();
+        }, stats).open();
     }
 
     /**
@@ -941,6 +968,7 @@ export class ReviewView extends ItemView {
         if (this.hintTimer !== null) window.clearInterval(this.hintTimer);
         let startedAt = startAt;
         let frozen = false;
+        if (stopWhenRevealed) this.questionStartedAt = startedAt;
         const stopAt = Math.max(1.5, 1 + this.slowStep());
 
         const tick = (): void => {
@@ -977,6 +1005,7 @@ export class ReviewView extends ItemView {
         tick();
         return () => {
             startedAt = Date.now();
+            if (stopWhenRevealed) this.questionStartedAt = startedAt;
             frozen = false;
             tick();
         };
@@ -1088,7 +1117,95 @@ export class ReviewView extends ItemView {
         await this.plugin.tempEdit.open(card, field);
     }
 
-    private async rate(rating: Rating): Promise<void> {
+    /**
+     * A single line between the card and the buttons, shown only when the
+     * timing is unusual.
+     *
+     * It never blocks anything: ignoring it leaves the four buttons and their
+     * shortcuts exactly as they were, and only a click on the line changes the
+     * rating. The row is dismissed per card.
+     */
+    private renderRatingNudge(container: HTMLElement, card: CardRecord): void {
+        const settings = this.plugin.settings;
+        if (!settings.antiMiddleNudges || !this.revealed) return;
+        if (!settings.answerTimeHint || this.clockHidden) return;
+        if (this.nudgeDismissedFor === card.id) return;
+        const fsrsCard = card.fsrs;
+        if (!fsrsCard || fsrsCard.state !== State.Review) return;
+        // Learning cards live in minutes, where "fast" means nothing.
+        if ((fsrsCard.scheduled_days ?? 0) < 1) return;
+        if (this.answeredSeconds < 3) return;
+
+        const breakdown = this.recall?.breakdown ?? this.recallBudget(card);
+        if (breakdown.onePass <= 0) return;
+        const ratio = this.answeredSeconds / breakdown.onePass;
+        const fast = ratio <= 0.5;
+        const slow = ratio >= 1.5;
+        if (!fast && !slow) return;
+
+        const elapsed = formatClock(this.answeredSeconds);
+        const budget = formatClock(Math.round(breakdown.onePass));
+        const row = container.createDiv({ cls: 'fakecard-nudge' });
+        row.createSpan({
+            cls: 'fakecard-nudge-text',
+            text: fast
+                ? ttf('Quick: {elapsed} / {budget} - give Easy?', { elapsed, budget })
+                : ttf('Slow: {elapsed} / {budget} - what happened?', { elapsed, budget }),
+        });
+
+        const add = (label: string, rating: Rating, mixed = false): void => {
+            row.createEl('button', { cls: 'fakecard-nudge-button', text: label })
+                .addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    void this.rate(rating, mixed);
+                });
+        };
+        if (fast) {
+            add(tt('Give Easy'), Rating.Easy);
+        } else {
+            add(tt('Could not recall'), Rating.Again);
+            add(tt('Mixed up'), Rating.Hard, true);
+        }
+
+        const dismiss = row.createEl('button', { cls: 'fakecard-nudge-dismiss', text: '×' });
+        setTooltip(dismiss, tt('Hide for this card'));
+        dismiss.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.nudgeDismissedFor = card.id;
+            row.remove();
+        });
+    }
+
+    /**
+     * A success after a long gap is weak evidence: the card had decayed, so one
+     * late pass must not push it out for months. Cap the new interval at 1.5x
+     * the previous one (and 60 days), which two on-time reviews then undo by
+     * growing normally again.
+     */
+    private capOverdueInterval(
+        previous: FsrsCard,
+        scheduled: FsrsCard,
+        now: Date,
+        rating: Rating,
+    ): void {
+        if (!this.plugin.settings.gapIntervalCap) return;
+        if (rating < Rating.Good) return;
+        if (previous.state !== State.Review) return;
+        const last = previous.last_review
+            ? new Date(previous.last_review).getTime()
+            : new Date(previous.due).getTime();
+        const elapsed = Math.max(0, (now.getTime() - last) / 86400000);
+        const stability = previous.stability ?? 0;
+        // ~5x past stability is roughly below 70% retrievability.
+        if (stability <= 0 || elapsed < stability * 5) return;
+        const previousInterval = Math.max(1, previous.scheduled_days ?? 1);
+        const cap = Math.min(60, Math.ceil(previousInterval * 1.5));
+        if (scheduled.scheduled_days <= cap) return;
+        scheduled.scheduled_days = cap;
+        scheduled.due = new Date(now.getTime() + cap * 86400000);
+    }
+
+    private async rate(rating: Rating, mixed = false): Promise<void> {
         const card = this.cards[this.index];
         if (!card) return;
 
@@ -1103,6 +1220,7 @@ export class ReviewView extends ItemView {
         const now = new Date();
         const scheduling = scheduler.next(fsrsCard, now, rating as Grade);
         this.shortenEarlyInterval(card, scheduling.card, now, rating);
+        this.capOverdueInterval(fsrsCard, scheduling.card, now, rating);
 
         const wasNew = !card.fsrs;
         card.fsrs = scheduling.card;
@@ -1122,6 +1240,7 @@ export class ReviewView extends ItemView {
             wasNew,
             durationMs: this.cardShownAt > 0 ? Date.now() - this.cardShownAt : undefined,
             slowPoints: slowPoints || undefined,
+            mixed: mixed || undefined,
             // Rated before its due date: practice, not today's quota.
             ahead: new Date(fsrsCard.due).getTime() > now.getTime() || undefined,
         });
@@ -1264,6 +1383,11 @@ export class ReviewView extends ItemView {
 
     private reveal(): void {
         if (this.revealed) return;
+        // Freeze the answering time for the fast/slow nudge. The question clock
+        // may be a few hundred milliseconds stale, and its reset moves this.
+        this.answeredSeconds = this.questionStartedAt > 0
+            ? Math.max(0, Math.round((Date.now() - this.questionStartedAt) / 1000))
+            : 0;
         // Memorising starts with the answer: a fresh clock, not the question
         // count carried over. The question clock measured answering, which is a
         // different thing and is never scored.

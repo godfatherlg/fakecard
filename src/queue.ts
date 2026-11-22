@@ -1,7 +1,17 @@
-import { State } from 'ts-fsrs';
+import { forgetting_curve, State } from 'ts-fsrs';
 import type FakeCardPlugin from '../main';
 import type { CardRecord } from './card';
 import { pruneExpiredExamPlans } from './examPlan';
+
+/** Retrievability of a card right now; 1 for a card that was never seen. */
+function retrievability(card: CardRecord, now: number): number {
+    const fsrs = card.fsrs;
+    if (!fsrs || fsrs.state === State.New) return 1;
+    const last = fsrs.last_review ? new Date(fsrs.last_review).getTime() : new Date(fsrs.due).getTime();
+    const elapsed = Math.max(0, (now - last) / 86400000);
+    const stability = fsrs.stability ?? 0;
+    return stability > 0 ? forgetting_curve(elapsed, stability) : 0;
+}
 
 /**
  * Today's review session, split the way Anki splits it: cards due for review,
@@ -24,6 +34,8 @@ export interface ReviewQueue {
     backlog: number;
     /** Cards in this deck filter that could be scheduled at all. */
     total: number;
+    /** Today's queue is ordered for coming back after a long gap. */
+    recovery: boolean;
 }
 
 /**
@@ -55,7 +67,21 @@ export async function buildReviewQueue(
     // capped by the daily limits in settings. `reviewLimitBoost` is the extra
     // allowance "study more today" adds; it lives for this session only.
     const todayLogs = await plugin.reviews.forDay(new Date());
-    const limit = plugin.settings.maxReviewsPerDay + plugin.reviewLimitBoost;
+    let limit = plugin.settings.maxReviewsPerDay + plugin.reviewLimitBoost;
+
+    // Size the day from how yesterday actually went: a run of failures means
+    // today should be smaller, not that the backlog should be cleared faster.
+    if (plugin.settings.adaptiveDailyLoad) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const logs = (await plugin.reviews.forDay(yesterday)).filter((log) => !log.ahead);
+        if (logs.length >= 10) {
+            const success = logs.filter((log) => log.rating >= 3).length / logs.length;
+            if (success < 0.7) limit = Math.max(10, Math.round(limit * 0.8));
+            else if (success > 0.9) limit = Math.round(limit * 1.1);
+        }
+    }
+
     // Reviews made ahead of schedule are extra practice: they must not eat the
     // allowance that today's due cards still need.
     const spentToday = todayLogs.filter((log) => !log.ahead).length;
@@ -69,7 +95,37 @@ export async function buildReviewQueue(
             && card.fsrs.state !== State.New
             && new Date(card.fsrs.due).getTime() <= now)
         .sort((a, b) => new Date(a.fsrs!.due).getTime() - new Date(b.fsrs!.due).getTime());
-    const due = waiting.slice(0, remainingReviews);
+
+    // Recovery: while a large share of the due cards is well past its stability,
+    // the oldest-due-first order would open every day with the worst cards.
+    // Show the ones still remembered first and drip the weak ones in.
+    const weak = plugin.settings.recoveryMode
+        ? waiting.filter((card) => retrievability(card, now) < 0.5)
+        : [];
+    const recovery = weak.length >= Math.max(10, Math.floor(waiting.length * 0.2));
+    let due: CardRecord[];
+    if (recovery) {
+        const weakIds = new Set(weak.map((card) => card.id));
+        const familiar = waiting
+            .filter((card) => !weakIds.has(card.id))
+            .sort((a, b) => retrievability(b, now) - retrievability(a, now));
+        const fragile = weak.sort((a, b) => retrievability(b, now) - retrievability(a, now));
+        const take = Math.min(remainingReviews, waiting.length);
+        const familiarTake = Math.min(familiar.length, Math.ceil(take * 0.8));
+        const weakTake = Math.min(fragile.length, take - familiarTake);
+        due = [
+            ...familiar.slice(0, familiarTake),
+            ...fragile.slice(0, weakTake),
+        ];
+        // One bucket short: fill from the other instead of showing a short day.
+        const left = take - due.length;
+        if (left > 0) {
+            const unused = familiarTake < familiar.length ? familiar.slice(familiarTake) : fragile.slice(weakTake);
+            due.push(...unused.slice(0, left));
+        }
+    } else {
+        due = waiting.slice(0, remainingReviews);
+    }
 
     // Behind on due cards, a new card only adds tomorrow's work - and its first
     // day costs several passes of its own. Hold them until the queue fits again.
@@ -96,5 +152,6 @@ export async function buildReviewQueue(
         // work, just not reached yet.
         backlog: waiting.length - due.length,
         total: all.length,
+        recovery,
     };
 }

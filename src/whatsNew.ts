@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.37';
+export const WHATS_NEW_VERSION = '1.0.38';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Switching the clock off now lasts: it stays off across cards and ratings, and a small clock button in the same spot brings it back with a fresh start. Reloading the plugin restores it.',
-        zh: '关闭计时现在会一直保持：换卡、评分都不会自动恢复；同一位置留一个小时钟按钮，点它重新打开并从那一刻重新计时。重载插件后恢复显示。',
+        en: 'Anti-middle nudges (off by default): a card recalled far faster or slower than its answering budget offers a one-click Easy / Again / mixed-up change, in a single line above the buttons that never blocks them.',
+        zh: '防中庸提示（默认关）：用时明显偏快或偏慢时，评分按钮上方多一行建议，点一下就能改成 Easy / Again / 想混了，不点则完全不影响正常操作。',
+    },
+    {
+        en: 'After a break (three switches, off by default): recovery order for the queue, an interval cap for cards reviewed long after their due date, and a daily size that follows yesterday\'s success rate.',
+        zh: '中断处理（三个开关，默认关）：恢复顺序排队、超期很久的卡成功后限制新间隔、按昨天成功率调整今天放多少张。',
     },
 ];
 
