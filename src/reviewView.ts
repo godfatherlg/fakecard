@@ -1134,7 +1134,9 @@ export class ReviewView extends ItemView {
         if (!fsrsCard || fsrsCard.state !== State.Review) return;
         // Learning cards live in minutes, where "fast" means nothing.
         if ((fsrsCard.scheduled_days ?? 0) < 1) return;
-        if (this.answeredSeconds < 3) return;
+        // Under a second is a misclick or a straight peek at the answer, not a
+        // recall; anything above it is a real "that was instant".
+        if (this.answeredSeconds < 1) return;
 
         const breakdown = this.recall?.breakdown ?? this.recallBudget(card);
         if (breakdown.onePass <= 0) return;
