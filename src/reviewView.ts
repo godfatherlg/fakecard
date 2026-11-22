@@ -1126,31 +1126,32 @@ export class ReviewView extends ItemView {
     private renderRatingNudge(container: HTMLElement, card: CardRecord): void {
         const settings = this.plugin.settings;
         if (!settings.antiMiddleNudges || !this.revealed) return;
-        if (!settings.answerTimeHint || this.clockHidden) return;
         const fsrsCard = card.fsrs;
         if (!fsrsCard || fsrsCard.state !== State.Review) return;
         // Learning cards live in minutes, where "fast" means nothing.
         if ((fsrsCard.scheduled_days ?? 0) < 1) return;
-        // Under a second is a misclick or a straight peek at the answer, not a
-        // recall; anything above it is a real "that was instant".
-        if (this.answeredSeconds < 1) return;
 
         const breakdown = this.recall?.breakdown ?? this.recallBudget(card);
-        if (breakdown.onePass <= 0) return;
-        const ratio = this.answeredSeconds / breakdown.onePass;
-        const fast = ratio <= 0.5;
-        const slow = ratio >= 1.5;
-        if (!fast && !slow) return;
+        // A fast recall can mean "too easy" or "no idea at all", so both are
+        // offered. The mixed-up mark does not depend on timing: two answers can
+        // fight at any speed, and it is the only way to say so.
+        const measured = settings.answerTimeHint && !this.clockHidden
+            && this.answeredSeconds >= 1 && breakdown.onePass > 0;
+        const ratio = measured ? this.answeredSeconds / breakdown.onePass : 1;
+        const fast = measured && ratio <= 0.5;
+        const slow = measured && ratio >= 1.5;
 
-        const elapsed = formatClock(this.answeredSeconds);
-        const budget = formatClock(Math.round(breakdown.onePass));
         const row = container.createDiv({ cls: 'fakecard-nudge' });
-        row.createSpan({
-            cls: 'fakecard-nudge-text',
-            text: fast
-                ? ttf('Quick: {elapsed} / {budget} - give Easy?', { elapsed, budget })
-                : ttf('Slow: {elapsed} / {budget} - what happened?', { elapsed, budget }),
-        });
+        if (fast || slow) {
+            const elapsed = formatClock(this.answeredSeconds);
+            const budget = formatClock(Math.round(breakdown.onePass));
+            row.createSpan({
+                cls: 'fakecard-nudge-text',
+                text: fast
+                    ? ttf('Quick: {elapsed} / {budget}', { elapsed, budget })
+                    : ttf('Slow: {elapsed} / {budget}', { elapsed, budget }),
+            });
+        }
 
         const add = (label: string, rating: Rating, mixed = false): void => {
             row.createEl('button', { cls: 'fakecard-nudge-button', text: label })
@@ -1160,12 +1161,14 @@ export class ReviewView extends ItemView {
                 });
         };
         if (fast) {
-            add(tt('Give Easy'), Rating.Easy);
+            add(tt('Too easy (Easy)'), Rating.Easy);
+            add(tt('No idea (Again)'), Rating.Again);
+        } else if (slow) {
+            add(tt('Stuck (Again)'), Rating.Again);
+            add(tt('Mixed up (Hard)'), Rating.Hard, true);
         } else {
-            add(tt('Could not recall'), Rating.Again);
-            add(tt('Mixed up'), Rating.Hard, true);
+            add(tt('Mixed up (Hard)'), Rating.Hard, true);
         }
-
     }
 
     /**

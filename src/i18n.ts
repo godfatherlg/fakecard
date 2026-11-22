@@ -486,11 +486,12 @@ const UI_ZH: Record<string, string> = {
     'Recovery mode': '恢复模式',
     'Ordered for coming back after a break: cards you still remember first, the weak ones mixed in a few at a time.':
         '按中断恢复排序：先做还记得的，最弱的每天只掺一点。',
-    'Quick: {elapsed} / {budget} - give Easy?': '很快：{elapsed} / {budget}——给 Easy？',
-    'Slow: {elapsed} / {budget} - what happened?': '停了很久：{elapsed} / {budget}——是哪种？',
-    'Give Easy': '给 Easy',
-    'Could not recall': '没想起来',
-    'Mixed up': '想混了',
+    'Quick: {elapsed} / {budget}': '很快：{elapsed} / {budget}',
+    'Slow: {elapsed} / {budget}': '很慢：{elapsed} / {budget}',
+    'Too easy (Easy)': '太容易（简单）',
+    'No idea (Again)': '没思路（重来）',
+    'Stuck (Again)': '卡思路（重来）',
+    'Mixed up (Hard)': '记混卡（困难）',
     '{reviews} reviews, {mixed} of them mixed up ({percent}%)':
         '复习 {reviews} 次，其中记混 {mixed} 次（{percent}%）',
     'Fill screen': '铺满',

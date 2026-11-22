@@ -25,8 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Anti-middle nudges (off by default): a card recalled far faster or slower than its answering budget offers a one-click Easy / Again / mixed-up change, in a single line above the buttons that never blocks them.',
-        zh: '防中庸提示（默认关）：用时明显偏快或偏慢时，评分按钮上方多一行建议，点一下就能改成 Easy / Again / 想混了，不点则完全不影响正常操作。',
+        en: 'Anti-middle nudges (off by default): above the rating buttons, a quick recall offers "Too easy (Easy)" and "No idea (Again)", a slow one offers "Stuck (Again)" and "Mixed up (Hard)", and every card offers the mixed-up mark. Ignoring the line changes nothing.',
+        zh: '防中庸提示（默认关）：评分按钮上方，很快的卡给「太容易（简单）」「没思路（重来）」，很慢的卡给「卡思路（重来）」「记混卡（困难）」，正常速度也常驻「记混卡（困难）」。不点就不影响正常操作。',
     },
     {
         en: 'After a break (three switches, off by default): recovery order for the queue, an interval cap for cards reviewed long after their due date, and a daily size that follows yesterday\'s success rate.',
