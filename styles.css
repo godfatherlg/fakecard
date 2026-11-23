@@ -2024,6 +2024,9 @@ body.theme-dark .fakecard-image-mask-label {
   background: color-mix(in srgb, var(--color-blue) 25%, transparent);
   color: transparent;
   font-variant-numeric: tabular-nums;
+  /* Ideographic spaces are break opportunities: without this, a narrow node
+     split the mask over two lines, each of them looking blank. */
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------- Mind map panel */
