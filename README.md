@@ -40,7 +40,7 @@ Browse & filter (**Browse and edit cards**): search box, quick filters, table an
 |---|---|
 | `deck:x` / `tag:x` / `type:qa` | deck (contains) / tag (exact) / type `qa` `cloze` `image` `map` |
 | `is:new` `is:learning` `is:review` `is:relearning` `is:due` | FSRS state |
-| `is:child` `is:paused` `is:graduated` `is:orphan` | child / suspended / graduated / source note gone |
+| `is:child` `is:buried` `is:paused` `is:graduated` `is:orphan` | child / buried until tomorrow / suspended / graduated / source note gone |
 | `added:7` `rated:7` | created / reviewed within N days (`rated:1` = today) |
 | `prop:due<7` `prop:ivl>=21` `prop:difficulty>=7` `prop:reps>5` `prop:lapses>0` | due days / interval / FSRS difficulty / reviews / lapses |
 | `front:x` `back:x` | one field only |
@@ -180,7 +180,7 @@ obsidian://fakecard?data=<URL 编码的 JSON>
 | `deck:方剂` / `tag:麻黄` / `type:qa` | 牌组（包含即可）/ 标签（完全相同）/ 类型 `qa` `cloze` `image` `map` |
 | `is:new` `is:learning` `is:review` `is:relearning` | FSRS 状态 |
 | `is:due` | 已到期 |
-| `is:child` `is:paused` `is:graduated` | 子卡 / 挂起父卡 / 已毕业 |
+| `is:child` `is:buried` `is:paused` `is:graduated` | 子卡 / 埋藏到明天 / 挂起父卡 / 已毕业 |
 | `is:orphan` | 来源笔记已删除 |
 | `added:7` | 7 天内创建 |
 | `rated:7` | 7 天内复习过（`rated:1` = 今天） |

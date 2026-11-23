@@ -429,6 +429,7 @@ export class BrowseView extends ItemView {
         add(tt('New cards') + '  is:new', 'is:new');
         add(tt('Due today') + '  is:due', 'is:due');
         add(tt('Learning') + '  is:learning', 'is:learning');
+        add(tt('Buried') + '  is:buried', 'is:buried');
         add(tt('Paused') + '  is:paused', 'is:paused');
         add(tt('Child cards') + '  is:child', 'is:child');
         add(tt('Graduated') + '  is:graduated', 'is:graduated');
@@ -678,6 +679,7 @@ export class BrowseView extends ItemView {
             ['New', 'is:new'],
             ['Due', 'is:due'],
             ['Learning', 'is:learning'],
+            ['Buried', 'is:buried'],
             ['Child', 'is:child'],
             [tt('Paused'), 'is:paused'],
             ['Graduated', 'is:graduated'],

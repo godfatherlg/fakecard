@@ -682,17 +682,17 @@ export class ImagePanelModal extends Modal {
             const existing = known.get(entry.oldId);
             if (!existing) {
                 inherit(card);
-                await this.plugin.store.save(card);
+                if (!await this.plugin.store.save(card)) return;
                 continue;
             }
             existing.image = card.image;
             existing.front = card.front;
             existing.back = card.back;
             existing.updated = new Date().toISOString();
-            await this.plugin.store.save(existing);
+            if (!await this.plugin.store.save(existing)) return;
         }
         for (const [groupId, entry] of known) {
-            if (!kept.has(groupId)) await this.plugin.store.remove(entry.id);
+            if (!kept.has(groupId) && !await this.plugin.store.remove(entry.id)) return;
         }
 
         new Notice(ttf('Saved {count} image card(s).', { count: cards.length }));

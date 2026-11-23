@@ -51,6 +51,7 @@ const IS_VALUES: ReadonlyArray<{ value: string; hint: string }> = [
     { value: 'review', hint: 'on the long schedule' },
     { value: 'relearning', hint: 'failed and back in steps' },
     { value: 'child', hint: 'a stand-in card' },
+    { value: 'buried', hint: 'hidden until tomorrow' },
     { value: 'paused', hint: 'kept out of the queue' },
     { value: 'graduated', hint: 'finished stand-in' },
     { value: 'orphan', hint: 'source note is gone' },

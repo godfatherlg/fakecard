@@ -671,6 +671,7 @@ const UI_ZH: Record<string, string> = {
     'failed and back in steps': '重学中',
     'a stand-in card': '替身子卡',
     'kept out of the queue': '已移出队列',
+    'hidden until tomorrow': '今天不再出现',
     'finished stand-in': '已毕业的子卡',
     'source note is gone': '源笔记已删除',
     'question and answer': '问答',
