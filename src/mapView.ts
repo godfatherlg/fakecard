@@ -76,6 +76,16 @@ const GAP_Y = 16;
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 2;
 
+/**
+ * Rendered node text, keyed by source path and raw markdown.
+ *
+ * A map repaint creates new spans but rarely changes more than one line; this
+ * keeps MarkdownRenderer off that path. Bounded because a panel can be open for
+ * a long editing session.
+ */
+const RENDERED_TEXT_LIMIT = 500;
+const renderedText = new Map<string, Node[]>();
+
 interface Box {
     node: OutlineNode;
     el: HTMLElement;
@@ -259,6 +269,10 @@ export async function renderMindmap(
     // Node text is rendered by Obsidian itself when a vault path is available,
     // so a node can hold anything a note can. It is async, which is why the map
     // measures only after every node has settled.
+    //
+    // A repaint rebuilds the nodes but usually changes one line; the rendered
+    // HTML for a piece of text is reused, so only the edited line pays for
+    // MarkdownRenderer. The cache is bounded because the panel is not.
     if (options.app && options.sourcePath) {
         const component = new Component();
         await Promise.all(created.map(async ({ el }) => {
@@ -267,6 +281,15 @@ export async function renderMindmap(
                 const span = spans[index];
                 const raw = span.dataset.raw ?? '';
                 if (!raw) continue;
+                const key = `${options.sourcePath}\u0000${raw}`;
+                const cached = renderedText.get(key);
+                if (cached !== undefined) {
+                    // The span already holds the synchronous fallback; the
+                    // cached children replace it, not append to it.
+                    span.empty();
+                    for (const child of cached) span.appendChild(child.cloneNode(true));
+                    continue;
+                }
                 span.empty();
                 await MarkdownRenderer.render(options.app!, raw, span, options.sourcePath!, component);
                 // The renderer puts a single paragraph inside a <p>, which turns
@@ -278,6 +301,13 @@ export async function renderMindmap(
                     while (paragraph.firstChild) span.insertBefore(paragraph.firstChild, paragraph);
                     paragraph.remove();
                 }
+                if (renderedText.size >= RENDERED_TEXT_LIMIT) {
+                    for (const oldest of renderedText.keys()) {
+                        renderedText.delete(oldest);
+                        break;
+                    }
+                }
+                renderedText.set(key, Array.from(span.childNodes, (child) => child.cloneNode(true)));
             }
         }));
         // The renderer's children are done; releasing them here keeps embedded
