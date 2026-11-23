@@ -449,12 +449,22 @@ export async function renderMindmap(
             return;
         }
         // A map is bigger than the frame: the wheel moves it, like the canvas of
-        // any map editor.
+        // any map editor. At the edge of the map the wheel is left alone, so the
+        // panel around it scrolls instead - otherwise the bottom of the dialog
+        // (deck, tags, the save button) could never be reached from the map.
+        const rect = host.getBoundingClientRect();
+        const canPanY = event.deltaY > 0
+            ? ty + maxY * scale > rect.height + 1
+            : ty < -1;
+        const canPanX = event.deltaX > 0
+            ? tx + maxX * scale > rect.width + 1
+            : tx < -1;
+        if (!canPanX && !canPanY) return;
         event.preventDefault();
         if (event.shiftKey) tx -= event.deltaY;
         else {
-            ty -= event.deltaY;
-            tx -= event.deltaX;
+            if (canPanY) ty -= event.deltaY;
+            if (canPanX) tx -= event.deltaX;
         }
         apply();
     }, { passive: false });
