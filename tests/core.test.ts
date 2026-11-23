@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { State } from 'ts-fsrs';
-import type { CardRecord } from '../src/card';
+import { isBuried, type CardRecord } from '../src/card';
 import {
     holeAnswer,
     holeHint,
@@ -250,5 +250,23 @@ describe('daily limit', () => {
     it('counts the boost before applying the percentage', () => {
         const bad = Array.from({ length: 10 }, () => ({ rating: 1 }));
         expect(dailyReviewLimit({ ...base, boost: 20, yesterday: bad })).toBe(96);
+    });
+});
+
+describe('bury', () => {
+    // Burying means "not again until tomorrow": the deadline is the end of the
+    // local day, so the card must come back the moment the date rolls over.
+    const deadline = '2026-05-02T00:00:00.000Z';
+
+    it('hides a card until the deadline and returns it afterwards', () => {
+        const buried = card({ buriedUntil: deadline });
+        expect(isBuried(buried, Date.parse('2026-05-01T23:59:59.999Z'))).toBe(true);
+        expect(isBuried(buried, Date.parse(deadline))).toBe(false);
+        expect(isBuried(buried, Date.parse('2026-05-02T09:00:00.000Z'))).toBe(false);
+    });
+
+    it('treats a missing or unreadable deadline as not buried', () => {
+        expect(isBuried(card(), Date.parse(deadline))).toBe(false);
+        expect(isBuried(card({ buriedUntil: 'not a date' }), Date.parse(deadline))).toBe(false);
     });
 });
