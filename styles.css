@@ -796,6 +796,7 @@ button.fakecard-review-show:hover {
 
 /* Cloze highlighting: the asked part vs the revealed answer */
 .fakecard-cloze-mask {
+  display: inline;
   background: color-mix(in srgb, var(--color-blue) 25%, transparent);
   color: var(--text-normal);
   border-radius: 3px;
@@ -805,6 +806,7 @@ button.fakecard-review-show:hover {
 /* Other groups are hidden as well but stay neutral - only the asked group
    gets the accent colour, so it is clear what this card wants. */
 .fakecard-cloze-other {
+  display: inline;
   background: var(--background-modifier-border);
   color: var(--text-muted);
   border-radius: 3px;
@@ -812,6 +814,7 @@ button.fakecard-review-show:hover {
 }
 
 .fakecard-cloze-answer {
+  display: inline;
   background: color-mix(in srgb, var(--color-green) 22%, transparent);
   border-radius: 3px;
   padding: 0 4px;

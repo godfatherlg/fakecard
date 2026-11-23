@@ -88,7 +88,14 @@ export function renderClozeHtml(
     hidden: ReadonlySet<number> | 'all',
     askedGroup?: number,
 ): string {
-    return text.replace(CLOZE_RE, (match, groupStr: string, inner: string, hint: string | undefined, offset: number) => {
+    // A newline right before or after a hole comes from a hard-wrapped source
+    // line, not from the card: Obsidian renders a single newline as a line
+    // break, which put the hole alone on its own line. Only whitespace that
+    // touches a marker is normalised - paragraphs and lists keep their breaks.
+    const flow = text
+        .replace(/[ \t]*\n[ \t]*(?=\{\{c\d+::)/g, ' ')
+        .replace(/(\}\})[ \t]*\n[ \t]*/g, '$1 ');
+    return flow.replace(CLOZE_RE, (match, groupStr: string, inner: string, hint: string | undefined, offset: number) => {
         const group = Number(groupStr);
         const isHidden = hidden === 'all' || hidden.has(group);
         // The offsets let an editor map a click back to the source and remove
