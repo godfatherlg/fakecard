@@ -1,71 +1,55 @@
-# 1.0.41
+# 1.0.42
 
 ## 中文
 
-### 导图卡改在自己的面板里编辑
+### 导图里所有组的挖空都会显示
 
-以前点「编辑思维导图」会临时建一个 md 笔记，里面 `{{c1::…}}` 只是一串纯文本：看不到挖空、注释和树形，改起来很别扭。
+以前导图只挖当前组，其他组直接露出答案；cloze 卡则是全部挖空，只有所问组是蓝色。
 
-- 浏览页选中导图卡 → `✎ 编辑思维导图`，直接打开新建时用的那个面板
-- 复习界面的编辑按钮，遇到导图卡也走同一个面板
-- 打开时默认选中卡片自己的分组，并居中该组的第一处挖空
-- 保存会更新整张图的所有分组，牌组和标签也一起写入
+- 编辑面板：所有组都显示挖空，当前组蓝色、其他组灰色
+- 复习界面：与 cloze 一样由「正面挖空所有分组」控制；开启（默认）时全部挖空、所问组蓝色、其余灰色，关闭时只挖所问组
+- 「显示答案」仍然整段还原，当前组标绿
 
-### 挖空注释的输入框修好了
+### 切换分组会居中到该组
 
-- 输入框移进弹窗内部，光标不再被弹窗抢走、不再闪烁
-- 输入框旁新增 **「删除挖空」**：去掉标记、保留原文字
-- 单击挖空写注释；拖选仍然是选中文字（可以点悬浮按钮移除）
+- 用该组真正提问的节点（`findQuestionNode`）定位，不再依赖"渲染时遇到的第一个挖空"
+- 选 c1 / c2 / c3 分别居中到各自的第一处挖空
 
-### 打开面板不再闪，切分组会居中
+### 地图滚轮到边界后交给面板
 
-- 导图首次绘制先隐藏，定位完成后再整体显示，不再闪一下
-- 切换 c1 / c2 / c3 会居中该组的第一处挖空，而不是保留上一组的视口
-
-### 术语统一
-
-- 中文界面：`遮罩` / `遮挡` / `蒙版` / `遮住` 全部改为 **挖空**（图片卡也一样）
-- 英文界面：`mask` / `hole` / `occlusion` / `box` 混用改为 **mask** 表示被藏起来的部分；`Image occlusion` 只作为卡型名称保留
+- 内容已经到底（或到顶）时，滚轮不再被地图吞掉，而是滚动外层，可以滚到牌组、标签和保存按钮
+- 内容还没看完时仍然平移地图；`Ctrl/Cmd + 滚轮` 仍然缩放
 
 ### 请测试
 
-- 浏览页编辑一张导图卡：是否直接打开导图面板、是否显示挖空和注释
-- 编辑后保存：同一张图的 c1/c2/c3 是否一起更新
-- 点挖空写注释：光标是否稳定、能否输入；「删除挖空」是否保留原文字
-- 打开新导图面板：是否不再闪；切换分组是否居中到该组
-- 中文/英文界面各看一遍：是否只剩「挖空」/「mask」一套说法
+- 一张图里 c1、c2 各挖一个空：复习时两组是否都是挖空，且颜色不同
+- 关掉「正面挖空所有分组」：是否只挖所问组，其他组显示答案
+- 编辑面板切换 c1 / c2 / c3：蓝色和居中是否都跟着换
+- 在地图上向下滚到底：继续滚是否能滚到面板下方；向上滚到顶是否能滚回上方
 
 ## English
 
-### A mind map is edited in its own panel
+### Every group's masks show in a map
 
-"Edit mind map" used to open a temporary note, where `{{c1::...}}` was plain text - no masks, no notes, no tree.
+A map used to mask only the asked group and show the others as answers; a cloze card masks them all and colours only the asked one.
 
-- Browse → `✎ Edit mind map` now opens the same panel that creates maps
-- The review edit button does the same for map cards
-- It opens on the card's own group, centred on that group's first mask
-- Saving updates every group of the map, deck and tags included
+- Editor: all groups are masked, the current one blue, the others neutral
+- Review: follows "Mask all groups on the front" like cloze; on (the default) masks everything with the asked group in the accent, off masks only the asked group
+- Show answer still unmasks everything and marks the current group green
 
-### The mask note field works
+### A group switch centres on that group
 
-- The field now lives inside the dialog, so the modal cannot take the caret back and it no longer flickers
-- A **Remove mask** button beside it drops the markers and keeps the words
-- A click writes a note; dragging still selects text (the floating button removes a mask)
+- The node the group actually asks (`findQuestionNode`) is the focus, not "the first mask the renderer meets"
+- c1 / c2 / c3 each centre on their own first mask
 
-### No flash on open, and a group switch centres
+### The wheel leaves the map at its edges
 
-- The first paint stays hidden until the map is measured and centred
-- Switching c1 / c2 / c3 centres that group's first mask instead of keeping the previous view
-
-### One word for a hidden area
-
-- English used `mask`, `hole`, `occlusion` and `box` for the same thing; the area and the verb are **mask** everywhere now, and `Image occlusion` stays as the card type name
-- Chinese uses 挖空 throughout, image cards included
+- When there is nothing more to reveal, the wheel scrolls the panel instead, so deck, tags and Save can be reached from the map
+- While there is more map to see it still pans; `Ctrl/Cmd + wheel` still zooms
 
 ### Please test
 
-- Edit a map from Browse: does the map panel open with masks and notes
-- Save: do all groups of that map update together
-- Click a mask: does the caret stay, can you type, and does Remove mask keep the words
-- Open a new map panel: is the flash gone; does a group switch centre that group
-- Check both languages: is there only one term left
+- Mask one word in c1 and one in c2: in review, are both masked and differently coloured
+- Turn "Mask all groups" off: is only the asked group masked, the others shown as answers
+- Switch c1 / c2 / c3 in the editor: do the blue accent and the centre follow
+- Scroll to the bottom of the map: does the wheel continue into the panel; back to the top the same
