@@ -53,6 +53,8 @@ export class MapPanelModal extends Modal {
     /** Preview side: show the words the masks are hiding. */
     private showAnswers = false;
     private revealButton: HTMLButtonElement | null = null;
+    /** The map has been painted once; the first paint is hidden until settled. */
+    private painted = false;
     /** Just applied a mask: ignore the mouseup that is still on its way. */
     private suppressSelectionUntil = 0;
 
@@ -222,6 +224,9 @@ export class MapPanelModal extends Modal {
         this.groupSelect.value = String(this.currentGroup);
         this.groupSelect.onchange = () => {
             this.currentGroup = Number.parseInt(this.groupSelect.value, 10) || 1;
+            // A group switch is a new question: centre that group's node instead
+            // of keeping the view of the previous one.
+            this.previewEl.dataset.view = '';
             this.schedulePreview();
         };
     }
@@ -242,6 +247,10 @@ export class MapPanelModal extends Modal {
         // Showing the answer: nothing is masked, and the group being written is
         // painted green, so the words that will be hidden are still obvious.
         const maskGroups = this.showAnswers ? new Set<number>() : new Set([group]);
+        // The first paint lands before the map is centred and measured; hiding
+        // it until then is what stops the layout flashing on open.
+        const first = !this.painted;
+        if (first) this.previewEl.addClass('is-laying-out');
         void renderMindmap(this.previewEl, parseOutline(this.text), {
             maskGroups,
             highlightGroups: this.showAnswers ? new Set([group]) : undefined,
@@ -260,6 +269,12 @@ export class MapPanelModal extends Modal {
             },
             onMaskClick: (node, hole) => this.editHoleHint(node, hole),
             onNodeEdit: (node, text) => this.applyNodeText(node, text),
+        }).then(() => {
+            if (!first) return;
+            window.setTimeout(() => {
+                this.previewEl.removeClass('is-laying-out');
+                this.painted = true;
+            }, 90);
         });
     }
 

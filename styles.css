@@ -2081,6 +2081,12 @@ body.theme-dark .fakecard-image-mask-label {
   display: none;
 }
 
+/* First paint: measured and centred in the same frame it becomes visible, so
+   the map does not flash through its unplaced state. */
+.fakecard-map-preview.is-laying-out {
+  visibility: hidden;
+}
+
 .fakecard-map-text {
   width: 100%;
   height: 100%;
