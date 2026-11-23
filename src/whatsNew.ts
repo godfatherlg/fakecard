@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.47';
+export const WHATS_NEW_VERSION = '1.0.48';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The browse table keeps a minimum width and scrolls sideways in a narrow pane, so columns no longer squeeze text into one character per line.',
-        zh: '浏览页表格设了最小宽度，窗口变窄时改为横向滚动，列不再把文字挤成一字一行。',
+        en: 'A failed save now stops the action: panels stay open with what you typed, ratings stay on the card, and imports or bulk actions report the number that actually reached the vault.',
+        zh: '保存失败不再假装成功：面板保留你填的内容，评分停留在当前卡，导入和批量操作只报告真正写入的数量。',
     },
     {
-        en: 'New is:buried search term, and the status-bar labels are translated (Due / New / Learning).',
-        zh: '新增 is:buried 搜索词；状态栏的到期 / 新卡 / 学习中标签也走中文了。',
-    },
-    {
-        en: 'A mind map now opens centred on the node that holds the mask, instead of half a pane to the right with the right side clipped. Switching c1/c2/c3 follows the group, and a c2 card opens on c2.',
-        zh: '导图打开时按挖空所在节点居中，不再整体偏右、右侧被裁切；切换 c1/c2/c3 会居中各自节点，c2 的卡默认打开 c2。',
+        en: 'Parsed review days are cached for the session, so rating, the status bar and statistics stop re-reading and re-parsing today\'s file each time.',
+        zh: '复习日志按天缓存在内存里，评分、状态栏和统计不再反复读取、解析当天文件。',
     },
 ];
 
