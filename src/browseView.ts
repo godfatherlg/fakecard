@@ -5,6 +5,7 @@ import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
 import { ImagePanelModal } from './imagePanel';
+import { MapPanelModal } from './mapPanel';
 import { renderMindmap } from './mapView';
 import { parseOutline } from './outline';
 import { tt, ttf } from './i18n';
@@ -753,13 +754,12 @@ export class BrowseView extends ItemView {
         if (selected.type === 'cloze') {
             addEditor('clozeText', tt('✎ Edit cloze text'));
         } else if (selected.type === 'map') {
-            // A node clicked in the preview first makes "edit" open the outline
-            // at that line; without one it opens at the top, as before.
-            addEditor(
-                'mapText',
-                tt('✎ Edit mind map'),
-                this.mapFocusCardId === selected.id ? this.mapFocusLine ?? undefined : undefined,
-            );
+            // The map is edited in its own panel, the same one that creates it:
+            // a temp note shows `{{c1::...}}` as raw text, which cannot show a
+            // mask, its note, or the shape of the map while it is being edited.
+            editors.createEl('button', { text: tt('✎ Edit mind map') }).addEventListener('click', () => {
+                new MapPanelModal(this.app, this.plugin, selected.source.path, selected).open();
+            });
         } else if (selected.type === 'image') {
             // Only the masks are real content: `front`/`back` are `![[image]]`
             // copies the review view never reads (it draws `card.image`), so

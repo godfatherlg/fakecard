@@ -8,6 +8,7 @@ import { ChildCardPromptModal } from './childPrompt';
 import { childScore, isGraduatable } from './childStreak';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
+import { MapPanelModal } from './mapPanel';
 import { renderMindmap } from './mapView';
 import { findQuestionNode, parseOutline } from './outline';
 import { ClozePanelModal } from './clozePanel';
@@ -1109,6 +1110,12 @@ export class ReviewView extends ItemView {
      * content is the picture and the masks drawn over it.
      */
     private async editTextInEditor(card: CardRecord): Promise<void> {
+        // A map has a panel of its own: a temp note cannot show masks, notes or
+        // the tree, so the map is edited where it is written.
+        if (card.type === 'map') {
+            new MapPanelModal(this.app, this.plugin, card.source.path, card).open();
+            return;
+        }
         const field: EditableField = card.type === 'cloze'
             ? 'clozeText'
             : (this.revealed ? 'back' : 'front');
