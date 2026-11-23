@@ -49,6 +49,9 @@ export class MapPanelModal extends Modal {
     /** Whether the outline strip is showing its source box. */
     /** The editor/render switch shared with the other new-card panels. */
     private stages!: StageSwitch;
+    /** Preview side: show the words the masks are hiding. */
+    private showAnswers = false;
+    private revealButton: HTMLButtonElement | null = null;
 
     onOpen(): void {
         const { contentEl } = this;
@@ -69,6 +72,25 @@ export class MapPanelModal extends Modal {
             this.currentGroup = next;
             this.fillGroups();
             this.schedulePreview();
+        });
+
+        // Write the card from both sides: the masked view is how it is asked,
+        // the revealed one is what the answer will look like. Without this the
+        // panel only ever showed the holes.
+        this.revealButton = toolbar.createEl('button', {
+            text: tt('Show answer'),
+            attr: { type: 'button' },
+        });
+        setTooltip(this.revealButton, tt('Show the masked text in the preview'));
+        this.revealButton.addEventListener('click', () => {
+            this.showAnswers = !this.showAnswers;
+            this.revealButton?.setText(this.showAnswers ? tt('Hide answer') : tt('Show answer'));
+            if (!this.stages.onView) {
+                if (!this.text.trim()) return;
+                this.stages.showView();
+                return;
+            }
+            this.drawPreview();
         });
 
         const wrapButton = toolbar.createEl('button', { text: tt('Wrap selection'), attr: { type: 'button' } });
@@ -214,8 +236,12 @@ export class MapPanelModal extends Modal {
         // repaint, and the map is rendered the moment the stage changes.
         if (!this.stages.onView) return;
         const group = this.currentGroup;
+        // Showing the answer: nothing is masked, and the group being written is
+        // painted green, so the words that will be hidden are still obvious.
+        const maskGroups = this.showAnswers ? new Set<number>() : new Set([group]);
         void renderMindmap(this.previewEl, parseOutline(this.text), {
-            maskGroups: new Set([group]),
+            maskGroups,
+            highlightGroups: this.showAnswers ? new Set([group]) : undefined,
             maskSubtree: this.plugin.settings.mapMaskSubtree,
             // The view belongs to the user from here on; only entering the map
             // stage (which clears the stored view) re-centres it.
