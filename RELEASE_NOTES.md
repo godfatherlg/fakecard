@@ -1,41 +1,31 @@
-# 1.0.52
+# 1.0.53
 
 ## 中文
 
-### 埋藏不再“消失”
+复习界面的内部拆分：界面与操作没有变化。
 
-- 复习页工具栏新增「N 张已埋藏」；完成页会写「N 张卡埋藏到明天」，点「刷新」时也会说明是埋藏而不是没卡
-- 统计页新增「不在队列里的卡 / N 已埋藏」，和「全部卡片」对得上
-- 修复：埋藏新卡后，它仍会出现在今天的新卡队列里；现在会真正隐藏到明天
+- `reviewView.ts` 从约 1360 行降到约 690 行，只保留会话状态、队列、评分、撤销与快捷键。卡片正文、两个计时器、完成页、链接悬停预览、评分提示、子卡流程、编辑面板和两条间隔修正规则各自独立成模块。
+- 「逾期成功封顶」与「提前复习折减」两条间隔规则改为纯函数，并新增 14 项单元测试（总计 58 项），规则改动会在发布前被测试挡住。
+- 在测试库用真实 UI 回归了计时器（走秒 / 重置 / 关闭 / 恢复）、Ctrl+悬停页面预览、评分提示、撤销、编辑面板、子卡流程与完成页刷新回执，行为与 1.0.52 一致。
 
-### 大导图重绘更快
+**请测试**
 
-- 在大纲里改一处，只重绘改动的那部分，其余节点原地保留，不再整张重建
-- 复用节点的点击选中、双击编辑、挖空提示始终作用在当前内容上；节点尺寸在两次重绘之间缓存
-- 修复：长时间编辑导图时，事件监听不再逐帧叠加（以前越用越重）
-
-### 请测试
-
-- 埋一张新卡：复习页应少一张并显示「1 张已埋藏」；两张都埋后完成页写「2 张卡埋藏到明天」；统计页显示同样数量；取消埋藏后卡片回到队列
-- 打开几十个节点的大导图，在大纲里改字：只有被改的节点重画，其余不闪；点其它节点仍能选中、双击仍能编辑、挖空提示仍写对行
-- 反复显示/收起答案、连续编辑大纲一段时间：体感应稳定，控制台无报错
+1. 复习一张到期卡：计时器走秒、重置、关闭后再打开；答案侧计时与「记混卡 / 太快了」提示。
+2. 按住 Ctrl 悬停卡片里的链接，应弹出页面预览；移开后再移回来只弹一次。
+3. 完成当天队列：刷新按钮出现回执，约 2.5 秒后自动消失。
+4. 子卡流程仍然可用：建子卡后父卡暂停，子卡连续 Good 后父卡恢复。
 
 ## English
 
-### Buried cards stay visible
+The review screen was split up internally; what you see and press is unchanged.
 
-- The review bar shows "N buried"; the finish page says "N card(s) are buried until tomorrow", and Refresh says the same instead of "nothing due"
-- Stats gains "Hidden from the queue / N buried", so "All cards" reconciles with the queue
-- Fix: burying a new card used to leave it in today's new-card queue; it is now hidden until tomorrow
+- `reviewView.ts` drops from roughly 1360 to roughly 690 lines: it keeps the session, queue, rating, undo and shortcuts, while the card body, both clocks, the finish page, link hover previews, the rating nudge, child cards, edit panels and the two interval rules live in their own modules.
+- The two interval rules (overdue-success cap, early-review discount) are now pure functions with 14 new unit tests (58 in total), so a change to either rule fails before a release instead of after it.
+- Real-vault UI checks covered the clocks (tick, reset, off, restore), Ctrl+hover page previews, the rating nudge, undo, the edit panel, the child-card flow and the finish page's refresh receipt; behaviour matches 1.0.52.
 
-### Faster repaints on large maps
+**Please test**
 
-- Editing a word in the outline redraws only that part; untouched nodes are reused in place instead of rebuilding the whole map
-- Reused nodes keep click selection, double-click editing and cloze hints on the current content; node sizes are cached between repaints
-- Fix: event listeners on the map host no longer stack up in long editing sessions
-
-### Please test
-
-- Bury a new card: the review pane loses it and shows "1 buried"; bury both and the finish page reads "2 card(s) are buried until tomorrow"; Stats shows the same number; unburying returns them
-- Open a map with dozens of nodes and edit a word in the outline: only the edited node redraws; selecting other nodes, double-click editing and cloze hints still work
-- Toggle answers and edit the outline over a long session: performance stays steady, no console errors
+1. Review a due card: the clock ticks, resets, turns off and back on; the answer-side clock and the "mixed up / too quick" nudge.
+2. Hold Ctrl and hover a link inside a card: the page preview opens, and only once per hover.
+3. Finish today's queue: Refresh leaves a receipt that fades after about 2.5 seconds.
+4. The child-card flow still works: a new child pauses its parent, and a Good streak brings the parent back.

@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.52';
+export const WHATS_NEW_VERSION = '1.0.53';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Burying a card now shows where it went: the review bar counts buried cards, the finish page and Refresh explain them, and Stats lists them as hidden from the queue. Burying a new card no longer leaves it in today\'s new-card queue.',
-        zh: '埋藏不再“消失”：复习栏会显示埋藏张数，完成页和刷新会说明卡片被埋到明天，统计页也能看到「不在队列里的卡」。埋藏新卡后，它不会再出现在今天的新卡队列里。',
+        en: 'The review screen is now split into smaller modules - the card, both clocks, the finish page, link previews, the rating nudge and child cards live apart. What you see and press is unchanged.',
+        zh: '复习界面拆成了更小的模块：卡片、两个计时器、完成页、链接预览、评分提示和子卡流程各自独立。界面和操作保持不变。',
     },
     {
-        en: 'Large maps repaint faster: editing one node in the outline leaves the other nodes in place instead of rebuilding the whole map, and their sizes are cached between repaints.',
-        zh: '大导图重绘更快：在大纲里改一个节点，其余节点原地保留，不再整张重建；节点尺寸也会在两次重绘之间缓存。',
-    },
-    {
-        en: 'Long editing sessions no longer pile up event listeners on the map view.',
-        zh: '长时间编辑导图时，事件监听不再越积越多。',
+        en: 'The overdue cap and the early-review discount now have unit tests of their own, so a change to either rule shows up before a release.',
+        zh: '「逾期成功封顶」和「提前复习折减」补上了专门的单元测试，规则改动会在发布前暴露出来。',
     },
 ];
 
