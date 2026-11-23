@@ -95,7 +95,7 @@ export async function exportCards(plugin: FakeCardPlugin): Promise<void> {
  * formula. Card text is user content; `=HYPERLINK(...)` in a front field must
  * not become a live cell when the file is opened.
  */
-function csvField(value: string): string {
+export function csvField(value: string): string {
     const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
     return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
