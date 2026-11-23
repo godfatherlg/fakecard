@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.48';
+export const WHATS_NEW_VERSION = '1.0.49';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'A failed save now stops the action: panels stay open with what you typed, ratings stay on the card, and imports or bulk actions report the number that actually reached the vault.',
-        zh: '保存失败不再假装成功：面板保留你填的内容，评分停留在当前卡，导入和批量操作只报告真正写入的数量。',
-    },
-    {
-        en: 'Parsed review days are cached for the session, so rating, the status bar and statistics stop re-reading and re-parsing today\'s file each time.',
-        zh: '复习日志按天缓存在内存里，评分、状态栏和统计不再反复读取、解析当天文件。',
+        en: 'Internal maintenance: the review view is split into clock, undo and card-renderer modules. Behaviour is unchanged; the critical paths now have 36 tests and run in CI.',
+        zh: '内部结构整理：复习界面拆成计时、撤销和卡片渲染三个模块，行为没有变化；关键路径已有 36 个测试，并接入 CI。',
     },
 ];
 
