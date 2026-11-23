@@ -57,10 +57,46 @@ function Enable-SystemProxy {
     return $true
 }
 
-# The three files a vault needs, straight from the published release: the vault
-# then holds exactly what the workflow built, not a local build that happens to
-# have the same version number. Retried through the proxy once, because the
-# direct attempt is the one that fails on a poisoned asset host.
+# The three files a vault needs. The local build is preferred: the workflow
+# builds the same source, and comparing its SHA-256 with the release asset
+# digests proves it is byte-identical. Only a mismatch falls back to GitHub's
+# asset host, which is the one that sometimes hangs.
+function Prepare-LocalAssets([string] $version) {
+    $manifest = Join-Path $PSScriptRoot 'manifest.json'
+    if (-not (Test-Path -LiteralPath $manifest)) { return $null }
+    $localVersion = (Get-Content $manifest -Raw -Encoding UTF8 | ConvertFrom-Json).version
+    if ($localVersion -ne $version) { return $null }
+    foreach ($file in 'main.js', 'styles.css', 'manifest.json') {
+        if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $file))) { return $null }
+    }
+
+    $dir = Join-Path $env:TEMP "fc-local-$version"
+    Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'main.js') -Destination (Join-Path $dir 'main.js') -Force
+    # Windows checks out CRLF; the release is built on Linux with LF. Normalise
+    # the two text assets so their digests can match the release exactly.
+    foreach ($file in 'styles.css', 'manifest.json') {
+        $text = [IO.File]::ReadAllText((Join-Path $PSScriptRoot $file)) -replace "`r`n", "`n"
+        [IO.File]::WriteAllText((Join-Path $dir $file), $text, (New-Object System.Text.UTF8Encoding($false)))
+    }
+    return $dir
+}
+
+function Test-ReleaseAssets([string] $dir, $release) {
+    foreach ($asset in $release.assets) {
+        $path = Join-Path $dir $asset.name
+        if (-not (Test-Path -LiteralPath $path)) { return $false }
+        if (-not $asset.digest) { continue }
+        $expected = ($asset.digest -replace '^sha256:', '').ToLower()
+        $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower()
+        if ($actual -ne $expected) { return $false }
+    }
+    return $true
+}
+
+# Retried through the proxy once, because the direct attempt is the one that
+# fails on a poisoned asset host.
 function Save-ReleaseAssets([string] $dir, [string] $version) {
     $patterns = @('--pattern', 'main.js', '--pattern', 'manifest.json', '--pattern', 'styles.css')
     $gh = (Get-Command gh -ErrorAction SilentlyContinue).Source
@@ -169,13 +205,21 @@ Write-Host "author  : $($rel.author.login)  (github-actions[bot] = published by 
 Write-Host "assets  : $(($rel.assets | ForEach-Object { $_.name }) -join ', ')"
 
 if (-not $SkipVault) {
-    Step "Deploying the published assets into $Vault"
+    Step "Deploying $next into $Vault"
     if (-not (Test-Path -LiteralPath $Vault)) {
         Write-Host "vault folder not found, skipping: $Vault" -ForegroundColor Yellow
-    } elseif (Save-ReleaseAssets $Vault $next) {
-        Write-Host "deployed - reload the plugin in Obsidian to pick up $next"
     } else {
-        Fail "could not download the assets into $Vault - the release itself is fine, grab them by hand from https://github.com/$Repo/releases/tag/$next"
+        $localDir = Prepare-LocalAssets $next
+        if ($localDir -and (Test-ReleaseAssets $localDir $rel)) {
+            foreach ($file in 'main.js', 'manifest.json', 'styles.css') {
+                Copy-Item -LiteralPath (Join-Path $localDir $file) -Destination (Join-Path $Vault $file) -Force
+            }
+            Write-Host "deployed the local build - every digest matches the release"
+        } elseif (Save-ReleaseAssets $Vault $next) {
+            Write-Host "deployed the downloaded assets - reload the plugin in Obsidian to pick up $next"
+        } else {
+            Fail "could not place the assets into $Vault - the release itself is fine, grab them by hand from https://github.com/$Repo/releases/tag/$next"
+        }
     }
 
     Step "Deploying into the test vault ($TestVault)"
