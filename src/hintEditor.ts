@@ -24,21 +24,19 @@ export function openHintEditor(
     // focus fight. Within the dialog there is nothing to pull it away.
     const modal = anchor.closest<HTMLElement>('.modal');
     const host = modal ?? document.body;
-    const box = document.createElement('div');
-    box.className = 'fakecard-hint-editor';
+    const box = createEl('div', { cls: 'fakecard-hint-editor' });
 
-    const input = document.createElement('input');
-    input.className = 'fakecard-hint-input';
+    const input = box.createEl('input', { cls: 'fakecard-hint-input' });
     input.type = 'text';
     input.placeholder = tt('Note shown while hidden (optional)');
     input.value = hint;
-    box.appendChild(input);
 
     if (onRemove) {
-        const remove = document.createElement('button');
-        remove.className = 'fakecard-hint-remove';
+        const remove = box.createEl('button', {
+            cls: 'fakecard-hint-remove',
+            text: tt('Remove mask'),
+        });
         remove.type = 'button';
-        remove.textContent = tt('Remove mask');
         remove.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
