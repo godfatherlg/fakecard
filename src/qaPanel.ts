@@ -76,7 +76,9 @@ export class QaPanelModal extends Modal {
         frontHead.createEl('label', { cls: 'fakecard-field-label', text: tt('Question') });
         this.addEditorButton(frontHead, 'front');
 
-        this.frontEl = editStage.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
+        this.frontEl = editStage.createEl('textarea', {
+            cls: 'fakecard-cloze-editor fakecard-autosize fakecard-qa-field',
+        });
         this.frontEl.rows = 1;
         this.frontEl.value = this.initialFront;
         bindAutoSize(this.frontEl);
@@ -91,7 +93,9 @@ export class QaPanelModal extends Modal {
         backHead.createEl('label', { cls: 'fakecard-field-label', text: tt('Answer') });
         this.addEditorButton(backHead, 'back');
 
-        this.backEl = editStage.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
+        this.backEl = editStage.createEl('textarea', {
+            cls: 'fakecard-cloze-editor fakecard-autosize fakecard-qa-field',
+        });
         this.backEl.rows = 3;
         this.backEl.value = this.initialBack;
         bindAutoSize(this.backEl);

@@ -2150,6 +2150,13 @@ body.theme-dark .fakecard-image-mask-label {
   min-height: 120px;
 }
 
+/* Q&A fields are autosized to their text: the shared cloze rule above would
+   stretch them to fill the stage, leaving a one-line question in a huge box. */
+.fakecard-panel-stage .fakecard-qa-field {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 /* In a panel the preview *is* the card: no chrome from the inline field preview,
    and both halves of a Q&A card stay visible even before they have content. */
 .fakecard-panel-stage .fakecard-field-preview {
