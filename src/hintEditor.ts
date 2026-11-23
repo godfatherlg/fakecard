@@ -61,6 +61,15 @@ export function openHintEditor(
     // (pan, select, focus); a click inside the note is not one of those.
     input.addEventListener('mousedown', (event) => event.stopPropagation());
     input.addEventListener('click', (event) => event.stopPropagation());
+    // A modal keeps focus for itself and can pull it back once, right after
+    // the click. The field is the one thing that must keep it; clicking
+    // anywhere else closes it first, so this cannot trap the user.
+    input.addEventListener('blur', () => {
+        window.setTimeout(() => {
+            if (closed || document.activeElement === input) return;
+            input.focus();
+        }, 0);
+    });
     document.addEventListener('mousedown', onOutside, true);
     current = { close };
     // After the click that opened it has finished, so nothing moves focus back
