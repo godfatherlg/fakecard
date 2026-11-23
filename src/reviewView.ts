@@ -2,7 +2,6 @@ import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setIcon, setTo
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
-import { answerTimeBreakdown, DEFAULT_SLOW_STEP } from './answerTime';
 import type { AnswerTimeBreakdown } from './answerTime';
 import { ChildCardPromptModal } from './childPrompt';
 import { childScore, isGraduatable } from './childStreak';
@@ -17,6 +16,8 @@ import { daysLeft, nextExamPlan } from './examPlan';
 import { tt, ttf } from './i18n';
 import { RatingKeys, keyLabel, matchesKey } from './keys';
 import { buildReviewQueue, ReviewQueue } from './queue';
+import { formatClock, pointsForRatio, recallBudget, slowStep } from './reviewClock';
+import { UndoStack, type UndoEntry } from './reviewUndo';
 import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
 import type { EditableField } from './tempEdit';
@@ -81,7 +82,7 @@ export class ReviewView extends ItemView {
      */
     private clockHidden = false;
     /** Ratings that can still be taken back with Ctrl+Z, newest last. */
-    private undoStack: UndoEntry[] = [];
+    private undoStack = new UndoStack();
     /** Link under the pointer, waiting for Ctrl+hover to turn into a preview. */
     private hoverLink: HTMLElement | null = null;
     /** Mouse event over that link, replayed when the preview is raised. */
@@ -176,7 +177,7 @@ export class ReviewView extends ItemView {
         this.recovery = queue.recovery;
         // A new session has a new list; an entry from the old one would point
         // at a card that may no longer be in it.
-        this.undoStack = [];
+        this.undoStack.clear();
         this.total = queue.total;
         this.index = 0;
         this.revealed = false;
@@ -845,41 +846,15 @@ export class ReviewView extends ItemView {
      * the two read as one measurement; the budget is in its tooltip.
      */
     private recallBudget(card: CardRecord): AnswerTimeBreakdown {
-        return answerTimeBreakdown(card, this.plugin.settings.answerTimeBase, {
-            secondsPerChunk: this.plugin.settings.answerTimeSecondsPerChunk,
-            passes: this.plugin.settings.answerTimePasses,
-            firstPassSeconds: this.plugin.settings.answerTimeFirstPass,
-            historyWeight: this.plugin.settings.answerTimeHistoryWeight,
-            memoryWeight: this.plugin.settings.answerTimeMemoryWeight,
-            imageChars: this.plugin.settings.answerTimeImageChars,
-        });
+        return recallBudget(card, this.plugin.settings);
     }
 
-    /** Size of one step of overtime, in multiples of the budget. */
     private slowStep(): number {
-        const value = Number(this.plugin.settings.answerTimeSlowStep);
-        return Number.isFinite(value) && value > 0 ? value : DEFAULT_SLOW_STEP;
+        return slowStep(this.plugin.settings);
     }
 
-    /** Hard points one slow step is worth; 0 turns the scoring off. */
-    private slowPointsPerStep(): number {
-        const value = Number(this.plugin.settings.answerTimeSlowPoints);
-        return Number.isFinite(value) && value > 0 ? value : 0;
-    }
-
-    /**
-     * Failing points the recall on screen has earned.
-     *
-     * One step is `answerTimeSlowStep` budgets past the first: with the defaults
-     * (0.5 and 0.5) 1.5x is one step and 2x is two, so 0.5 and 1 point.
-     */
     private pointsForRatio(ratio: number): number {
-        const perStep = this.slowPointsPerStep();
-        if (perStep <= 0) return 0;
-        const step = this.slowStep();
-        const over = ratio - 1;
-        if (over < step) return 0;
-        return Math.round(Math.floor(over / step) * perStep * 100) / 100;
+        return pointsForRatio(ratio, this.plugin.settings);
     }
 
     private recallPoints(): number {
@@ -1645,19 +1620,4 @@ export class ReviewView extends ItemView {
     }
 }
 
-/** Card state captured before a rating, so Ctrl+Z can put it back. */
-interface UndoEntry {
-    /** The rated card, so undoing finds it after a reload or a filter change. */
-    cardId: string;
-    index: number;
-    /** Every card the rating touched, as JSON taken before the change. */
-    snapshots: Array<{ id: string; json: string }>;
-    /** The review-log row to drop when the rating is undone. */
-    reviewLog?: { cardId: string; at: string };
-}
 
-/** `m:ss`, for the answer-time hint. */
-function formatClock(totalSeconds: number): string {
-    const safe = Math.max(0, Math.floor(totalSeconds));
-    return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
-}

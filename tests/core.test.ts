@@ -13,7 +13,10 @@ import { findQuestionNode, outlineGroups, parseOutline, splitNodeText } from '..
 import { answerTimeBreakdown } from '../src/answerTime';
 import { childScore, hardStreakScore, hasHardStreak } from '../src/childStreak';
 import { dailyReviewLimit } from '../src/limit';
+import { formatClock, pointsForRatio } from '../src/reviewClock';
+import { UndoStack } from '../src/reviewUndo';
 import { matchesQuery, type SearchContext } from '../src/search';
+import type { FakeCardSettings } from '../src/settings';
 
 function card(partial: Partial<CardRecord> = {}): CardRecord {
     return {
@@ -186,6 +189,42 @@ describe('search', () => {
         expect(matchesQuery(buried, 'is:buried', context())).toBe(true);
         expect(matchesQuery(buried, 'is:due', context())).toBe(false);
         expect(matchesQuery(buried, '-is:buried', context())).toBe(false);
+    });
+});
+
+describe('review clock', () => {
+    const settings = {
+        answerTimeSlowStep: 0.5,
+        answerTimeSlowPoints: 0.5,
+    } as FakeCardSettings;
+
+    it('formats m:ss and clamps negatives', () => {
+        expect(formatClock(0)).toBe('0:00');
+        expect(formatClock(65)).toBe('1:05');
+        expect(formatClock(-3)).toBe('0:00');
+    });
+
+    it('counts half a point per step past the budget', () => {
+        expect(pointsForRatio(1.4, settings)).toBe(0);
+        expect(pointsForRatio(1.5, settings)).toBe(0.5);
+        expect(pointsForRatio(2, settings)).toBe(1);
+    });
+
+    it('turns scoring off at zero points per step', () => {
+        expect(pointsForRatio(3, { ...settings, answerTimeSlowPoints: 0 } as FakeCardSettings)).toBe(0);
+    });
+});
+
+describe('undo stack', () => {
+    it('pops newest first and clears at a session boundary', () => {
+        const stack = new UndoStack();
+        stack.push({ cardId: 'a', index: 0, snapshots: [] });
+        stack.push({ cardId: 'b', index: 1, snapshots: [] });
+        expect(stack.size).toBe(2);
+        expect(stack.pop()?.cardId).toBe('b');
+        stack.clear();
+        expect(stack.size).toBe(0);
+        expect(stack.pop()).toBeUndefined();
     });
 });
 
