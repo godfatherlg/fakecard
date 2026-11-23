@@ -1993,7 +1993,9 @@ body.theme-dark .fakecard-image-mask-label {
   background: var(--background-secondary);
   font-size: 0.9em;
   line-height: 1.35;
-  white-space: pre-wrap;
+  /* normal, not pre-wrap: a node is one line of text, and pre-wrap turned a
+     stray newline in the stored text into a real line break around a mask. */
+  white-space: normal;
   word-break: break-word;
 }
 
