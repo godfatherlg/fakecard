@@ -340,6 +340,7 @@ const UI_ZH: Record<string, string> = {
     // Shared labels.
     'Loading…': '加载中…',
     'Cancel': '取消',
+    'Save': '保存',
     'Continue': '继续',
     'Delete': '删除',
     'Create cards': '创建卡片',
@@ -550,6 +551,14 @@ const UI_ZH: Record<string, string> = {
     '✎ Edit answer': '✎ 编辑答案',
     '✎ Edit cloze text': '✎ 编辑填空正文',
     '✎ Edit Q&A': '✎ 编辑问答',
+    'Saved filters': '已保存的筛选',
+    'Save filter': '保存筛选',
+    'Delete saved filter': '删除已保存的筛选',
+    'Saved filter': '保存的筛选',
+    'Filter name': '筛选名称',
+    'Filter saved.': '筛选已保存。',
+    'Saved filter deleted.': '已删除保存的筛选。',
+    'The filter needs a name.': '筛选需要一个名称。',
 
     '🗑 Delete': '🗑 删除',
     'Delete this card?': '删除这张卡片？',

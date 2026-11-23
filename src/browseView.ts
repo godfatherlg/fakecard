@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
+import { App, ItemView, MarkdownRenderer, Menu, Modal, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
 import { isBuried, type CardRecord } from './card';
 import { ClozePanelModal } from './clozePanel';
 import { QaPanelModal } from './qaPanel';
@@ -15,6 +15,7 @@ import { suggestFor, type Suggestion } from './searchSuggest';
 import { jumpToCardSource } from './sourceJump';
 import { parseTags } from './ui';
 import { renderViewNav } from './viewNav';
+import type { SavedSearch } from './settings';
 import type FakeCardPlugin from '../main';
 
 export const BROWSE_VIEW_TYPE = 'fakecard-browse';
@@ -78,6 +79,8 @@ export class BrowseView extends ItemView {
         suggest: HTMLElement;
         count: HTMLElement;
         selection: HTMLElement;
+        savedSelect: HTMLSelectElement;
+        savedDelete: HTMLButtonElement;
         chips: HTMLElement;
         body: HTMLElement;
     } | null = null;
@@ -478,6 +481,7 @@ export class BrowseView extends ItemView {
 
         this.renderDeckOptions(shell.deckSelect);
         shell.deckSelect.value = this.deckFilter;
+        this.renderSavedFilters(shell.savedSelect, shell.savedDelete);
         shell.count.setText(`${this.filtered.length} / ${this.cards.length}`);
         this.renderChips(shell.chips);
         this.renderSelection(shell.selection);
@@ -554,6 +558,29 @@ export class BrowseView extends ItemView {
         const count = bar.createSpan({ cls: 'fakecard-browse-count' });
         const selection = bar.createDiv({ cls: 'fakecard-browse-selection' });
 
+        const savedSelect = bar.createEl('select', { cls: 'dropdown fakecard-saved-select' });
+        setTooltip(savedSelect, tt('Saved filters'));
+        savedSelect.addEventListener('change', () => {
+            const saved = this.savedFilters().find((entry) => entry.id === savedSelect.value);
+            if (!saved) return;
+            this.query = saved.query;
+            this.deckFilter = saved.deck;
+            this.searchCaret = this.query.length;
+            this.searchHadFocus = true;
+            this.applyFilter(true);
+        });
+        bar.createEl('button', { text: tt('Save filter') }).addEventListener('click', () => {
+            this.openSaveFilter();
+        });
+        const savedDelete = bar.createEl('button', {
+            cls: 'fakecard-saved-delete',
+            text: '×',
+        });
+        setTooltip(savedDelete, tt('Delete saved filter'));
+        savedDelete.addEventListener('click', () => {
+            void this.deleteSavedFilter(savedSelect.value);
+        });
+
         bar.createEl('button', { text: tt('New card') }).addEventListener('click', () => {
             void this.plugin.newCard();
         });
@@ -561,7 +588,7 @@ export class BrowseView extends ItemView {
         const chips = container.createDiv({ cls: 'fakecard-browse-chips' });
         const body = container.createDiv({ cls: 'fakecard-browse-body' });
 
-        this.shell = { deckSelect, search, suggest, count, selection, chips, body };
+        this.shell = { deckSelect, search, suggest, count, selection, savedSelect, savedDelete, chips, body };
     }
 
     /**
@@ -580,6 +607,67 @@ export class BrowseView extends ItemView {
             option.value = deck;
             option.textContent = deck === 'all' ? tt('All decks') : deck;
         }
+    }
+
+    private savedFilters(): SavedSearch[] {
+        return this.plugin.settings.savedSearches ?? [];
+    }
+
+    /** Keep the picker in step with the current query and the saved list. */
+    private renderSavedFilters(select: HTMLSelectElement, remove: HTMLButtonElement): void {
+        const saved = this.savedFilters();
+        select.empty();
+        const placeholder = select.createEl('option');
+        placeholder.value = '';
+        placeholder.textContent = tt('Saved filters');
+        for (const entry of saved) {
+            const option = select.createEl('option');
+            option.value = entry.id;
+            option.textContent = entry.name;
+        }
+        const current = saved.find((entry) =>
+            entry.query === this.query && entry.deck === this.deckFilter);
+        select.value = current?.id ?? '';
+        remove.disabled = !current;
+    }
+
+    private openSaveFilter(): void {
+        const fallback = this.deckFilter === 'all' ? tt('Saved filter') : this.deckFilter;
+        const name = this.query.trim().slice(0, 40) || fallback;
+        new SaveFilterModal(this.app, name, (value) => {
+            void this.saveFilter(value);
+        }).open();
+    }
+
+    private async saveFilter(name: string): Promise<void> {
+        const list = this.savedFilters();
+        const at = list.findIndex((entry) =>
+            entry.query === this.query && entry.deck === this.deckFilter);
+        if (at >= 0) {
+            list[at].name = name;
+        } else {
+            list.push({
+                id: `f_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                name,
+                query: this.query,
+                deck: this.deckFilter,
+            });
+        }
+        // Keep the picker usable rather than growing without a limit.
+        if (list.length > 50) list.splice(0, list.length - 50);
+        await this.plugin.saveSettings();
+        this.render();
+        new Notice(tt('Filter saved.'));
+    }
+
+    private async deleteSavedFilter(id: string): Promise<void> {
+        const list = this.savedFilters();
+        const at = list.findIndex((entry) => entry.id === id);
+        if (at < 0) return;
+        list.splice(at, 1);
+        await this.plugin.saveSettings();
+        this.render();
+        new Notice(tt('Saved filter deleted.'));
     }
 
     /** Quick filters that just write into the search box. */
@@ -1195,5 +1283,52 @@ function compareCards(a: CardRecord, b: CardRecord, key: SortKey): number {
         }
         default:
             return 0;
+    }
+}
+
+/** Ask for a name before a Browse filter joins the saved list. */
+class SaveFilterModal extends Modal {
+    private input!: HTMLInputElement;
+
+    constructor(app: App, private initialName: string, private onSave: (name: string) => void) {
+        super(app);
+    }
+
+    onOpen(): void {
+        this.contentEl.empty();
+        this.contentEl.createEl('h2', { text: tt('Save filter') });
+        const field = this.contentEl.createDiv({ cls: 'fakecard-meta-field' });
+        field.createSpan({ cls: 'fakecard-preview-label', text: tt('Filter name') });
+        this.input = field.createEl('input', { cls: 'fakecard-filter-name' });
+        this.input.type = 'text';
+        this.input.value = this.initialName;
+        this.input.setSelectionRange(0, this.initialName.length);
+        this.input.focus();
+
+        const row = this.contentEl.createDiv({ cls: 'fakecard-modal-buttons' });
+        const submit = (): void => {
+            const name = this.input.value.trim();
+            if (!name) {
+                new Notice(tt('The filter needs a name.'));
+                return;
+            }
+            this.close();
+            this.onSave(name);
+        };
+        row.createEl('button', { cls: 'mod-cta', text: tt('Save') }).addEventListener('click', submit);
+        row.createEl('button', { text: tt('Cancel') }).addEventListener('click', () => this.close());
+        this.input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                submit();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                this.close();
+            }
+        });
+    }
+
+    onClose(): void {
+        this.contentEl.empty();
     }
 }

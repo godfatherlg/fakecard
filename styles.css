@@ -1451,9 +1451,18 @@ body.theme-dark .fakecard-image-mask-label {
 
 .fakecard-browse-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin-bottom: 10px;
+}
+
+.fakecard-saved-select {
+  max-width: 150px;
+}
+
+.fakecard-saved-delete {
+  padding: 2px 8px;
 }
 
 .fakecard-browse-search {

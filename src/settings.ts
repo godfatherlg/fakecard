@@ -30,11 +30,21 @@ import {
 import { t, tf, ttf } from './i18n';
 import { DEFAULT_LIBRARY_FOLDER } from './store';
 
+/** A query + deck pair the user saved from the Browse toolbar. */
+export interface SavedSearch {
+    id: string;
+    name: string;
+    query: string;
+    deck: string;
+}
+
 export interface FakeCardSettings {
     // --- Library -----------------------------------------------------------
     libraryFolder: string;
     /** Deck new cards go to unless the panel says otherwise. */
     defaultDeck: string;
+    /** Stored Browse filters, shown in the toolbar. */
+    savedSearches: SavedSearch[];
 
     // --- Card creation -----------------------------------------------------
     /** A heading containing this symbol is a Q&A card marker. */
@@ -163,6 +173,7 @@ export interface FakeCardSettings {
 export const DEFAULT_SETTINGS: FakeCardSettings = {
     libraryFolder: DEFAULT_LIBRARY_FOLDER,
     defaultDeck: 'default',
+    savedSearches: [],
 
     markerSymbol: '*',
     altClickOcclusion: true,
