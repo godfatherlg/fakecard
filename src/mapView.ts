@@ -367,6 +367,9 @@ export async function renderMindmap(
         // stop the caret from being placed at the click.
         const target = event.target;
         if (target instanceof HTMLElement && target.closest('.fakecard-map-editor')) return;
+        // A press on a node is a press on text: let the browser start a text
+        // selection there instead of panning. The bare canvas still pans.
+        if (target instanceof HTMLElement && target.closest('.fakecard-map-node')) return;
         dragging = true;
         lastX = event.clientX;
         lastY = event.clientY;

@@ -1972,6 +1972,11 @@ body.theme-dark .fakecard-image-mask-label {
 }
 
 .fakecard-map-node {
+  /* A mind map is text, not a picture: selecting a word is how the panel builds
+     a mask. Obsidian's body-wide `user-select: none` would otherwise win, and
+     the drag would pan instead of selecting. */
+  user-select: text;
+  -webkit-user-select: text;
   position: absolute;
   /* max-content, not "as wide as the parent": the parent is a zero-width
      absolutely positioned canvas, and measuring against it collapsed the text
