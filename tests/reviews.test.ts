@@ -142,4 +142,11 @@ describe('review log cache', () => {
         await store.forDay(day);
         expect(vault.reads).toBe(1);
     });
+
+    it('lets our own writes keep the cache, but only once each', async () => {
+        const { store, path } = setup();
+        await store.append(log('2026-11-23T10:00:00.000'));
+        expect(store.consumeWrite(path)).toBe(true);
+        expect(store.consumeWrite(path)).toBe(false);
+    });
 });

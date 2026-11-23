@@ -54,12 +54,24 @@ export class ReviewStore {
      * one of those reads re-parsed the same file.
      */
     private cache = new Map<string, ReviewLog[]>();
+    /** Day files we just wrote; their vault event must keep the cache. */
+    private writing = new Set<string>();
 
     constructor(private app: App, private libraryFolder: string) {}
 
     /** Drop the cached days (a vault-wide rebuild, or an external edit). */
     invalidate(): void {
         this.cache.clear();
+    }
+
+    /**
+     * True when the path was written by us, so the vault watcher keeps the
+     * cache instead of dropping it after every rating.
+     */
+    consumeWrite(path: string): boolean {
+        if (!this.writing.has(path)) return false;
+        this.writing.delete(path);
+        return true;
     }
 
     private get reviewsFolder(): string {
@@ -146,8 +158,14 @@ export class ReviewStore {
         }
         const next = [...logs, log];
         const json = JSON.stringify(next, null, 2);
-        if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
-        else await this.app.vault.create(path, json);
+        this.writing.add(path);
+        try {
+            if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
+            else await this.app.vault.create(path, json);
+        } catch (error) {
+            this.writing.delete(path);
+            throw error;
+        }
         this.cache.set(day, next);
     }
 
@@ -206,8 +224,14 @@ export class ReviewStore {
             // Keep the file chronological; the readers rely on it.
             next.sort((a, b) => a.at.localeCompare(b.at));
             const json = JSON.stringify(next, null, 2);
-            if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
-            else await this.app.vault.create(path, json);
+            this.writing.add(path);
+            try {
+                if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
+                else await this.app.vault.create(path, json);
+            } catch (error) {
+                this.writing.delete(path);
+                throw error;
+            }
             this.cache.set(day, next);
         }
         return added;
@@ -239,7 +263,13 @@ export class ReviewStore {
 
         const next = logs.filter((log) => !(log.cardId === cardId && log.at === at));
         if (next.length === logs.length) return;
-        await this.app.vault.modify(file, JSON.stringify(next, null, 2));
+        this.writing.add(path);
+        try {
+            await this.app.vault.modify(file, JSON.stringify(next, null, 2));
+        } catch (error) {
+            this.writing.delete(path);
+            throw error;
+        }
         this.cache.set(day, next);
     }
 

@@ -86,6 +86,21 @@ export default class FakeCardPlugin extends Plugin {
         this.registerEvent(this.app.vault.on('modify', onCardsChange));
         this.registerEvent(this.app.vault.on('create', onCardsChange));
         this.registerEvent(this.app.vault.on('delete', onCardsChange));
+
+        // Same rule for the cached review days: a rating we wrote keeps the
+        // cache, an edit or sync from outside drops it.
+        const reviewsPrefix = normalizePath(`${this.settings.libraryFolder}/reviews`) + '/';
+        const onReviewsChange = (file: TAbstractFile): void => {
+            if (!file.path.startsWith(reviewsPrefix)) return;
+            if (this.reviews.consumeWrite(file.path)) return;
+            this.reviews.invalidate();
+            this.refreshStatusBar();
+        };
+        this.registerEvent(this.app.vault.on('modify', onReviewsChange));
+        this.registerEvent(this.app.vault.on('create', onReviewsChange));
+        this.registerEvent(this.app.vault.on('delete', onReviewsChange));
+        this.registerEvent(this.app.vault.on('rename', onReviewsChange));
+
         this.addSettingTab(new FakeCardSettingTab(this.app, this));
 
         // ----- Generation from notes -----
