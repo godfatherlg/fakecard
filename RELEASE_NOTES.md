@@ -1,69 +1,71 @@
-# 1.0.40
+# 1.0.41
 
 ## 中文
 
-### 新增：点遮罩写注释
+### 导图卡改在自己的面板里编辑
 
-- 导图面板和挖空面板里，**单击**蓝色遮罩就会在它下面弹出一个输入框
-- 写的内容存成 Anki 的挖空提示：`{{c1::答案::注释}}`，遮罩上显示 `[注释]`，复习时也显示
-- Enter 保存，Esc 取消，点别处保存；留空即删除注释
-- 拖选遮罩仍然是选中文字（用来取消挖空），不会误弹输入框
+以前点「编辑思维导图」会临时建一个 md 笔记，里面 `{{c1::…}}` 只是一串纯文本：看不到挖空、注释和树形，改起来很别扭。
 
-### 新增：两个面板都有「显示答案」
+- 浏览页选中导图卡 → `✎ 编辑思维导图`，直接打开新建时用的那个面板
+- 复习界面的编辑按钮，遇到导图卡也走同一个面板
+- 打开时默认选中卡片自己的分组，并居中该组的第一处挖空
+- 保存会更新整张图的所有分组，牌组和标签也一起写入
 
-- 导图面板：工具栏「显示答案 / 收起答案」，遮罩还原成原文，当前组用绿色标出
-- 挖空面板：预览默认隐藏当前组，所以遮罩可见、可点；「显示答案」把整段还原
-- 两边操作一致：选中文字 → 悬浮按钮挖空；点遮罩 → 写注释；显示答案 → 核对全文
+### 挖空注释的输入框修好了
 
-### 修正：导图遮罩不再单独占一行
+- 输入框移进弹窗内部，光标不再被弹窗抢走、不再闪烁
+- 输入框旁新增 **「删除挖空」**：去掉标记、保留原文字
+- 单击挖空写注释；拖选仍然是选中文字（可以点悬浮按钮移除）
 
-Obsidian 的 Markdown 渲染会把每段文字包进 `<p>`，于是节点里"文字 / 遮罩 / 文字"变成了三个块，遮罩被挤到单独一行。现在单段渲染会把 `<p>` 拆掉、内容留在行内，`夏季洪[___]满为患` 回到同一行。顺带：
+### 打开面板不再闪，切分组会居中
 
-- 节点文字恢复正常换行与选中
-- 遮罩宽度不再撑高行盒
-- 挖空卡的换行紧贴标记时会被归一化，不再把洞推到单独一行
+- 导图首次绘制先隐藏，定位完成后再整体显示，不再闪一下
+- 切换 c1 / c2 / c3 会居中该组的第一处挖空，而不是保留上一组的视口
 
-### 修正：问答面板的问题框按内容自适应
+### 术语统一
 
-问题只有一行时就只有一行高，内容变长才变高；答案框同理。
+- 中文界面：`遮罩` / `遮挡` / `蒙版` / `遮住` 全部改为 **挖空**（图片卡也一样）
+- 英文界面：`mask` / `hole` / `occlusion` / `box` 混用改为 **mask** 表示被藏起来的部分；`Image occlusion` 只作为卡型名称保留
 
 ### 请测试
 
-- 导图/挖空面板点遮罩：输入框是否出现；输入后遮罩是否显示 `[注释]`
-- 注释留空再保存：注释是否被删除
-- 导图面板「显示答案」：遮罩是否还原、绿色标记是否对应所选分组
-- 挖空面板切换分组：遮罩与绿色答案是否跟着换
-- 长段落里挖一个短词：遮罩是否留在原句中间，不再独占一行
-- 新建问答卡：问题框是否随输入自动伸缩
+- 浏览页编辑一张导图卡：是否直接打开导图面板、是否显示挖空和注释
+- 编辑后保存：同一张图的 c1/c2/c3 是否一起更新
+- 点挖空写注释：光标是否稳定、能否输入；「删除挖空」是否保留原文字
+- 打开新导图面板：是否不再闪；切换分组是否居中到该组
+- 中文/英文界面各看一遍：是否只剩「挖空」/「mask」一套说法
 
 ## English
 
-### New: click a mask to write its note
+### A mind map is edited in its own panel
 
-- In the mind map and cloze panels, a **single click** on a blue mask opens a small field under it
-- The text is stored as the Anki cloze hint: `{{c1::answer::note}}`; the mask shows `[note]`, in review too
-- Enter saves, Escape cancels, clicking elsewhere saves; an empty note removes it
-- Dragging across a mask still selects text (for removing the hole) and does not open the field
+"Edit mind map" used to open a temporary note, where `{{c1::...}}` was plain text - no masks, no notes, no tree.
 
-### New: both panels have "Show answer"
+- Browse → `✎ Edit mind map` now opens the same panel that creates maps
+- The review edit button does the same for map cards
+- It opens on the card's own group, centred on that group's first mask
+- Saving updates every group of the map, deck and tags included
 
-- Mind map: a toolbar switch restores every mask; the current group is marked green
-- Cloze: the preview hides the current group, so masks are visible and clickable; the switch shows everything
-- One set of gestures on both sides: select text → floating button; click a mask → note; show answer → check the whole text
+### The mask note field works
 
-### Fixed: a map mask no longer sits on its own line
+- The field now lives inside the dialog, so the modal cannot take the caret back and it no longer flickers
+- A **Remove mask** button beside it drops the markers and keeps the words
+- A click writes a note; dragging still selects text (the floating button removes a mask)
 
-Obsidian's Markdown renderer wraps each text run in `<p>`, so "text / mask / text" became three blocks and the mask was pushed onto a line by itself. A single-paragraph render is now unwrapped back into the line, so `夏季洪[___]满为患` stays together. Also: node text wraps and selects normally again, the mask no longer changes the line height, and a newline touching a cloze marker is normalised so it cannot push the hole onto its own line.
+### No flash on open, and a group switch centres
 
-### Fixed: Q&A fields size to their content
+- The first paint stays hidden until the map is measured and centred
+- Switching c1 / c2 / c3 centres that group's first mask instead of keeping the previous view
 
-A one-line question is one line high, and grows with the text; the answer field behaves the same.
+### One word for a hidden area
+
+- English used `mask`, `hole`, `occlusion` and `box` for the same thing; the area and the verb are **mask** everywhere now, and `Image occlusion` stays as the card type name
+- Chinese uses 挖空 throughout, image cards included
 
 ### Please test
 
-- Click a mask in either panel: does the field appear, and does the mask show `[note]` after saving
-- Save an empty note: is the note removed
-- Mind map "Show answer": are the words restored with the green marking on the selected group
-- Switch groups in the cloze panel: do the mask and green answer follow
-- Mask a short word inside a long paragraph: does it stay in the middle of its sentence
-- New Q&A card: does the question field grow with the text only
+- Edit a map from Browse: does the map panel open with masks and notes
+- Save: do all groups of that map update together
+- Click a mask: does the caret stay, can you type, and does Remove mask keep the words
+- Open a new map panel: is the flash gone; does a group switch centre that group
+- Check both languages: is there only one term left
