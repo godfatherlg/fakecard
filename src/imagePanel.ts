@@ -39,6 +39,8 @@ export class ImagePanelModal extends Modal {
     private bodyEl!: HTMLElement;
     /** Document-level paste listener, removed with the panel. */
     private pasteHandler: ((event: ClipboardEvent) => void) | null = null;
+    /** The document that listener was added to, so the same one is cleaned up. */
+    private pasteDoc: Document | null = null;
 
     constructor(
         app: App,
@@ -76,7 +78,8 @@ export class ImagePanelModal extends Modal {
         // clipboard - screenshots usually arrive that way. Bound on document
         // so the paste lands wherever the focus is, and removed on close.
         this.pasteHandler = (event: ClipboardEvent): void => this.onPaste(event);
-        activeDocument.addEventListener('paste', this.pasteHandler);
+        this.pasteDoc = activeDocument;
+        this.pasteDoc.addEventListener('paste', this.pasteHandler);
 
         // Ctrl/Cmd+Z undoes the last mask change, Shift+Z redoes it.
         contentEl.addEventListener('keydown', (event: KeyboardEvent) => {
@@ -271,7 +274,7 @@ export class ImagePanelModal extends Modal {
 
     onClose(): void {
         if (this.pasteHandler) {
-            activeDocument.removeEventListener('paste', this.pasteHandler);
+            this.pasteDoc?.removeEventListener('paste', this.pasteHandler);
             this.pasteHandler = null;
         }
         this.contentEl.empty();

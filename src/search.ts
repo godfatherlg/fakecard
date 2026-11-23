@@ -1,5 +1,5 @@
 import { State } from 'ts-fsrs';
-import type { CardRecord } from './card';
+import { isBuried, type CardRecord } from './card';
 
 /**
  * Anki-style search for the Browse view.
@@ -66,7 +66,9 @@ function matchesIs(card: CardRecord, value: string, ctx: SearchContext): boolean
         case 'relearning':
             return card.fsrs?.state === State.Relearning;
         case 'due':
-            return !!card.fsrs && new Date(card.fsrs.due).getTime() <= ctx.now;
+            return !!card.fsrs
+                && new Date(card.fsrs.due).getTime() <= ctx.now
+                && !isBuried(card, ctx.now);
         case 'child':
             return !!card.childOf;
         case 'paused':

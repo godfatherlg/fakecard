@@ -1,6 +1,6 @@
 import { forgetting_curve, State } from 'ts-fsrs';
 import type FakeCardPlugin from '../main';
-import type { CardRecord } from './card';
+import { isBuried, type CardRecord } from './card';
 import { pruneExpiredExamPlans } from './examPlan';
 
 /**
@@ -37,7 +37,7 @@ export async function buildQueueCounts(
     const waiting = all.filter((card) => card.fsrs
         && card.fsrs.state !== State.New
         && new Date(card.fsrs.due).getTime() <= now
-        && (!card.buriedUntil || new Date(card.buriedUntil).getTime() <= now));
+        && !isBuried(card, now));
     const remaining = Math.max(0, limit - todayLogs.filter((log) => !log.ahead).length);
     const due = Math.min(waiting.length, remaining);
     const learning = Math.min(due, waiting.filter((card) => card.fsrs
@@ -149,7 +149,7 @@ export async function buildReviewQueue(
         .filter((card) => card.fsrs
             && card.fsrs.state !== State.New
             && new Date(card.fsrs.due).getTime() <= now
-            && (!card.buriedUntil || new Date(card.buriedUntil).getTime() <= now))
+            && !isBuried(card, now))
         .sort((a, b) => new Date(a.fsrs!.due).getTime() - new Date(b.fsrs!.due).getTime());
 
     // Recovery: while a large share of the due cards is well past its stability,

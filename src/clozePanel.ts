@@ -201,7 +201,8 @@ export class ClozePanelModal extends Modal {
                 this.showFloat(range.getBoundingClientRect(), from, to, lines ?? undefined);
             }, 0);
         };
-        activeDocument.addEventListener('mouseup', onSelectionUp);
+        this.selectionDoc = activeDocument;
+        this.selectionDoc.addEventListener('mouseup', onSelectionUp);
         this.selectionHandler = onSelectionUp;
 
         toolbar.createEl('button', { text: tt('New group') })
@@ -286,6 +287,8 @@ export class ClozePanelModal extends Modal {
     /** The editor/render switch shared with the other new-card panels. */
     private stages!: StageSwitch;
     private selectionHandler: (() => void) | null = null;
+    /** The document the mouseup listener was added to. */
+    private selectionDoc: Document | null = null;
 
     private showFloat(
         box: DOMRect,
@@ -389,7 +392,7 @@ export class ClozePanelModal extends Modal {
 
     onClose(): void {
         closeHintEditor();
-        if (this.selectionHandler) activeDocument.removeEventListener('mouseup', this.selectionHandler);
+        if (this.selectionHandler) this.selectionDoc?.removeEventListener('mouseup', this.selectionHandler);
         this.hideFloat();
         this.preview?.dispose();
         if (this.historyTimer !== null) window.clearTimeout(this.historyTimer);

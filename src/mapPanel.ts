@@ -59,6 +59,8 @@ export class MapPanelModal extends Modal {
     private recenter = false;
     /** Just applied a mask: ignore the mouseup that is still on its way. */
     private suppressSelectionUntil = 0;
+    /** The document the mouseup listener was added to. */
+    private selectionDoc: Document | null = null;
 
     onOpen(): void {
         const { contentEl } = this;
@@ -200,7 +202,8 @@ export class MapPanelModal extends Modal {
                 .setButtonText(tt('Cancel'))
                 .onClick(() => this.close()));
 
-        activeDocument.addEventListener('mouseup', this.onSelectionUp);
+        this.selectionDoc = activeDocument;
+        this.selectionDoc.addEventListener('mouseup', this.onSelectionUp);
         this.deck = this.card?.deck ?? this.plugin.settings.defaultDeck ?? 'default';
         this.tags = (this.card?.tags ?? []).join(', ');
         this.schedulePreview();
@@ -613,7 +616,7 @@ export class MapPanelModal extends Modal {
     onClose(): void {
         closeHintEditor();
         if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
-        activeDocument.removeEventListener('mouseup', this.onSelectionUp);
+        this.selectionDoc?.removeEventListener('mouseup', this.onSelectionUp);
         this.hideFloat();
         this.contentEl.empty();
     }

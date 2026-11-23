@@ -1241,7 +1241,17 @@ export class ReviewView extends ItemView {
         card.reviews = (card.reviews ?? 0) + 1;
         if (rating >= Rating.Good) card.correct = (card.correct ?? 0) + 1;
         card.updated = new Date().toISOString();
-        await this.plugin.store.save(card);
+        try {
+            await this.plugin.store.save(card);
+        } catch {
+            // The store already showed the reason. Put the card back where it
+            // was and stay on it: advancing without a saved review would log a
+            // rating the disk never received.
+            const snapshot = JSON.parse(entry.snapshots[0].json) as CardRecord;
+            this.cards[this.index] = snapshot;
+            this.render();
+            return;
+        }
         // Overtime only counts on a failing rating: a Good or Easy that ran long
         // is usually distraction, not a missing memory, and must not keep the
         // failing run alive. One step past the budget is worth

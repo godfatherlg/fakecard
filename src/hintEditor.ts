@@ -22,8 +22,11 @@ export function openHintEditor(
     // Inside the dialog, not on <body>: the modal treats focus outside itself
     // as a mistake and pulls it back, which turned a field on <body> into a
     // focus fight. Within the dialog there is nothing to pull it away.
+    // Capture the window this field lives in: closing later must remove the
+    // listeners from the same document even if focus has moved since.
+    const doc = activeDocument;
     const modal = anchor.closest<HTMLElement>('.modal');
-    const host = modal ?? activeDocument.body;
+    const host = modal ?? doc.body;
     // createDiv, not createEl('div'): the review rule treats the tag argument
     // as the native call it knows how to replace.
     const box = createDiv({ cls: 'fakecard-hint-editor' });
@@ -72,7 +75,7 @@ export function openHintEditor(
     const close = (save: boolean): void => {
         if (closed) return;
         closed = true;
-        activeDocument.removeEventListener('mousedown', onOutside, true);
+        doc.removeEventListener('mousedown', onOutside, true);
         const value = input.value.trim();
         box.remove();
         current = null;
@@ -96,7 +99,7 @@ export function openHintEditor(
     box.addEventListener('mousedown', (event) => event.stopPropagation());
     box.addEventListener('click', (event) => event.stopPropagation());
 
-    activeDocument.addEventListener('mousedown', onOutside, true);
+    doc.addEventListener('mousedown', onOutside, true);
     current = { close };
     // After the click that opened it has finished, so nothing moves focus back
     // to the button that was pressed; a second pass catches the modal putting
@@ -107,7 +110,7 @@ export function openHintEditor(
         input.select();
     }, 0);
     window.setTimeout(() => {
-        if (closed || activeDocument.activeElement === input) return;
+        if (closed || doc.activeElement === input) return;
         input.focus();
         input.select();
     }, 60);

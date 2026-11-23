@@ -1,5 +1,5 @@
 import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
-import type { CardRecord } from './card';
+import { isBuried, type CardRecord } from './card';
 import type { EditableField } from './tempEdit';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
@@ -88,6 +88,7 @@ export class BrowseView extends ItemView {
 
     /** `MM-DD` for a scheduled card, a dash for one that never ran. */
     private dueLabel(card: CardRecord): string {
+        if (isBuried(card)) return tt('Buried');
         if (!card.fsrs) return '—';
         const due = new Date(card.fsrs.due);
         if (Number.isNaN(due.getTime())) return '—';
@@ -210,7 +211,7 @@ export class BrowseView extends ItemView {
         let changed = 0;
         for (const id of ids) {
             const card = all.find((entry) => entry.id === id);
-            if (!card || Boolean(card.buriedUntil) === buried) continue;
+            if (!card || isBuried(card) === buried) continue;
             if (buried) card.buriedUntil = end.toISOString();
             else delete card.buriedUntil;
             card.updated = new Date().toISOString();
@@ -588,6 +589,13 @@ export class BrowseView extends ItemView {
             void this.setSuspended(this.checked, !allPaused);
         });
 
+        const allBuried = checkedCards.length > 0 && checkedCards.every((card) => isBuried(card));
+        host.createEl('button', {
+            text: allBuried ? tt('Unbury selected') : tt('Bury selected'),
+        }).addEventListener('click', () => {
+            void this.setBuried(this.checked, !allBuried);
+        });
+
         host.createEl('button', { text: tt('Delete selected') }).addEventListener('click', () => {
             new ConfirmDialog(
                 this.app,
@@ -744,9 +752,9 @@ export class BrowseView extends ItemView {
             void this.setSuspended([selected.id], !selected.suspended);
         });
         actions.createEl('button', {
-            text: selected.buriedUntil ? tt('Unbury') : tt('Bury'),
+            text: isBuried(selected) ? tt('Unbury') : tt('Bury'),
         }).addEventListener('click', () => {
-            void this.setBuried([selected.id], !selected.buriedUntil);
+            void this.setBuried([selected.id], !isBuried(selected));
         });
         actions.createEl('button', { text: tt('🗑 Delete') }).addEventListener('click', () => {
             new ConfirmDialog(

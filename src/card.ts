@@ -54,6 +54,11 @@ export interface CardImage {
     zoom?: number;
     }
 
+/** Hidden until a later time ("buried"), as opposed to suspended. */
+export function isBuried(card: CardRecord, now = Date.now()): boolean {
+    return Boolean(card.buriedUntil && new Date(card.buriedUntil).getTime() > now);
+}
+
 export interface CardRecord {
     id: string;
     type: CardType;
