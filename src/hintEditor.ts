@@ -16,17 +16,29 @@ export function openHintEditor(
     onSave: (hint: string) => void,
 ): void {
     closeHintEditor(false);
+    // Inside the dialog, not on <body>: the modal treats focus outside itself
+    // as a mistake and pulls it back, which turned a field on <body> into a
+    // focus fight. Within the dialog there is nothing to pull it away.
+    const modal = anchor.closest<HTMLElement>('.modal');
+    const host = modal ?? document.body;
     const input = document.createElement('input');
     input.className = 'fakecard-hint-input';
     input.type = 'text';
     input.placeholder = tt('Note shown while hidden (optional)');
     input.value = hint;
-    document.body.appendChild(input);
+    host.appendChild(input);
 
+    // Inside the dialog coordinates are relative to it; on <body> they are
+    // viewport coordinates. The dialog is the positioned box, so absolute
+    // works there even while its open animation is still moving it.
     const rect = anchor.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+    const offsetX = modal ? hostRect.left : 0;
+    const offsetY = modal ? hostRect.top : 0;
     input.setCssStyles({
-        left: `${Math.round(rect.left)}px`,
-        top: `${Math.round(rect.bottom + 4)}px`,
+        position: modal ? 'absolute' : 'fixed',
+        left: `${Math.round(rect.left - offsetX)}px`,
+        top: `${Math.round(rect.bottom - offsetY + 4)}px`,
         width: `${Math.max(180, Math.min(320, Math.round(rect.width) + 100))}px`,
     });
 
@@ -61,15 +73,7 @@ export function openHintEditor(
     // (pan, select, focus); a click inside the note is not one of those.
     input.addEventListener('mousedown', (event) => event.stopPropagation());
     input.addEventListener('click', (event) => event.stopPropagation());
-    // A modal keeps focus for itself and can pull it back once, right after
-    // the click. The field is the one thing that must keep it; clicking
-    // anywhere else closes it first, so this cannot trap the user.
-    input.addEventListener('blur', () => {
-        window.setTimeout(() => {
-            if (closed || document.activeElement === input) return;
-            input.focus();
-        }, 0);
-    });
+
     document.addEventListener('mousedown', onOutside, true);
     current = { close };
     // After the click that opened it has finished, so nothing moves focus back
