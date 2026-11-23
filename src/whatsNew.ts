@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.53';
+export const WHATS_NEW_VERSION = '1.0.54';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,12 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The review screen is now split into smaller modules - the card, both clocks, the finish page, link previews, the rating nudge and child cards live apart. What you see and press is unchanged.',
-        zh: '复习界面拆成了更小的模块：卡片、两个计时器、完成页、链接预览、评分提示和子卡流程各自独立。界面和操作保持不变。',
+        en: 'An image-occlusion set now saves all or nothing: a failed write rolls back that attempt and keeps the panel open, instead of reporting "Saved" while the groups that failed are lost - and re-saving after a partial failure no longer duplicates the groups that landed.',
+        zh: '图片挖空卡改为整套保存：写入失败时会回滚这次已写的卡片并保留面板，不再提示「已保存」却丢掉失败的组，重试也不会重复创建已经保存的组。',
     },
     {
-        en: 'The overdue cap and the early-review discount now have unit tests of their own, so a change to either rule shows up before a release.',
-        zh: '「逾期成功封顶」和「提前复习折减」补上了专门的单元测试，规则改动会在发布前暴露出来。',
+        en: 'The review toolbar now wraps in a narrow pane, so the clock and its restore button stay clear of the icon buttons instead of being covered by them.',
+        zh: '复习栏在窄面板下会自动换行，计时器和「重新打开」按钮不再被右侧图标行盖住。',
     },
 ];
 
