@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.39';
+export const WHATS_NEW_VERSION = '1.0.40';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The "Ctrl+wheel to zoom, double-click to fit" tooltip is gone from pictures in review, the browse preview and the zoom dialog. The gestures still work; only the hint that sat over the image was removed.',
-        zh: '图片上的「Ctrl+滚轮缩放，双击还原」提示已去掉，复习界面、浏览页预览和缩放对话框都不再显示。手势不变，只是不再盖一条提示在图上。',
+        en: 'Click a mask in the mind map or cloze panel to write its note; it is stored as the Anki hint ({{c1::answer::note}}) and shows inside the mask in review. Both panels also have a Show answer switch now.',
+        zh: '导图和挖空面板里单击遮罩就能写注释，存成 Anki 的挖空提示（{{c1::答案::注释}}），复习时显示在遮罩里。两个面板也都加了「显示答案」开关。',
+    },
+    {
+        en: 'A map mask no longer sits on a line of its own: the renderer used to wrap each text run in a paragraph, and the mask was stranded between two blocks. Single-paragraph node text now stays inline.',
+        zh: '导图遮罩不再独占一行：以前每段文字都被包进 `<p>`，遮罩夹在两个块之间就被挤出去了；现在单段文本保持行内。',
+    },
+    {
+        en: 'The Q&A panel sizes its question and answer fields to the text again - a one-line question is one line high, not a tall empty box.',
+        zh: '问答面板的问题和答案框重新按内容自适应：一行问题就一行高，不再是一个空的大框。',
     },
 ];
 
