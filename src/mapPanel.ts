@@ -110,7 +110,8 @@ export class MapPanelModal extends Modal {
         wrapButton.addEventListener('click', () => this.wrapSelectionInHole());
         setTooltip(wrapButton, tt('Wrap the selection in a mask for the chosen group'));
 
-        toolbar.createEl('button', { text: tt('Mask whole node'), attr: { type: 'button' } }).addEventListener('click', () => {
+        const maskWholeButton = toolbar.createEl('button', { text: tt('Mask whole node'), attr: { type: 'button' } });
+        maskWholeButton.addEventListener('click', () => {
             // With a node selected in the map, this masks that node; the text
             // area path stays for editing without touching the map.
             if (this.activeNode) this.toggleNodeMask(this.activeNode);
@@ -139,20 +140,27 @@ export class MapPanelModal extends Modal {
         // Room to work: a big map in the default dialog is a postage stamp.
         addFillScreenButton(this, toolbar);
 
+        const syncStageButtons = (view: boolean): void => {
+            this.revealButton?.toggleClass('fakecard-stage-hidden', !view);
+            wrapButton.toggleClass('fakecard-stage-hidden', view);
+            maskWholeButton.toggleClass('fakecard-stage-hidden', view);
+        };
         this.stages = createStages({
             button: modeButton,
             edit: this.textarea,
             view: this.previewEl,
-            doneLabel: tt('Done'),
+            doneLabel: tt('Preview'),
             editLabel: tt('Edit outline'),
             onShowView: () => {
                 // The map is being shown fresh: centre it, do not inherit the
                 // position the empty canvas had.
                 this.recenter = true;
+                syncStageButtons(true);
                 this.drawPreview();
             },
             onShowEdit: () => {
                 this.textarea.value = this.text;
+                syncStageButtons(false);
                 this.textarea.focus();
             },
         });

@@ -1,6 +1,10 @@
 import { ItemView, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
-import { renderAudioStrip } from './audio';
+import {
+    renderAudioRecorderButton,
+    renderAudioStrip,
+    type AudioRecorderHandle,
+} from './audio';
 import { applyLearningStep, parseSteps } from './learningSteps';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
@@ -66,6 +70,8 @@ export class ReviewView extends ItemView {
     private recovery = false;
     /** Ratings that can still be taken back with Ctrl+Z, newest last. */
     private undoStack = new UndoStack();
+    /** Recording started from the answer side, not from the edit panel. */
+    private audioRecorder: AudioRecorderHandle | null = null;
 
     constructor(leaf: WorkspaceLeaf, private plugin: FakeCardPlugin) {
         super(leaf);
@@ -184,6 +190,10 @@ export class ReviewView extends ItemView {
 
     private render(): void {
         const container = this.contentEl;
+        // The old answer is about to be replaced; release a microphone that
+        // belonged to it instead of leaving it open behind the next card.
+        this.audioRecorder?.dispose();
+        this.audioRecorder = null;
         // A card that is not revealed yet has no memory clock: the number
         // belongs to the pair (this card, this answer), not to the view.
         this.clocks.onRender(this.revealed);
@@ -237,6 +247,10 @@ export class ReviewView extends ItemView {
         }
         deckSelect.value = this.deckFilter;
         deckSelect.addEventListener('change', () => {
+            if (this.blockWhileRecording()) {
+                deckSelect.value = this.deckFilter;
+                return;
+            }
             this.deckFilter = deckSelect.value;
             void this.reload();
         });
@@ -385,6 +399,16 @@ export class ReviewView extends ItemView {
             this.cardRenderer.render(bodyEl, card, true);
         }
 
+        // Recording belongs to the answer: it is shown only once the answer is
+        // on screen, and the clip is written to the card immediately.
+        if (this.plugin.settings.audioEnabled) {
+            const recordHost = body.createDiv({ cls: 'fakecard-review-record' });
+            this.audioRecorder = renderAudioRecorderButton(this.plugin, recordHost, card, {
+                compact: true,
+                onChange: () => this.refreshCurrentCard(),
+            });
+        }
+
         // A one-line suggestion between the card and the buttons: noticeable,
         // but it never blocks a key or a click.
         renderRatingNudge(container, card, {
@@ -434,9 +458,59 @@ export class ReviewView extends ItemView {
         });
     }
 
+    /** Command: open the editor for the card currently on screen. */
+    editCurrentCard(): void {
+        if (this.blockWhileRecording()) return;
+        const card = this.cards[this.index];
+        if (!card) {
+            new Notice(tt('No card on screen.'));
+            return;
+        }
+        void openCardEditor(this.app, this.plugin, card, () => this.refreshCurrentCard());
+    }
+
+    /**
+     * Command: start or stop the answer-side recording. Starting from the
+     * question side reveals the answer first, because the button lives there.
+     */
+    toggleAnswerRecording(): void {
+        const card = this.cards[this.index];
+        if (!card) {
+            new Notice(tt('No card on screen.'));
+            return;
+        }
+        // A running take can always be stopped, even if the feature was
+        // switched off in settings while it was recording.
+        if (this.audioRecorder?.isRecording()) {
+            this.audioRecorder.toggle();
+            return;
+        }
+        if (!this.plugin.settings.audioEnabled) {
+            new Notice(tt('Enable audio recordings in settings first.'));
+            return;
+        }
+        if (!this.revealed) this.reveal();
+        // The setting can be enabled while an already-revealed answer is on
+        // screen; repaint once so the shared button handle exists.
+        if (!this.audioRecorder) this.render();
+        if (!this.audioRecorder) {
+            new Notice(tt('Answer recording is not available.'));
+            return;
+        }
+        this.audioRecorder.toggle();
+    }
+
+    /** True (and warns) when a rating would pull the card out from under a
+     *  running recording. */
+    private blockWhileRecording(): boolean {
+        if (!this.audioRecorder?.isRecording()) return false;
+        new Notice(tt('Stop the recording first.'));
+        return true;
+    }
+
     private async rate(rating: Rating, mixed = false): Promise<void> {
         const card = this.cards[this.index];
-        if (!card) return;
+        if (!card || this.blockWhileRecording()) return;
 
         // Snapshot before anything mutates, so Ctrl+Z can put it back.
         const entry: UndoEntry = {
@@ -532,6 +606,7 @@ export class ReviewView extends ItemView {
      * stats do not count a rating that no longer happened.
      */
     private async undo(): Promise<void> {
+        if (this.blockWhileRecording()) return;
         const entry = this.undoStack.pop();
         if (!entry) {
             new Notice(tt('Nothing to undo.'));
@@ -698,6 +773,8 @@ export class ReviewView extends ItemView {
     }
 
     async onClose(): Promise<void> {
+        this.audioRecorder?.dispose();
+        this.audioRecorder = null;
         this.clocks.clearHint();
         this.donePage.cancelFlash();
         this.hover.reset();

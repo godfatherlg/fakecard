@@ -156,6 +156,23 @@ export default class FakeCardPlugin extends Plugin {
             },
         });
 
+        // Manual cards from the current selection: the same two actions as the
+        // editor context menu, now bindable to a hotkey.
+        this.addCommand({
+            id: 'new-qa-from-selection',
+            name: tt('New Q&A card from selection'),
+            callback: () => {
+                this.newQaCardFromSelection();
+            },
+        });
+        this.addCommand({
+            id: 'new-cloze-from-selection',
+            name: tt('New cloze card from selection'),
+            callback: () => {
+                this.newClozeCardFromSelection();
+            },
+        });
+
         // ----- Review / Browse (main area views) -----
         this.registerView(REVIEW_VIEW_TYPE, (leaf) => new ReviewView(leaf, this));
         this.registerView(BROWSE_VIEW_TYPE, (leaf) => new BrowseView(leaf, this));
@@ -217,6 +234,20 @@ export default class FakeCardPlugin extends Plugin {
             name: tt('Start reviewing'),
             callback: () => {
                 void this.openReview();
+            },
+        });
+        this.addCommand({
+            id: 'review-edit-current',
+            name: tt('Edit this card'),
+            callback: () => {
+                this.requireReviewView()?.editCurrentCard();
+            },
+        });
+        this.addCommand({
+            id: 'review-record-toggle',
+            name: tt('Record the answer (start/stop)'),
+            callback: () => {
+                this.requireReviewView()?.toggleAnswerRecording();
             },
         });
         this.addCommand({
@@ -344,20 +375,13 @@ export default class FakeCardPlugin extends Plugin {
                 .setTitle(tt('fakecard: new Q&A card from selection'))
                 .setIcon('help-circle')
                 .onClick(() => {
-                    const { front, back } = splitHeadingSelection(selection);
-                    new QaPanelModal(this.app, this, file.path, undefined, back, undefined, front).open();
+                    this.openQaCardFromSelection(selection, file.path);
                 }));
             menu.addItem((item) => item
                 .setTitle(tt('fakecard: new cloze card from selection'))
                 .setIcon('layers')
                 .onClick(() => {
-                    new ClozePanelModal(
-                        this.app,
-                        this,
-                        file.path,
-                        undefined,
-                        selectionToClozeText(selection),
-                    ).open();
+                    this.openClozeCardFromSelection(selection, file.path);
                 }));
             menu.addItem((item) => item
                 .setTitle(tt('fakecard: new mind map from selection'))
@@ -799,6 +823,53 @@ export default class FakeCardPlugin extends Plugin {
         new CardTypeModal(this.app, this, view?.file?.path ?? '', selection).open();
     }
 
+    /** Command: Q&A panel from the selected text of the active note. */
+    newQaCardFromSelection(): void {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const rawSelection = view?.editor?.getSelection();
+        const selection = typeof rawSelection === 'string' ? rawSelection : '';
+        if (!selection.trim()) {
+            new Notice(tt('Select some lines first.'));
+            return;
+        }
+        if (!view?.file) {
+            new Notice(tt('Open a note first.'));
+            return;
+        }
+        this.openQaCardFromSelection(selection, view.file.path);
+    }
+
+    /** Command: cloze panel from the selected text of the active note. */
+    newClozeCardFromSelection(): void {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const rawSelection = view?.editor?.getSelection();
+        const selection = typeof rawSelection === 'string' ? rawSelection : '';
+        if (!selection.trim()) {
+            new Notice(tt('Select some lines first.'));
+            return;
+        }
+        if (!view?.file) {
+            new Notice(tt('Open a note first.'));
+            return;
+        }
+        this.openClozeCardFromSelection(selection, view.file.path);
+    }
+
+    private openQaCardFromSelection(selection: string, sourcePath: string): void {
+        const { front, back } = splitHeadingSelection(selection);
+        new QaPanelModal(this.app, this, sourcePath, undefined, back, undefined, front).open();
+    }
+
+    private openClozeCardFromSelection(selection: string, sourcePath: string): void {
+        new ClozePanelModal(
+            this.app,
+            this,
+            sourcePath,
+            undefined,
+            selectionToClozeText(selection),
+        ).open();
+    }
+
     /**
      * Image occlusion card: use the given image, or pull one from the
      * clipboard (a screenshot, for example) and save it into the library.
@@ -918,6 +989,27 @@ export default class FakeCardPlugin extends Plugin {
         } catch {
             return null;
         }
+    }
+
+    /**
+     * The review view a command should act on. Prefer the active tab; with
+     * one review tab open (the normal case) a command run from the command
+     * palette still finds it.
+     */
+    private currentReviewView(): ReviewView | null {
+        const active = this.app.workspace.getActiveViewOfType(ReviewView);
+        if (active) return active;
+        const leaves = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE);
+        if (leaves.length === 1 && leaves[0].view instanceof ReviewView) {
+            return leaves[0].view;
+        }
+        return null;
+    }
+
+    private requireReviewView(): ReviewView | null {
+        const view = this.currentReviewView();
+        if (!view) new Notice(tt('Open the review view first.'));
+        return view;
     }
 
     async openReview(): Promise<void> {

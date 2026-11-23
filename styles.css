@@ -72,6 +72,12 @@
   flex-wrap: wrap;
 }
 
+/* Stage-specific actions: display:none (not visibility) so the remaining
+   buttons close the gap instead of leaving a hole in the row. */
+.fakecard-toolbar .fakecard-stage-hidden {
+  display: none;
+}
+
 .fakecard-field-label {
   display: block;
   font-size: 0.8em;
@@ -364,6 +370,15 @@
   background: color-mix(in srgb, var(--color-green) 8%, transparent);
   font-size: var(--font-text-size, 16px);
   line-height: 1.7;
+}
+
+/* The answer-side record button: available without opening an edit panel,
+   but out of the reading path until the answer is actually shown. */
+.fakecard-review-record {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-top: -6px;
 }
 
 /* The card is a reading surface, not an editor: the text can be selected and
@@ -1894,6 +1909,7 @@ body.theme-dark .fakecard-image-mask-label {
   padding: 6px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-secondary);
+  flex-wrap: wrap;
 }
 
 .fakecard-editor-title {
@@ -1901,6 +1917,16 @@ body.theme-dark .fakecard-image-mask-label {
   letter-spacing: 0.04em;
   color: var(--text-muted);
   padding: 0 2px;
+}
+
+.fakecard-editor-hint {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+/* The way back sits on the right; the field tools stay together on the left. */
+.fakecard-editor-back {
+  margin-left: auto;
 }
 
 .fakecard-editor-toolbar button {
@@ -2264,6 +2290,36 @@ body.theme-dark .fakecard-image-mask-label {
   display: none;
 }
 
+/* Q&A preview: question and answer each own half of the box, so the rule
+   between them stays put no matter how long either side is. */
+.fakecard-panel-stage.fakecard-qa-preview {
+  gap: 0;
+  overflow: hidden;
+}
+
+.fakecard-qa-preview .fakecard-md-render {
+  min-height: 0;
+  margin: 0;
+}
+
+/* The question only takes the room it needs, capped at half the box: a short
+   question keeps the divider right under it, a long one scrolls instead of
+   pushing the answer off screen. */
+.fakecard-qa-preview .fakecard-md-render:not(.fakecard-md-answer) {
+  flex: 0 1 auto;
+  max-height: 50%;
+  overflow: auto;
+}
+
+.fakecard-qa-preview .fakecard-md-answer {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  margin-top: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
 .fakecard-panel-stage .fakecard-cloze-editor {
   flex: 1 1 auto;
   min-height: 120px;
@@ -2476,7 +2532,18 @@ body.theme-dark .fakecard-image-mask-label {
   gap: 6px;
 }
 
-.fakecard-audio-record.is-recording {
+.fakecard-audio-record.is-compact {
+  padding: 2px 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.fakecard-audio-record.is-compact:hover {
+  color: var(--text-normal);
+}
+
+.fakecard-audio-record.is-recording,
+.fakecard-audio-record.is-compact.is-recording {
   color: var(--text-error);
 }
 

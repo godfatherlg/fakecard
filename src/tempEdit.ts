@@ -2,17 +2,19 @@ import { type Editor, type EventRef, MarkdownView, Notice, TFile, TFolder, type 
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { clozeGroups, parseCloze, wrapBlockLines, wrapSelection } from './cloze';
+import { joinQa, splitQa } from './qaDoc';
 import { syncClozeGroup } from './sourceSync';
 import { tt, ttf } from './i18n';
 
-/** The card fields an editor split can hold. */
-export type EditableField = 'front' | 'back' | 'clozeText';
+/** The card fields an editor split can hold. `qa` is both sides at once. */
+export type EditableField = 'front' | 'back' | 'clozeText' | 'qa';
 
 /** File name suffix per field: `<card id>-<suffix>.md`. */
 const SUFFIX: Record<EditableField, string> = {
     front: 'front',
     back: 'back',
     clozeText: 'cloze',
+    qa: 'qa',
 };
 
 /** Pause after the last keystroke before the text is written into the card. */
@@ -38,6 +40,10 @@ interface Session {
     renameRef: EventRef;
     /** Registered once the file is actually open; null before that. */
     layoutRef: EventRef | null;
+    /** Opens the card panel again when the user asks to go back. */
+    returnToPanel: (() => void) | null;
+    /** Keeps a missing Q&A divider from producing a notice on every keystroke. */
+    missingSeparatorNotified: boolean;
 }
 
 /**
@@ -76,9 +82,14 @@ export class TempEditor {
      * screen rather than from something older.
      */
     /** `line` walks the caret to that source line once the split is up. */
-    async open(card: CardRecord, field: EditableField, line?: number): Promise<void> {
+    async open(
+        card: CardRecord,
+        field: EditableField,
+        line?: number,
+        returnToPanel?: () => void,
+    ): Promise<void> {
         try {
-            await this.openField(card, field, line);
+            await this.openField(card, field, line, returnToPanel);
         } catch (error) {
             // Nothing else would report this: the split simply never appears.
             console.error('[fakecard] could not open the editor', error);
@@ -86,7 +97,12 @@ export class TempEditor {
         }
     }
 
-    private async openField(card: CardRecord, field: EditableField, line?: number): Promise<void> {
+    private async openField(
+        card: CardRecord,
+        field: EditableField,
+        line?: number,
+        returnToPanel?: () => void,
+    ): Promise<void> {
         const folder = this.folderPath;
         if (!(this.app.vault.getAbstractFileByPath(folder) instanceof TFolder)) {
             await this.app.vault.createFolder(folder);
@@ -97,6 +113,8 @@ export class TempEditor {
         // Already open: focus it instead of starting a second session for it. A
         // session without a leaf yet is still opening - leave it alone.
         if (this.sessions.has(path)) {
+            const session = this.sessions.get(path);
+            if (session && returnToPanel) session.returnToPanel = returnToPanel;
             const leaf = this.findLeaf(path);
             if (leaf) this.app.workspace.setActiveLeaf(leaf, { focus: true });
             return;
@@ -133,6 +151,8 @@ export class TempEditor {
                 void this.finish(path, true, file.path);
             }),
             layoutRef: null,
+            returnToPanel: returnToPanel ?? null,
+            missingSeparatorNotified: false,
         };
         this.sessions.set(path, session);
 
@@ -165,7 +185,7 @@ export class TempEditor {
         for (const child of [...folder.children]) {
             if (!(child instanceof TFile)) continue;
             // Only our own naming; anything else in there is the user's.
-            if (!/-(front|back|cloze)\.md$/.test(child.name)) continue;
+            if (!/-(front|back|cloze|qa)\.md$/.test(child.name)) continue;
             if (this.sessions.has(child.path)) continue;
             if (child.stat.mtime > cutoff) continue;
             try {
@@ -199,10 +219,28 @@ export class TempEditor {
             cls: 'fakecard-editor-title',
             text: session.field === 'clozeText'
                 ? tt('Cloze text')
-                : session.field === 'front' ? tt('Question') : tt('Answer'),
+                : session.field === 'qa'
+                    ? tt('Q&A')
+                    : session.field === 'front' ? tt('Question') : tt('Answer'),
         });
 
         if (session.field === 'clozeText') this.addClozeTools(bar, view, path);
+        if (session.field === 'qa') {
+            bar.createSpan({
+                cls: 'fakecard-editor-hint',
+                text: tt('Question above the divider, answer below it. Keep the divider.'),
+            });
+        }
+        if (session.returnToPanel) {
+            const back = bar.createEl('button', {
+                cls: 'fakecard-editor-back',
+                text: tt('Back to panel'),
+                attr: { type: 'button' },
+            });
+            back.addEventListener('click', () => {
+                void this.returnToPanel(session, path);
+            });
+        }
 
         // A row of its own, right under the view header: part of the layout, so
         // it never floats over the text or hides behind anything.
@@ -298,7 +336,7 @@ export class TempEditor {
         let removed = 0;
         for (const child of [...folder.children]) {
             if (!(child instanceof TFile)) continue;
-            if (!/-(front|back|cloze)\.md$/.test(child.name)) continue;
+            if (!/-(front|back|cloze|qa)\.md$/.test(child.name)) continue;
             if (this.sessions.has(child.path)) continue;
             try {
                 await this.app.fileManager.trashFile(child);
@@ -315,7 +353,22 @@ export class TempEditor {
         for (const path of [...this.sessions.keys()]) await this.finish(path, true);
     }
 
+    /** Save, close the split, then let the caller reopen the card panel. */
+    private async returnToPanel(session: Session, path: string): Promise<void> {
+        const callback = session.returnToPanel;
+        if (!callback) return;
+        session.returnToPanel = null;
+        await this.finish(path, true);
+        callback();
+    }
+
     private read(card: CardRecord, field: EditableField): string {
+        if (field === 'qa') {
+            return joinQa(
+                typeof card.front === 'string' ? card.front : '',
+                typeof card.back === 'string' ? card.back : '',
+            );
+        }
         const value = card[field];
         return typeof value === 'string' ? value : '';
     }
@@ -380,6 +433,24 @@ export class TempEditor {
         const card = (await this.plugin.store.list()).find((entry) => entry.id === session.card.id);
         if (!card) return;
 
+        if (field === 'qa') {
+            const parts = splitQa(text);
+            if (!parts) {
+                if (!session.missingSeparatorNotified) {
+                    session.missingSeparatorNotified = true;
+                    new Notice(tt('The Q&A divider is missing; the answer was not saved.'));
+                }
+                return;
+            }
+            session.missingSeparatorNotified = false;
+            if (card.front === parts.front && card.back === parts.back) return;
+            card.front = parts.front;
+            card.back = parts.back;
+            card.updated = new Date().toISOString();
+            await this.plugin.store.save(card);
+            return;
+        }
+
         if (field === 'clozeText') {
             if (final) {
                 await syncClozeGroup(this.plugin, card, text);
@@ -425,20 +496,38 @@ export class TempEditor {
         }
 
         const file = this.app.vault.getAbstractFileByPath(at ?? path);
-        if (file instanceof TFile) {
+        const live = this.findLeaf(at ?? path);
+        let text: string | null = null;
+        if (live?.view instanceof MarkdownView && live.view.file?.path === (at ?? path)) {
+            // The editor buffer is newer than the file while a keystroke is
+            // still waiting for Obsidian's own save - closing must not drop it.
+            text = live.view.editor.getValue();
+        } else if (file instanceof TFile) {
             try {
-                // Whatever is still in the editor is the newest text.
-                const text = (await this.app.vault.read(file)).trim();
-                await this.apply(session, text, true);
+                text = await this.app.vault.read(file);
             } catch {
                 // Already gone; the last debounced write is the newest we have.
             }
-            if (removeFile) {
-                try {
-                    await this.app.fileManager.trashFile(file);
-                } catch {
-                    // The startup sweep owns it now.
-                }
+        }
+        if (text !== null) await this.apply(session, text.trim(), true);
+        if (removeFile && live) {
+            // Drop the view before the scratch file disappears. Obsidian's
+            // delete handler still walks the view's parents; trashing a file
+            // that is open there throws before the panel can open.
+            live.detach();
+            if (this.lastLeaf === live) this.lastLeaf = null;
+            // Let the workspace finish removing the leaf before deleting the
+            // file; otherwise that same handler still sees the closing view.
+            await new Promise((resolve) => window.setTimeout(resolve, 100));
+        }
+        if (file instanceof TFile && removeFile) {
+            try {
+                // A scratch note is disposable. Remove it through the adapter
+                // instead of the trash UI: trashing a file that was just open
+                // makes Obsidian's onDelete walk a detached view and throw.
+                await this.app.vault.adapter.remove(file.path);
+            } catch {
+                // The startup sweep owns it now.
             }
         }
         this.plugin.notifyCardEdited();

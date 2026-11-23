@@ -1,15 +1,12 @@
 import { App, ItemView, MarkdownRenderer, Menu, Modal, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
 import { isBuried, type CardRecord } from './card';
-import { ClozePanelModal } from './clozePanel';
-import { QaPanelModal } from './qaPanel';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
-import { ImagePanelModal } from './imagePanel';
-import { MapPanelModal } from './mapPanel';
 import { renderMindmap } from './mapView';
 import { parseOutline } from './outline';
 import { tt, ttf } from './i18n';
+import { openCardEditor } from './reviewEdit';
 import { matchesQuery, SearchContext } from './search';
 import { suggestFor, type Suggestion } from './searchSuggest';
 import { jumpToCardSource } from './sourceJump';
@@ -1044,66 +1041,20 @@ export class BrowseView extends ItemView {
             void this.saveMeta(selected, { tags: parseTags(tagsInput.value) });
         });
 
-        // Every card type opens its own editor panel: masks, notes, the tree
-        // and the picture are all visible while editing, instead of raw
-        // {{c1::...}} text in a temporary note.
+        // Text cards go straight to Obsidian's editor; pictures and maps open
+        // their panels. Both paths leave "Back to panel" reachable where it
+        // applies.
         const editors = previewEl.createDiv({ cls: 'fakecard-browse-editors' });
-        if (selected.type === 'cloze') {
-            editors.createEl('button', { text: tt('✎ Edit cloze text') }).addEventListener('click', () => {
-                new ClozePanelModal(
-                    this.app,
-                    this.plugin,
-                    selected.source.path,
-                    selected,
-                    undefined,
-                    () => { void this.reload(); },
-                ).open();
-            });
-        } else if (selected.type === 'map') {
-            editors.createEl('button', { text: tt('✎ Edit mind map') }).addEventListener('click', () => {
-                new MapPanelModal(
-                    this.app,
-                    this.plugin,
-                    selected.source.path,
-                    selected,
-                    '',
-                    () => { void this.reload(); },
-                ).open();
-            });
-        } else if (selected.type === 'image') {
-            // Only the masks are real content: `front`/`back` are `![[image]]`
-            // copies the review view never reads (it draws `card.image`), so
-            // editing them would change nothing on screen.
-            editors.createEl('button', { text: tt('✎ Edit masks') }).addEventListener('click', () => {
-                // Every group of the picture, not just this card's: the panel
-                // edits the picture, and a save must not read the other groups
-                // as deleted and remove their cards.
-                const groups = this.cards
-                    .filter((entry) => entry.type === 'image' && entry.image?.path === selected.image?.path)
-                    .flatMap((entry) => entry.image?.groups ?? []);
-                new ImagePanelModal(
-                    this.app,
-                    this.plugin,
-                    selected.image?.path ?? '',
-                    selected.source.path,
-                    selected,
-                    () => { void this.reload(); },
-                    undefined,
-                    groups,
-                ).open();
-            });
-        } else {
-            editors.createEl('button', { text: tt('✎ Edit Q&A') }).addEventListener('click', () => {
-                new QaPanelModal(
-                    this.app,
-                    this.plugin,
-                    selected.source.path,
-                    selected,
-                    undefined,
-                    () => { void this.reload(); },
-                ).open();
-            });
-        }
+        const editLabel = selected.type === 'cloze'
+            ? '✎ Edit cloze text'
+            : selected.type === 'map'
+                ? '✎ Edit mind map'
+                : selected.type === 'image'
+                    ? '✎ Edit masks'
+                    : '✎ Edit Q&A';
+        editors.createEl('button', { text: tt(editLabel) }).addEventListener('click', () => {
+            void openCardEditor(this.app, this.plugin, selected, () => { void this.reload(); });
+        });
 
         this.renderCardPreview(previewEl, selected);
     }

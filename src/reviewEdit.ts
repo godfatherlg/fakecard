@@ -8,13 +8,42 @@ import { QaPanelModal } from './qaPanel';
 import type FakeCardPlugin from '../main';
 
 /**
+ * Open the card's editor. Text cards (Q&A, cloze) go straight to Obsidian's
+ * own editor in a split: that is where text is actually written, and the
+ * panel is one click away from the editor's own "Back to panel" button.
+ *
+ * Pictures and mind maps keep their panels: their content is masks and nodes,
+ * not markdown.
+ */
+export async function openCardEditor(
+    app: App,
+    plugin: FakeCardPlugin,
+    card: CardRecord,
+    refresh: () => void,
+): Promise<void> {
+    if (card.type === 'qa' || card.type === 'cloze') {
+        const field = card.type === 'cloze' ? 'clozeText' : 'qa';
+        await plugin.tempEdit.open(card, field, undefined, () => {
+            // The scratch note has just been written back; read the stored
+            // copy so the panel cannot open with stale text.
+            void plugin.store.list().then((all) => {
+                const fresh = all.find((entry) => entry.id === card.id);
+                if (fresh) void openCardPanel(app, plugin, fresh, refresh);
+            });
+        });
+        return;
+    }
+    await openCardPanel(app, plugin, card, refresh);
+}
+
+/**
  * Open the panel that owns a card's content: masks for a picture, the outline
  * for a map, the text for Q&A and cloze.
  *
  * Editing from the review view keeps the card id and its FSRS history; the
  * caller only repaints the card in place once the panel saves.
  */
-export async function openCardEditor(
+export async function openCardPanel(
     app: App,
     plugin: FakeCardPlugin,
     card: CardRecord,

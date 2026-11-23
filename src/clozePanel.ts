@@ -125,15 +125,28 @@ export class ClozePanelModal extends Modal {
         // The same box, two stages: editing, then the rendered card.
         const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
         addFillScreenButton(this, toolbar);
+        let wrapButton: HTMLButtonElement | null = null;
+        let removeButton: HTMLButtonElement | null = null;
+        let revealButton: HTMLButtonElement | null = null;
+        const syncStageButtons = (view: boolean): void => {
+            wrapButton?.toggleClass('fakecard-stage-hidden', view);
+            removeButton?.toggleClass('fakecard-stage-hidden', view);
+            revealButton?.toggleClass('fakecard-stage-hidden', !view);
+        };
         this.stages = createStages({
             button: modeButton,
             edit: editStage,
             view: previewStage,
+            doneLabel: tt('Preview'),
             onShowView: () => {
                 this.preview.show(this.textarea.value);
+                syncStageButtons(true);
                 window.setTimeout(() => this.dimGroups(), 60);
             },
-            onShowEdit: () => this.textarea.focus(),
+            onShowEdit: () => {
+                this.textarea.focus();
+                syncStageButtons(false);
+            },
         });
         modeButton.addEventListener('click', () => {
             if (this.stages.onView) this.stages.showEdit();
@@ -218,20 +231,21 @@ export class ClozePanelModal extends Modal {
                 this.groupSelect.value = String(next);
             });
 
-        toolbar.createEl('button', { text: tt('Wrap selection') })
-            .addEventListener('click', () => this.wrapSelection());
+        wrapButton = toolbar.createEl('button', { text: tt('Wrap selection') });
+        wrapButton.addEventListener('click', () => this.wrapSelection());
 
-        toolbar.createEl('button', { text: tt('Remove cloze') })
-            .addEventListener('click', () => this.removeCloze());
+        removeButton = toolbar.createEl('button', { text: tt('Remove cloze') });
+        removeButton.addEventListener('click', () => this.removeCloze());
 
         // Same switch as the mind map panel: write the card from both sides.
-        const reveal = toolbar.createEl('button', { text: tt('Show answer'), attr: { type: 'button' } });
-        setTooltip(reveal, tt('Show the masked text in the preview'));
-        reveal.addEventListener('click', () => {
+        revealButton = toolbar.createEl('button', { text: tt('Show answer'), attr: { type: 'button' } });
+        setTooltip(revealButton, tt('Show the masked text in the preview'));
+        revealButton.addEventListener('click', () => {
             this.showAnswers = !this.showAnswers;
-            reveal.setText(this.showAnswers ? tt('Hide answer') : tt('Show answer'));
+            revealButton?.setText(this.showAnswers ? tt('Hide answer') : tt('Show answer'));
             this.preview.show(this.text);
         });
+        syncStageButtons(this.stages.onView);
 
         if (this.card) {
             toolbar.createEl('button', { text: tt('↗ Edit in editor') })
@@ -284,7 +298,20 @@ export class ClozePanelModal extends Modal {
         await this.plugin.syncClozeGroup(card, text);
         await this.plugin.store.save(card);
         this.close();
-        await this.plugin.tempEdit.open(card, 'clozeText');
+        await this.plugin.tempEdit.open(card, 'clozeText', undefined, () => {
+            void this.plugin.store.list().then((all) => {
+                const fresh = all.find((entry) => entry.id === card.id);
+                if (!fresh) return;
+                new ClozePanelModal(
+                    this.app,
+                    this.plugin,
+                    this.sourcePath,
+                    fresh,
+                    undefined,
+                    this.onSaved,
+                ).open();
+            });
+        });
     }
 
     /** Floating "wrap this selection" button, mirroring the mind map's. */

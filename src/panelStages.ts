@@ -54,6 +54,10 @@ export function createStages(options: StageOptions): StageSwitch {
         if (wasView) options.onShowEdit?.();
     };
 
+    // The panels all start in the editor; apply the label once here so the
+    // button does not read "Done" until the first click.
+    apply(false);
+
     return {
         showView: () => apply(true),
         showEdit: () => apply(false),

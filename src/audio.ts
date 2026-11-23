@@ -188,6 +188,107 @@ export function renderAudioStrip(
     }
 }
 
+export interface AudioRecorderHandle {
+    /** Stop a recording in progress when its host is rebuilt or closed. */
+    dispose(): void;
+    isRecording(): boolean;
+    /** Same action as clicking the visible record / stop button. */
+    toggle(): void;
+}
+
+export interface AudioRecorderOptions {
+    /** The smaller button used under a review answer. */
+    compact?: boolean;
+    /** Called after a clip was saved, e.g. to redraw the panel or review card. */
+    onChange?: () => void;
+}
+
+/**
+ * One record / stop button, shared by the edit panels and the review answer.
+ *
+ * The clip is written to the card immediately: recording is a file-level
+ * action, so a later Cancel in the panel cannot lose it.
+ */
+export function renderAudioRecorderButton(
+    plugin: FakeCardPlugin,
+    container: HTMLElement,
+    card: CardRecord,
+    options: AudioRecorderOptions = {},
+): AudioRecorderHandle {
+    if (!plugin.settings.audioEnabled) {
+        return { dispose: () => {}, isRecording: () => false, toggle: () => {} };
+    }
+
+    const record = container.createEl('button', {
+        cls: `fakecard-audio-record${options.compact ? ' is-compact' : ''}`,
+        attr: { type: 'button', 'aria-label': tt('Record') },
+    });
+    const recordIcon = record.createSpan({ cls: 'fakecard-audio-record-icon' });
+    setIcon(recordIcon, 'mic');
+    const recordLabel = record.createSpan({ text: tt('Record') });
+    let recorder: ClipRecorder | null = null;
+    let starting = false;
+    let disposed = false;
+
+    const reset = (): void => {
+        record.removeClass('is-recording');
+        setIcon(recordIcon, 'mic');
+        recordLabel.setText(tt('Record'));
+        record.setAttr('aria-label', tt('Record'));
+    };
+
+    record.addEventListener('click', () => {
+        void (async () => {
+            if (starting) return;
+            if (recorder) {
+                const active = recorder;
+                recorder = null;
+                const blob = await active.stop();
+                reset();
+                if (!blob) {
+                    new Notice(tt('The recording is empty.'));
+                    return;
+                }
+                const clip = await saveRecording(plugin, blob);
+                if (!clip) return;
+                card.audio = [...(card.audio ?? []), clip];
+                if (await plugin.store.save(card)) {
+                    plugin.notifyCardEdited();
+                    options.onChange?.();
+                }
+                return;
+            }
+
+            starting = true;
+            const next = new ClipRecorder();
+            try {
+                if (!await next.start()) return;
+                if (disposed) {
+                    next.cancel();
+                    return;
+                }
+                recorder = next;
+                record.addClass('is-recording');
+                setIcon(recordIcon, 'square');
+                recordLabel.setText(tt('Stop recording'));
+                record.setAttr('aria-label', tt('Stop recording'));
+            } finally {
+                starting = false;
+            }
+        })();
+    });
+
+    return {
+        dispose: () => {
+            disposed = true;
+            recorder?.cancel();
+            recorder = null;
+        },
+        isRecording: () => recorder !== null || starting,
+        toggle: () => record.click(),
+    };
+}
+
 export interface AudioEditorHandle {
     /** Stop a recording in progress when the panel closes. */
     dispose(): void;
@@ -212,13 +313,11 @@ export function renderAudioEditor(
     const head = section.createDiv({ cls: 'fakecard-audio-head' });
     head.createEl('label', { cls: 'fakecard-field-label', text: tt('Recordings') });
 
-    const record = head.createEl('button', { cls: 'fakecard-audio-record', attr: { type: 'button' } });
-    const recordIcon = record.createSpan({ cls: 'fakecard-audio-record-icon' });
-    setIcon(recordIcon, 'mic');
-    const recordLabel = record.createSpan({ text: tt('Record') });
+    const record = renderAudioRecorderButton(plugin, head, card, {
+        onChange: () => draw(),
+    });
 
     const list = section.createDiv({ cls: 'fakecard-audio-list' });
-    let recorder: ClipRecorder | null = null;
 
     const save = async (): Promise<void> => {
         if (await plugin.store.save(card)) plugin.notifyCardEdited();
@@ -273,40 +372,8 @@ export function renderAudioEditor(
         }
     };
 
-    record.addEventListener('click', () => {
-        void (async () => {
-            if (recorder) {
-                const blob = await recorder.stop();
-                recorder = null;
-                record.removeClass('is-recording');
-                setIcon(recordIcon, 'mic');
-                recordLabel.setText(tt('Record'));
-                if (!blob) {
-                    new Notice(tt('The recording is empty.'));
-                    return;
-                }
-                const clip = await saveRecording(plugin, blob);
-                if (!clip) return;
-                card.audio = [...(card.audio ?? []), clip];
-                await save();
-                draw();
-                return;
-            }
-
-            const next = new ClipRecorder();
-            if (!await next.start()) return;
-            recorder = next;
-            record.addClass('is-recording');
-            setIcon(recordIcon, 'square');
-            recordLabel.setText(tt('Stop recording'));
-        })();
-    });
-
     draw();
     return {
-        dispose: () => {
-            recorder?.cancel();
-            recorder = null;
-        },
+        dispose: () => record.dispose(),
     };
 }

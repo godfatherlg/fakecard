@@ -73,7 +73,7 @@ export class QaPanelModal extends Modal {
 
         const body = contentEl.createDiv({ cls: 'fakecard-panel-body' });
         const editStage = body.createDiv({ cls: 'fakecard-panel-stage' });
-        const previewStage = body.createDiv({ cls: 'fakecard-panel-stage is-hidden' });
+        const previewStage = body.createDiv({ cls: 'fakecard-panel-stage fakecard-qa-preview is-hidden' });
 
         const frontHead = editStage.createDiv({ cls: 'fakecard-field-head' });
         frontHead.createEl('label', { cls: 'fakecard-field-label', text: tt('Question') });
@@ -108,6 +108,7 @@ export class QaPanelModal extends Modal {
             button: modeButton,
             edit: editStage,
             view: previewStage,
+            doneLabel: tt('Preview'),
             onShowView: () => {
                 void this.renderStage();
             },
@@ -196,7 +197,26 @@ export class QaPanelModal extends Modal {
                 void this.plugin.store.save(card).then((saved) => {
                     if (!saved) return;
                     this.close();
-                    void this.plugin.tempEdit.open(card, field);
+                    // Both sides live in one scratch note. The answer button
+                    // lands the caret on the answer, below the visible rule.
+                    const frontLines = (card.front.match(/\n/g)?.length ?? 0) + 1;
+                    // front lines, a blank, the `---` divider, then the answer
+                    const line = field === 'back' ? frontLines + 2 : 0;
+                    void this.plugin.tempEdit.open(card, 'qa', line, () => {
+                        void this.plugin.store.list().then((all) => {
+                            const fresh = all.find((entry) => entry.id === card.id);
+                            if (fresh) {
+                                new QaPanelModal(
+                                    this.app,
+                                    this.plugin,
+                                    this.sourcePath,
+                                    fresh,
+                                    undefined,
+                                    this.onSaved,
+                                ).open();
+                            }
+                        });
+                    });
                 });
             });
     }
