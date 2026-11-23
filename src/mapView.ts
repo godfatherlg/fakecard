@@ -248,6 +248,15 @@ export async function renderMindmap(
                 if (!raw) continue;
                 span.empty();
                 await MarkdownRenderer.render(options.app!, raw, span, options.sourcePath!, component);
+                // The renderer puts a single paragraph inside a <p>, which turns
+                // every text run into a block: the hole between two runs then
+                // sits alone on its line. One paragraph means one line of text
+                // here, so its contents are lifted into the span itself.
+                const paragraph = span.firstElementChild;
+                if (span.children.length === 1 && paragraph?.tagName === 'P') {
+                    while (paragraph.firstChild) span.insertBefore(paragraph.firstChild, paragraph);
+                    paragraph.remove();
+                }
             }
         }));
         // The renderer's children are done; releasing them here keeps embedded
