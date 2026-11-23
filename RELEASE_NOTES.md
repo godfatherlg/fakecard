@@ -1,53 +1,41 @@
-# 1.0.51
+# 1.0.52
 
 ## 中文
 
-### 浏览页筛选可以保存
+### 埋藏不再“消失”
 
-- 工具栏新增「保存筛选」：把当前搜索词和牌组存成一个名字，之后从下拉里一键恢复
-- 保存时默认填当前搜索词；同样的搜索词 + 牌组再存一次是重命名，不会出现重复项
-- 最多保存 50 个；「×」删除当前选中的筛选
+- 复习页工具栏新增「N 张已埋藏」；完成页会写「N 张卡埋藏到明天」，点「刷新」时也会说明是埋藏而不是没卡
+- 统计页新增「不在队列里的卡 / N 已埋藏」，和「全部卡片」对得上
+- 修复：埋藏新卡后，它仍会出现在今天的新卡队列里；现在会真正隐藏到明天
 
-### is:buried 不再只存在于语法里
+### 大导图重绘更快
 
-- 浏览页快筛条新增「已埋藏」，和 is:new、is:due 等并列
-- 筛选菜单与搜索补全会提示 is:buried
-- 埋藏仍是「到明天零点」，与卡片菜单里的「今天不再出现」一致
-
-### 修复
-
-- 图片卡保存失败（只读库、磁盘写满）时不再提示「已保存」并关闭面板，编辑内容和面板都会保留
-- 复习日志缓存遇到外部修改（同步、脚本、手改 JSON）会失效，统计、配额不再读到旧数据
+- 在大纲里改一处，只重绘改动的那部分，其余节点原地保留，不再整张重建
+- 复用节点的点击选中、双击编辑、挖空提示始终作用在当前内容上；节点尺寸在两次重绘之间缓存
+- 修复：长时间编辑导图时，事件监听不再逐帧叠加（以前越用越重）
 
 ### 请测试
 
-- 保存两个筛选，重启 Obsidian 后恢复；再存一次同名筛选确认是重命名；删除筛选
-- 输入 is:buried：快筛、菜单、补全是否都出现；改完埋藏时间后列表是否按预期变化
-- 只读库或磁盘写满时编辑图片卡：应看到失败提示，面板不关
-- 两台设备同步 reviews/*.json 后打开统计：数字应立即反映，而不是旧的一天
+- 埋一张新卡：复习页应少一张并显示「1 张已埋藏」；两张都埋后完成页写「2 张卡埋藏到明天」；统计页显示同样数量；取消埋藏后卡片回到队列
+- 打开几十个节点的大导图，在大纲里改字：只有被改的节点重画，其余不闪；点其它节点仍能选中、双击仍能编辑、挖空提示仍写对行
+- 反复显示/收起答案、连续编辑大纲一段时间：体感应稳定，控制台无报错
 
 ## English
 
-### Saved Browse filters
+### Buried cards stay visible
 
-- The toolbar can store the current query and deck under a name, then restore both from the dropdown
-- The save dialog starts from the current query; saving the same query and deck again renames the entry instead of duplicating it
-- At most 50 filters are kept; the × button deletes the selected one
+- The review bar shows "N buried"; the finish page says "N card(s) are buried until tomorrow", and Refresh says the same instead of "nothing due"
+- Stats gains "Hidden from the queue / N buried", so "All cards" reconciles with the queue
+- Fix: burying a new card used to leave it in today's new-card queue; it is now hidden until tomorrow
 
-### is:buried is discoverable
+### Faster repaints on large maps
 
-- The Browse chip bar offers Buried next to is:new, is:due and friends
-- The filter menu and search completion mention is:buried
-- Burying still means "until tomorrow": the card menu's "hidden until tomorrow" uses the same deadline
-
-### Fixes
-
-- A failed image-card save (read-only vault, full disk) no longer reports success or closes the panel; your masks stay editable
-- The review-log cache is dropped when another writer changes reviews/*, so stats and quotas stop reading a stale day
+- Editing a word in the outline redraws only that part; untouched nodes are reused in place instead of rebuilding the whole map
+- Reused nodes keep click selection, double-click editing and cloze hints on the current content; node sizes are cached between repaints
+- Fix: event listeners on the map host no longer stack up in long editing sessions
 
 ### Please test
 
-- Save two filters, restart Obsidian and restore them; save the same one again to confirm it renames; delete one
-- Type is:buried: chip, menu and completion all offer it; changing a bury deadline updates the list
-- Edit an image card in a read-only vault: a failure notice appears and the panel stays open
-- Sync reviews/*.json from another device, then open Stats: the numbers must reflect it immediately
+- Bury a new card: the review pane loses it and shows "1 buried"; bury both and the finish page reads "2 card(s) are buried until tomorrow"; Stats shows the same number; unburying returns them
+- Open a map with dozens of nodes and edit a word in the outline: only the edited node redraws; selecting other nodes, double-click editing and cloze hints still work
+- Toggle answers and edit the outline over a long session: performance stays steady, no console errors

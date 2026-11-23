@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.51';
+export const WHATS_NEW_VERSION = '1.0.52';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,16 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Browse filters can be saved: store the current query and deck under a name, restore both from the toolbar, and delete the active one. Saving the same query and deck again renames the entry instead of duplicating it.',
-        zh: '浏览页筛选可以保存：把当前搜索词和牌组存成名字，之后从工具栏一键恢复或删除；同样的组合再存一次是重命名，不会重复。',
+        en: 'Burying a card now shows where it went: the review bar counts buried cards, the finish page and Refresh explain them, and Stats lists them as hidden from the queue. Burying a new card no longer leaves it in today\'s new-card queue.',
+        zh: '埋藏不再“消失”：复习栏会显示埋藏张数，完成页和刷新会说明卡片被埋到明天，统计页也能看到「不在队列里的卡」。埋藏新卡后，它不会再出现在今天的新卡队列里。',
     },
     {
-        en: 'is:buried now shows up in the Browse chip bar, the filter menu and search completion.',
-        zh: 'is:buried 现在会出现在浏览页快筛条、筛选菜单和搜索补全里。',
+        en: 'Large maps repaint faster: editing one node in the outline leaves the other nodes in place instead of rebuilding the whole map, and their sizes are cached between repaints.',
+        zh: '大导图重绘更快：在大纲里改一个节点，其余节点原地保留，不再整张重建；节点尺寸也会在两次重绘之间缓存。',
     },
     {
-        en: 'A failed image-card save no longer claims success and closes the panel, and external edits to reviews/*.json no longer leave stats reading a stale day.',
-        zh: '图片卡保存失败时不再假成功并关闭面板；reviews/*.json 被外部修改后，统计也不会继续读旧数据。',
+        en: 'Long editing sessions no longer pile up event listeners on the map view.',
+        zh: '长时间编辑导图时，事件监听不再越积越多。',
     },
 ];
 
