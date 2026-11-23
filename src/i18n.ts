@@ -360,9 +360,7 @@ const UI_ZH: Record<string, string> = {
     'Learning': '学习中',
     'Reviewing': '复习中',
     'Relearning': '重学中',
-    'Paused': '已暂停',
     'Graduated': '已毕业',
-    'paused': '已暂停',
     'graduated': '已毕业',
     'child': '子卡',
 
@@ -467,6 +465,8 @@ const UI_ZH: Record<string, string> = {
     'Resume': '恢复',
     'Pause selected': '暂停所选',
     'Resume selected': '恢复所选',
+    'Paused': '已暂停',
+    'fakecard: this block has cards': 'fakecard：这个段落有卡片',
     '{count} card(s) paused.': '已暂停 {count} 张卡片。',
     '{count} card(s) resumed.': '已恢复 {count} 张卡片。',
     'Parent card': '父卡',

@@ -186,7 +186,7 @@ export default class FakeCardPlugin extends Plugin {
                 const badge = target.createSpan({
                     cls: 'fakecard-source-badge',
                     text: '📇',
-                    attr: { 'aria-label': 'fakecard: this block has cards' },
+                    attr: { 'aria-label': tt('fakecard: this block has cards') },
                 });
                 badge.addEventListener('click', (event) => {
                     event.preventDefault();
@@ -520,9 +520,9 @@ export default class FakeCardPlugin extends Plugin {
             { due: queue.due, new: queue.fresh, learning: queue.learning },
         ));
         const parts: Array<[string, number, string]> = [
-            ['Due', queue.due, 'is-due'],
-            ['New', queue.fresh, 'is-new'],
-            ['Learning', queue.learning, 'is-learning'],
+            [tt('Due'), queue.due, 'is-due'],
+            [tt('New'), queue.fresh, 'is-new'],
+            [tt('Learning'), queue.learning, 'is-learning'],
         ];
         for (const [label, count, cls] of parts) {
             const part = el.createSpan({
@@ -1197,13 +1197,13 @@ class CardTypeModal extends Modal {
         contentEl.createEl('h2', { text: tt('New card') });
         contentEl.createEl('p', { cls: 'fakecard-help', text: tt('Pick a card type. The manual panel opens next.') });
 
-        const list = contentEl.createDiv({ cls: 'fakecards-preview' });
+        const list = contentEl.createDiv({ cls: 'fakecard-preview' });
 
         const row = (title: string, desc: string, onClick: () => void) => {
-            const item = list.createDiv({ cls: 'fakecards-preview-row fakecards-clickable' });
-            const body = item.createDiv({ cls: 'fakecards-preview-body' });
-            body.createDiv({ cls: 'fakecards-preview-front', text: title });
-            body.createDiv({ cls: 'fakecards-preview-back', text: desc });
+            const item = list.createDiv({ cls: 'fakecard-preview-row fakecard-clickable' });
+            const body = item.createDiv({ cls: 'fakecard-preview-body' });
+            body.createDiv({ cls: 'fakecard-preview-front', text: title });
+            body.createDiv({ cls: 'fakecard-preview-back', text: desc });
             item.addEventListener('click', onClick);
         };
 
@@ -1264,10 +1264,10 @@ class CardPreviewModal extends Modal {
         contentEl.createEl('h2', { text: ttf('Preview {count} card(s)', { count: this.drafts.length }) });
 
         const selected = new Set<number>(this.drafts.map((_, index) => index));
-        const list = contentEl.createDiv({ cls: 'fakecards-preview' });
+        const list = contentEl.createDiv({ cls: 'fakecard-preview' });
 
         this.drafts.forEach((draft, index) => {
-            const row = list.createDiv({ cls: 'fakecards-preview-row' });
+            const row = list.createDiv({ cls: 'fakecard-preview-row' });
 
             const checkbox = row.createEl('input');
             checkbox.type = 'checkbox';
@@ -1277,13 +1277,13 @@ class CardPreviewModal extends Modal {
                 else selected.delete(index);
             });
 
-            const body = row.createDiv({ cls: 'fakecards-preview-body' });
+            const body = row.createDiv({ cls: 'fakecard-preview-body' });
             body.createDiv({
-                cls: 'fakecards-preview-type',
+                cls: 'fakecard-preview-type',
                 text: draft.type === 'qa' ? tt('Q&A') : tt('Cloze'),
             });
-            body.createDiv({ cls: 'fakecards-preview-front', text: draft.front });
-            body.createDiv({ cls: 'fakecards-preview-back', text: draft.back });
+            body.createDiv({ cls: 'fakecard-preview-front', text: draft.front });
+            body.createDiv({ cls: 'fakecard-preview-back', text: draft.back });
         });
 
         new Setting(contentEl).addButton((button) => button

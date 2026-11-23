@@ -540,7 +540,7 @@ export class BrowseView extends ItemView {
             ['Due', 'is:due'],
             ['Learning', 'is:learning'],
             ['Child', 'is:child'],
-            ['Paused', 'is:paused'],
+            [tt('Paused'), 'is:paused'],
             ['Graduated', 'is:graduated'],
             ['Orphan', 'is:orphan'],
         ];
@@ -648,7 +648,7 @@ export class BrowseView extends ItemView {
                 : card.type === 'map'
                     ? tt('Mind map')
                     : tt('Q&A');
-        const state = card.graduated ? ` · ${tt('graduated')}` : card.suspended ? ` · ${tt('paused')}` : card.childOf ? ` · ${tt('child')}` : '';
+        const state = card.graduated ? ` · ${tt('graduated')}` : card.suspended ? ` · ${tt('Paused')}` : card.childOf ? ` · ${tt('child')}` : '';
         // Front only - but a card found by a word that lives in its
         // answer would look like a wrong hit, so say where it matched.
         const frontCell = row.createEl('td');

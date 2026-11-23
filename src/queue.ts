@@ -2,6 +2,27 @@ import { forgetting_curve, State } from 'ts-fsrs';
 import type FakeCardPlugin from '../main';
 import { isBuried, type CardRecord } from './card';
 import { pruneExpiredExamPlans } from './examPlan';
+import { dailyReviewLimit } from './limit';
+
+/**
+ * Today's review limit, after "study more today" and the adaptive size.
+ *
+ * One function so the real queue and the status-bar counts cannot drift:
+ * yesterday's success rate changes how much is queued today, never a schedule.
+ */
+export async function effectiveReviewLimit(plugin: FakeCardPlugin): Promise<number> {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const logs = plugin.settings.adaptiveDailyLoad
+        ? (await plugin.reviews.forDay(yesterday)).filter((log) => !log.ahead)
+        : [];
+    return dailyReviewLimit({
+        base: plugin.settings.maxReviewsPerDay,
+        boost: plugin.reviewLimitBoost,
+        adaptive: plugin.settings.adaptiveDailyLoad,
+        yesterday: logs,
+    });
+}
 
 /**
  * Today's counts, without building the queue.
@@ -21,17 +42,7 @@ export async function buildQueueCounts(
         .filter((card) => !card.suspended && !card.graduated);
 
     const todayLogs = await plugin.reviews.forDay(new Date());
-    let limit = plugin.settings.maxReviewsPerDay + plugin.reviewLimitBoost;
-    if (plugin.settings.adaptiveDailyLoad) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const logs = (await plugin.reviews.forDay(yesterday)).filter((log) => !log.ahead);
-        if (logs.length >= 10) {
-            const success = logs.filter((log) => log.rating >= 3).length / logs.length;
-            if (success < 0.7) limit = Math.max(10, Math.round(limit * 0.8));
-            else if (success > 0.9) limit = Math.round(limit * 1.1);
-        }
-    }
+    const limit = await effectiveReviewLimit(plugin);
 
     const now = Date.now();
     const waiting = all.filter((card) => card.fsrs
@@ -122,20 +133,7 @@ export async function buildReviewQueue(
     // capped by the daily limits in settings. `reviewLimitBoost` is the extra
     // allowance "study more today" adds; it lives for this session only.
     const todayLogs = await plugin.reviews.forDay(new Date());
-    let limit = plugin.settings.maxReviewsPerDay + plugin.reviewLimitBoost;
-
-    // Size the day from how yesterday actually went: a run of failures means
-    // today should be smaller, not that the backlog should be cleared faster.
-    if (plugin.settings.adaptiveDailyLoad) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const logs = (await plugin.reviews.forDay(yesterday)).filter((log) => !log.ahead);
-        if (logs.length >= 10) {
-            const success = logs.filter((log) => log.rating >= 3).length / logs.length;
-            if (success < 0.7) limit = Math.max(10, Math.round(limit * 0.8));
-            else if (success > 0.9) limit = Math.round(limit * 1.1);
-        }
-    }
+    const limit = await effectiveReviewLimit(plugin);
 
     // Reviews made ahead of schedule are extra practice: they must not eat the
     // allowance that today's due cards still need.

@@ -12,6 +12,7 @@ import {
 import { findQuestionNode, outlineGroups, parseOutline, splitNodeText } from '../src/outline';
 import { answerTimeBreakdown } from '../src/answerTime';
 import { childScore, hardStreakScore, hasHardStreak } from '../src/childStreak';
+import { dailyReviewLimit } from '../src/limit';
 import { matchesQuery, type SearchContext } from '../src/search';
 
 function card(partial: Partial<CardRecord> = {}): CardRecord {
@@ -175,5 +176,40 @@ describe('search', () => {
     it('matches numeric properties', () => {
         expect(matchesQuery(due, 'prop:due<7 prop:ivl>=2', context())).toBe(true);
         expect(matchesQuery(due, 'prop:reps>10', context())).toBe(false);
+    });
+
+    it('matches buried cards separately from due ones', () => {
+        const buried = card({
+            buriedUntil: new Date(Date.now() + 86400000).toISOString(),
+            fsrs: fsrs as never,
+        });
+        expect(matchesQuery(buried, 'is:buried', context())).toBe(true);
+        expect(matchesQuery(buried, 'is:due', context())).toBe(false);
+        expect(matchesQuery(buried, '-is:buried', context())).toBe(false);
+    });
+});
+
+describe('daily limit', () => {
+    const base = { base: 100, boost: 0, adaptive: true };
+
+    it('leaves the configured limit alone when adaptive is off', () => {
+        expect(dailyReviewLimit({ ...base, adaptive: false, yesterday: [] })).toBe(100);
+    });
+
+    it('needs ten reviews before acting', () => {
+        const nine = Array.from({ length: 9 }, () => ({ rating: 1 }));
+        expect(dailyReviewLimit({ ...base, yesterday: nine })).toBe(100);
+    });
+
+    it('shrinks after a bad day and grows after a good one', () => {
+        const bad = Array.from({ length: 10 }, (_, i) => ({ rating: i < 5 ? 3 : 1 }));
+        const good = Array.from({ length: 10 }, () => ({ rating: 3 }));
+        expect(dailyReviewLimit({ ...base, yesterday: bad })).toBe(80);
+        expect(dailyReviewLimit({ ...base, yesterday: good })).toBe(110);
+    });
+
+    it('counts the boost before applying the percentage', () => {
+        const bad = Array.from({ length: 10 }, () => ({ rating: 1 }));
+        expect(dailyReviewLimit({ ...base, boost: 20, yesterday: bad })).toBe(96);
     });
 });

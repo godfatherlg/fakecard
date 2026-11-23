@@ -71,6 +71,8 @@ function matchesIs(card: CardRecord, value: string, ctx: SearchContext): boolean
                 && !isBuried(card, ctx.now);
         case 'child':
             return !!card.childOf;
+        case 'buried':
+            return isBuried(card, ctx.now);
         case 'paused':
             return !!card.suspended;
         case 'graduated':
