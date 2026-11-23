@@ -86,6 +86,23 @@ const MAX_SCALE = 2;
 const RENDERED_TEXT_LIMIT = 500;
 const renderedText = new Map<string, Node[]>();
 
+/**
+ * Measured node sizes, keyed by depth, visible mask groups and raw text.
+ *
+ * A repaint recreates the nodes but usually changes one line; the other boxes
+ * would be measured again, and every read forces a synchronous layout. The
+ * width comes from `max-content` capped at a fixed 420px, so it does not depend
+ * on the canvas or the zoom, only on what is drawn inside the box.
+ */
+const MEASURED_LIMIT = 2000;
+const measuredSize = new Map<string, { w: number; h: number }>();
+
+function measuredKey(node: OutlineNode, el: HTMLElement): string {
+    // The drawn box decides the size, not the source text: the same line is
+    // shorter while masked and longer once the answer is shown.
+    return `${node.depth}\u0000${el.className.replace(' is-selected', '')}\u0000${el.textContent ?? ''}`;
+}
+
 interface Box {
     node: OutlineNode;
     el: HTMLElement;
@@ -315,10 +332,30 @@ export async function renderMindmap(
         component.unload();
     }
 
-    // Sizes are known only now.
+    // Sizes are known only now. A box whose text and visible masks did not
+    // change keeps its last size: reading a rect after the DOM was written is
+    // what forces a synchronous layout, and a repaint usually touches one node.
+    const misses: Array<{ node: OutlineNode; el: HTMLElement; key: string }> = [];
     for (const { node, el } of created) {
-        const rect = el.getBoundingClientRect();
-        boxes.set(node, { node, el, w: rect.width, h: rect.height, x: 0, y: 0 });
+        const key = measuredKey(node, el);
+        const cached = measuredSize.get(key);
+        if (cached) {
+            boxes.set(node, { node, el, w: cached.w, h: cached.h, x: 0, y: 0 });
+        } else {
+            misses.push({ node, el, key });
+        }
+    }
+    // One batch of reads, so the browser lays out once instead of per box.
+    for (const miss of misses) {
+        const rect = miss.el.getBoundingClientRect();
+        boxes.set(miss.node, { node: miss.node, el: miss.el, w: rect.width, h: rect.height, x: 0, y: 0 });
+        measuredSize.set(miss.key, { w: rect.width, h: rect.height });
+    }
+    if (measuredSize.size > MEASURED_LIMIT) {
+        for (const oldest of measuredSize.keys()) {
+            measuredSize.delete(oldest);
+            if (measuredSize.size <= MEASURED_LIMIT) break;
+        }
     }
 
     // Column widths: each depth starts after the widest node of the one before.
