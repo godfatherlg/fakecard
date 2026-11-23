@@ -1,5 +1,7 @@
 import { ItemView, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
+import { renderAudioStrip } from './audio';
+import { applyLearningStep, parseSteps } from './learningSteps';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
 
@@ -340,6 +342,11 @@ export class ReviewView extends ItemView {
             setTooltip(badge, tt('Ordered for coming back after a break: cards you still remember first, the weak ones mixed in a few at a time.'));
         }
 
+        // Recordings sit above the card: available before the answer is
+        // revealed (a listening prompt) and after it (your own answer). They
+        // never play by themselves.
+        renderAudioStrip(this.plugin, container, card);
+
         // The card itself: centred while it is short, scrolling normally once
         // a long answer does not fit.
         const body = container.createDiv({ cls: 'fakecard-review-body' });
@@ -441,24 +448,41 @@ export class ReviewView extends ItemView {
         const scheduler = fsrs();
         const fsrsCard: FsrsCard = card.fsrs ?? createEmptyCard();
         const now = new Date();
-        const scheduling = scheduler.next(fsrsCard, now, rating as Grade);
-        shortenEarlyInterval(
-            card.fsrs,
-            scheduling.card,
-            now,
-            rating,
-            this.plugin.settings.scaleEarlyReviews,
-        );
-        capOverdueInterval(
-            fsrsCard,
-            scheduling.card,
-            now,
-            rating,
-            this.plugin.settings.gapIntervalCap,
-        );
+        let scheduling = scheduler.next(fsrsCard, now, rating as Grade);
+        // With custom steps on, the step list owns New/Learning/Relearning
+        // cards; the day-level corrections below are not for minute intervals.
+        const stepped = this.plugin.settings.learningStepsEnabled
+            ? applyLearningStep(
+                card,
+                rating,
+                now,
+                parseSteps(this.plugin.settings.learningSteps) ?? [],
+                parseSteps(this.plugin.settings.relearningSteps) ?? [],
+            )
+            : null;
+        if (stepped) {
+            scheduling = { ...scheduling, card: stepped.card };
+        } else {
+            shortenEarlyInterval(
+                card.fsrs,
+                scheduling.card,
+                now,
+                rating,
+                this.plugin.settings.scaleEarlyReviews,
+            );
+            capOverdueInterval(
+                fsrsCard,
+                scheduling.card,
+                now,
+                rating,
+                this.plugin.settings.gapIntervalCap,
+            );
+        }
 
         const wasNew = !card.fsrs;
         card.fsrs = scheduling.card;
+        if (stepped?.lstep !== undefined) card.lstep = stepped.lstep;
+        else delete card.lstep;
         card.reviews = (card.reviews ?? 0) + 1;
         if (rating >= Rating.Good) card.correct = (card.correct ?? 0) + 1;
         card.updated = new Date().toISOString();

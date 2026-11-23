@@ -1,4 +1,5 @@
 import { App, Modal, Notice, setTooltip, Setting } from 'obsidian';
+import { type AudioEditorHandle, renderAudioEditor } from './audio';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { clozeGroups, holeAnswer, holeHint, renderClozeHtml, unwrapSelection, withHoleHint, wrapBlockLines, wrapSelection } from './cloze';
@@ -249,6 +250,10 @@ export class ClozePanelModal extends Modal {
         this.tagsEl.placeholder = tt('tag1, tag2');
         this.tagsEl.value = (this.card?.tags ?? []).join(', ');
 
+        // Recording is file-level: it writes immediately, so Cancel cannot
+        // lose a clip. Only an existing card has somewhere to write.
+        if (this.card) this.audio = renderAudioEditor(this.plugin, contentEl, this.card);
+
         new Setting(contentEl)
             .addButton((button) => button
                 .setButtonText(this.card ? tt('Save changes') : tt('Create card'))
@@ -284,6 +289,8 @@ export class ClozePanelModal extends Modal {
 
     /** Floating "wrap this selection" button, mirroring the mind map's. */
     private floatEl: HTMLElement | null = null;
+    /** Stops a recording in progress if the panel is closed. */
+    private audio?: AudioEditorHandle;
     /** The editor/render switch shared with the other new-card panels. */
     private stages!: StageSwitch;
     private selectionHandler: (() => void) | null = null;
@@ -391,6 +398,7 @@ export class ClozePanelModal extends Modal {
     }
 
     onClose(): void {
+        this.audio?.dispose();
         closeHintEditor();
         if (this.selectionHandler) this.selectionDoc?.removeEventListener('mouseup', this.selectionHandler);
         this.hideFloat();

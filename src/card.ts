@@ -59,6 +59,15 @@ export function isBuried(card: CardRecord, now = Date.now()): boolean {
     return Boolean(card.buriedUntil && new Date(card.buriedUntil).getTime() > now);
 }
 
+/** One recording attached to a card, in the library's media folder. */
+export interface AudioClip {
+    /** Vault path of the audio file. */
+    file: string;
+    /** Editable label. Renaming changes only this, never the file name. */
+    title: string;
+    created: string;
+}
+
 export interface CardRecord {
     id: string;
     type: CardType;
@@ -111,6 +120,13 @@ export interface CardRecord {
     graduated?: boolean;
     /** FSRS scheduling state. Absent until the card is first reviewed. */
     fsrs?: FsrsCard;
+    /**
+     * Which learning step the card is sitting in, when custom learning steps
+     * are enabled. Absent on cards that never entered one.
+     */
+    lstep?: number;
+    /** Recordings attached to this card (settings: audio recordings). */
+    audio?: AudioClip[];
     /** Lifetime review counters, used by the stats page. */
     reviews?: number;
     /** Lifetime correct reviews (rating >= Good). */

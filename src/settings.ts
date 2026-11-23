@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, TFile, TFolder, normalizePath } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting, TFile, TFolder, normalizePath } from 'obsidian';
 import type { SettingDefinitionGroup, SettingDefinitionItem } from 'obsidian';
 import type FakeCardPlugin from '../main';
 import { ConfirmDialog } from './confirm';
@@ -28,6 +28,7 @@ import {
     ExamPlanConfig,
 } from './examPlan';
 import { t, tf, ttf } from './i18n';
+import { parseSteps } from './learningSteps';
 import { DEFAULT_LIBRARY_FOLDER } from './store';
 
 /** A query + deck pair the user saved from the Browse toolbar. */
@@ -134,6 +135,16 @@ export interface FakeCardSettings {
     ratingKeyGood: string;
     ratingKeyEasy: string;
 
+    // --- Optional features -------------------------------------------------
+    /** Attach recordings to cards; review shows a player strip. */
+    audioEnabled: boolean;
+    /** Anki-style learning steps instead of FSRS's built-in short-term ones. */
+    learningStepsEnabled: boolean;
+    /** Step list for new cards, e.g. "1m 10m". */
+    learningSteps: string;
+    /** Step list after a lapse, e.g. "10m". */
+    relearningSteps: string;
+
     // --- Card display ------------------------------------------------------
     /**
      * Review layout: a centred column (default) or the full width of the pane
@@ -214,6 +225,11 @@ export const DEFAULT_SETTINGS: FakeCardSettings = {
     ratingKeyGood: 'Space',
     ratingKeyEasy: '3',
 
+    audioEnabled: false,
+    learningStepsEnabled: false,
+    learningSteps: '1m 10m',
+    relearningSteps: '10m',
+
     reviewLayout: 'center',
     maskAllGroups: true,
     mapMaskSubtree: true,
@@ -258,6 +274,8 @@ const TEXT_DEFAULTS: Record<string, string> = {
     ratingKeyHard: DEFAULT_SETTINGS.ratingKeyHard,
     ratingKeyGood: DEFAULT_SETTINGS.ratingKeyGood,
     ratingKeyEasy: DEFAULT_SETTINGS.ratingKeyEasy,
+    learningSteps: DEFAULT_SETTINGS.learningSteps,
+    relearningSteps: DEFAULT_SETTINGS.relearningSteps,
 };
 
 /**
@@ -277,6 +295,8 @@ export class FakeCardSettingTab extends PluginSettingTab {
             this.paceGroup(),
             this.aheadGroup(),
             this.reviewGroup(),
+            this.audioGroup(),
+            this.stepsGroup(),
             this.nudgeGroup(),
             this.recoveryGroup(),
             this.examGroup(),
@@ -631,6 +651,74 @@ export class FakeCardSettingTab extends PluginSettingTab {
                     name: t('review.keyEasy.name'),
                     desc: t('review.keys.desc'),
                     control: { type: 'text', key: 'ratingKeyEasy', placeholder: '3' },
+                },
+            ],
+        };
+    }
+
+    // --------------------------------------------------------- Audio recordings
+
+    private audioGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('audio.heading'),
+            items: [
+                {
+                    name: t('audio.enabled.name'),
+                    desc: t('audio.enabled.desc'),
+                    control: { type: 'toggle', key: 'audioEnabled' },
+                },
+            ],
+        };
+    }
+
+    // ------------------------------------------------------------ Learning steps
+
+    /** One step-list field: parse on blur, so half-typed text is not reset. */
+    private stepField(
+        key: 'learningSteps' | 'relearningSteps',
+        setting: Setting,
+    ): void {
+        setting.addText((text) => {
+            text.setValue(this.plugin.settings[key]);
+            text.inputEl.addEventListener('blur', () => {
+                const value = text.getValue().trim();
+                if (parseSteps(value) === null) {
+                    new Notice(t('steps.invalid'));
+                    text.setValue(this.plugin.settings[key]);
+                    return;
+                }
+                if (value === this.plugin.settings[key]) return;
+                this.plugin.settings[key] = value;
+                void this.plugin.saveSettings();
+            });
+            text.inputEl.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                text.inputEl.blur();
+            });
+        });
+    }
+
+    private stepsGroup(): SettingDefinitionGroup {
+        return {
+            type: 'group',
+            heading: t('steps.heading'),
+            items: [
+                {
+                    name: t('steps.enabled.name'),
+                    desc: t('steps.enabled.desc'),
+                    control: { type: 'toggle', key: 'learningStepsEnabled' },
+                },
+                {
+                    name: t('steps.learning.name'),
+                    desc: t('steps.learning.desc'),
+                    render: (setting) => this.stepField('learningSteps', setting),
+                },
+                {
+                    name: t('steps.relearning.name'),
+                    desc: t('steps.relearning.desc'),
+                    render: (setting) => this.stepField('relearningSteps', setting),
                 },
             ],
         };

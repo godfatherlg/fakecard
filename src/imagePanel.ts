@@ -1,4 +1,5 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
+import { type AudioEditorHandle, renderAudioEditor } from './audio';
 import { saveAllOrRollback } from './batchSave';
 import type { CardImage, CardRecord, ImageGroup, ImageMask } from './card';
 import { cloneValue, HistoryStack } from './history';
@@ -42,6 +43,8 @@ export class ImagePanelModal extends Modal {
     private pasteHandler: ((event: ClipboardEvent) => void) | null = null;
     /** The document that listener was added to, so the same one is cleaned up. */
     private pasteDoc: Document | null = null;
+    /** Stops a recording in progress if the panel is closed. */
+    private audio?: AudioEditorHandle;
 
     constructor(
         app: App,
@@ -192,6 +195,10 @@ export class ImagePanelModal extends Modal {
 
         this.renderMasks();
 
+        // Recording is file-level: it writes immediately, so Cancel cannot
+        // lose a clip. Only an existing card has somewhere to write.
+        if (this.card) this.audio = renderAudioEditor(this.plugin, contentEl, this.card);
+
         new Setting(contentEl)
             .addButton((button) => button
                 .setButtonText(this.card ? tt('Save changes') : tt('Create card'))
@@ -274,6 +281,7 @@ export class ImagePanelModal extends Modal {
     }
 
     onClose(): void {
+        this.audio?.dispose();
         if (this.pasteHandler) {
             this.pasteDoc?.removeEventListener('paste', this.pasteHandler);
             this.pasteHandler = null;

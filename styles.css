@@ -2398,3 +2398,89 @@ body.theme-dark .fakecard-image-mask-label {
   height: 340px;
   padding: 0;
 }
+
+/* Audio recordings: a quiet strip above the review card, and a full
+   record / rename / delete section in the edit panels. */
+.fakecard-audio-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+
+.fakecard-audio-strip-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.fakecard-audio-strip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.fakecard-audio-strip-title {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+}
+
+.fakecard-audio-player {
+  max-width: 100%;
+}
+
+.fakecard-audio-section {
+  margin: 12px 0 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.fakecard-audio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fakecard-audio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.fakecard-audio-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fakecard-audio-title {
+  flex: 1 1 140px;
+  min-width: 100px;
+}
+
+.fakecard-audio-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.fakecard-audio-record {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fakecard-audio-record.is-recording {
+  color: var(--text-error);
+}
+
+.fakecard-audio-missing {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+}

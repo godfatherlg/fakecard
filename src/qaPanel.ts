@@ -1,4 +1,5 @@
 ﻿import { App, Component, MarkdownRenderer, Modal, Notice, Setting } from 'obsidian';
+import { type AudioEditorHandle, renderAudioEditor } from './audio';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { HistoryStack } from './history';
@@ -27,6 +28,8 @@ export class QaPanelModal extends Modal {
     private historyTimer: number | null = null;
     private deckEl!: HTMLSelectElement;
     private tagsEl!: HTMLInputElement;
+    /** Stops a recording in progress if the panel is closed. */
+    private audio?: AudioEditorHandle;
 
     constructor(
         app: App,
@@ -154,6 +157,10 @@ export class QaPanelModal extends Modal {
             if (this.stages.onView) void this.renderStage();
         });
 
+        // Recording is file-level: it writes immediately, so Cancel cannot
+        // lose a clip. Only an existing card has somewhere to write.
+        if (this.card) this.audio = renderAudioEditor(this.plugin, contentEl, this.card);
+
         new Setting(contentEl)
             .addButton((button) => button
                 .setButtonText(this.card ? tt('Save changes') : tt('Create card'))
@@ -213,6 +220,7 @@ export class QaPanelModal extends Modal {
     }
 
     onClose(): void {
+        this.audio?.dispose();
         this.mdComponent?.unload();
         this.mdComponent = null;
         if (this.historyTimer !== null) window.clearTimeout(this.historyTimer);

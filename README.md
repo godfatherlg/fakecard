@@ -19,6 +19,8 @@ Features:
 - Exam plans: several countdowns at once, each with ticked decks and a share, plus a live "cards per day" estimate before you build
 - Statistics: today, rating distribution, true retention, maturity, heatmap, due forecast, hard cards
 - Anki import (`.apkg`): basic, cloze and image-occlusion notes plus their media
+- Optional audio recordings: several clips per card, time-stamped files, renaming changes only the label, players on the review card (off by default)
+- Optional learning steps: Anki-style minute-level steps for new cards and lapses, while FSRS still picks the graduating interval (off by default)
 - Read-only towards your notes: any card can jump back to the exact spot it came from
 
 Install:
@@ -59,6 +61,13 @@ added:7 rated:1                added this week, reviewed today
 
 Data and privacy: cards are stored in `fakecard/cards/`, review logs in `fakecard/reviews/`, backups in `fakecard/backup/`. Everything is local and the plugin makes no network requests. The system clipboard is read only when you run one of the import commands that takes cards from it, and the plugin never writes to it.
 
+### Audio recordings and learning steps (optional)
+
+Both are off by default; turn them on in **Settings -> fakecard**.
+
+- **Audio recordings**: open an existing card's edit panel and press Record. Every clip is saved with a time-stamped file name under `fakecard/media/`; its label starts as that time and can be renamed without touching the file. A card keeps as many clips as you record. Review shows a player strip above the card and never plays by itself.
+- **Learning steps**: set step lists such as `1m 10m` for new cards and `10m` after a lapse. Again sends a card back to the first step, Good moves it one step on, Hard repeats the current step, Easy graduates immediately; after the last step FSRS picks the interval. Turning this off restores FSRS's own short-term schedule, and cards that already carry a learning step from this feature are left to FSRS as well.
+
 The rest of this document is in Chinese.
 
 ---
@@ -74,7 +83,16 @@ The rest of this document is in Chinese.
 - **考试计划**：可建多个倒计时，勾选牌组 + 比例，生成前先看到每天多少张
 - **统计**：今日、评分分布、真实保持率、成熟度、热力图、到期预测、难卡
 - **Anki 导入**（`.apkg`）：Basic / Cloze / 图片蒙板 + 媒体文件
+- **可选录音**：一张卡可挂多段录音，文件按时间戳命名，改名只改显示名，复习卡片上方显示播放条（默认关闭）
+- **可选学习步骤**：新卡与遗忘后的卡按 Anki 式分钟级步骤走，最后一步之后的间隔仍由 FSRS 决定（默认关闭）
 - **读而不写**：卡片可跳回原笔记位置（按内容实时定位），阅读模式显示来源徽标
+
+### 录音与学习步骤（可选）
+
+两项都默认关闭，在「设置 → fakecard」里开启。
+
+- **录音**：打开已有卡片的编辑面板，点「录音」。每段录音按时间戳命名保存在 `fakecard/media/`；默认显示名也是这个时间，可以改名，但不会改文件名。一张卡可以保留多段录音。复习时卡片上方会显示播放条，不会自动播放。
+- **学习步骤**：为新卡设置如 `1m 10m`、为遗忘后的卡设置 `10m` 的步骤表。Again 回到第一步，Good 前进一步，Hard 重复当前步，Easy 直接毕业；最后一步之后的间隔由 FSRS 决定。关闭后恢复 FSRS 自带的短期调度；已经带有本功能学习步骤的卡也交回 FSRS。
 
 ## 安装
 

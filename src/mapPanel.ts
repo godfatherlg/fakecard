@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Setting, setTooltip } from 'obsidian';
 
+import { type AudioEditorHandle, renderAudioEditor } from './audio';
 import type { CardRecord } from './card';
 import { clozeGroups, holeAnswer, holeHint, parseCloze, unwrapSelection, withHoleHint, wrapSelection } from './cloze';
 import { closeHintEditor, openHintEditor } from './hintEditor';
@@ -48,6 +49,8 @@ export class MapPanelModal extends Modal {
     private activeEl: HTMLElement | null = null;
     /** The floating "mask this selection" button, when one is on screen. */
     private floatEl: HTMLElement | null = null;
+    /** Stops a recording in progress if the panel is closed. */
+    private audio?: AudioEditorHandle;
     /** Whether the outline strip is showing its source box. */
     /** The editor/render switch shared with the other new-card panels. */
     private stages!: StageSwitch;
@@ -191,6 +194,10 @@ export class MapPanelModal extends Modal {
                     this.tags = value;
                 });
             });
+
+        // Recording is file-level: it writes immediately, so Cancel cannot
+        // lose a clip. Only an existing card has somewhere to write.
+        if (this.card) this.audio = renderAudioEditor(this.plugin, contentEl, this.card);
 
         new Setting(contentEl)
             .addButton((button) => button
@@ -618,6 +625,7 @@ export class MapPanelModal extends Modal {
     }
 
     onClose(): void {
+        this.audio?.dispose();
         closeHintEditor();
         if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
         this.selectionDoc?.removeEventListener('mouseup', this.onSelectionUp);
