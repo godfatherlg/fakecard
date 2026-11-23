@@ -6,7 +6,7 @@ import { closeHintEditor, openHintEditor } from './hintEditor';
 import { plainOf, wrapRangePlainText } from './inlineMd';
 import { parseTags } from './ui';
 import { tt, ttf } from './i18n';
-import { type OutlineNode, parseOutline } from './outline';
+import { findQuestionNode, type OutlineNode, parseOutline } from './outline';
 import { addFillScreenButton } from './panelFill';
 import { createStages, type StageSwitch } from './panelStages';
 import { renderMindmap } from './mapView';
@@ -249,16 +249,21 @@ export class MapPanelModal extends Modal {
         // Showing the answer: nothing is masked, and the group being written is
         // painted green, so the words that will be hidden are still obvious.
         const maskGroups = this.showAnswers ? new Set<number>() : new Set([group]);
+        const root = parseOutline(this.text);
+        // Name the node the group asks about, rather than relying on "the first
+        // mask the renderer happens to meet": c2 must centre on c2's node.
+        const question = findQuestionNode(root, group);
         // The first paint lands before the map is centred and measured; hiding
         // it until then is what stops the layout flashing on open.
         const first = !this.painted;
         if (first) this.previewEl.addClass('is-laying-out');
         const forceCenter = this.recenter;
         this.recenter = false;
-        void renderMindmap(this.previewEl, parseOutline(this.text), {
+        void renderMindmap(this.previewEl, root, {
             maskGroups,
             highlightGroups: this.showAnswers ? new Set([group]) : undefined,
             maskSubtree: this.plugin.settings.mapMaskSubtree,
+            focusNodeId: question?.id,
             // The view belongs to the user from here on; only entering the map
             // stage, or picking another group, re-centres it.
             autoCenter: false,
