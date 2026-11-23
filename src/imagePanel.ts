@@ -1,4 +1,5 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
+import { saveAllOrRollback } from './batchSave';
 import type { CardImage, CardRecord, ImageGroup, ImageMask } from './card';
 import { cloneValue, HistoryStack } from './history';
 import { tt, ttf } from './i18n';
@@ -637,12 +638,22 @@ export class ImagePanelModal extends Modal {
         }
 
         if (!this.card) {
-            let saved = 0;
-            for (const card of cards) {
-                if (await this.plugin.store.save(card)) saved++;
+            // A set of groups is one card creation: either all of it lands or
+            // none does. A partial save would leave the panel holding groups
+            // that are already in the vault, and the next press would create
+            // them a second time.
+            const result = await saveAllOrRollback(
+                cards,
+                (card) => this.plugin.store.save(card),
+                (card) => this.plugin.store.remove(card.id),
+            );
+            if (result.saved === 0) {
+                new Notice(result.leftover > 0
+                    ? ttf('Could not save the image cards. {count} card(s) from this attempt may still be there - check Browse before retrying.', { count: result.leftover })
+                    : tt('Could not save the image cards. Nothing was saved - try again.'));
+                return;
             }
-            if (saved === 0) return;
-            new Notice(ttf('Saved {count} image card(s).', { count: saved }));
+            new Notice(ttf('Saved {count} image card(s).', { count: result.saved }));
             this.close();
             this.onSaved?.();
             return;

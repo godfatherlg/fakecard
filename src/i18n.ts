@@ -709,6 +709,8 @@ const UI_ZH: Record<string, string> = {
     'Could not import that image.': '无法导入那张图片。',
     'Draw at least one rectangle first.': '请先画至少一个矩形。',
     'Saved {count} image card(s).': '已保存 {count} 张图片卡。',
+    'Could not save the image cards. Nothing was saved - try again.': '图片卡保存失败，本次写入已回滚，请重试。',
+    'Could not save the image cards. {count} card(s) from this attempt may still be there - check Browse before retrying.': '图片卡保存失败，本次有 {count} 张可能已经留下，重试前请先在浏览页确认。',
 
     // New card menus and generated-card preview.
     'Pick a card type. The manual panel opens next.': '选择卡片类型，随后会打开手动编辑面板。',
