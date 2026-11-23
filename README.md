@@ -91,7 +91,7 @@ The rest of this document is in Chinese.
 
 两项都默认关闭，在「设置 → fakecard」里开启。
 
-- **录音**：打开已有卡片的编辑面板，点「录音」。每段录音按时间戳命名保存在 `fakecard/media/`；默认显示名也是这个时间，可以改名，但不会改文件名。一张卡可以保留多段录音。复习时卡片上方会显示播放条，不会自动播放。
+- **录音**：打开已有卡片的编辑面板，点「录音」。每段录音按时间戳命名保存在 `fakecard/media/`；默认显示名也是这个时间，可以改名，但不会改文件名。一张卡可以保留多段录音。复习时卡片上方会显示播放条，不会自动播放；翻到答案后，答案下方也有一个紧凑的「录音」按钮，或使用命令 **Record the answer (start/stop)** 开始/停止。
 - **学习步骤**：为新卡设置如 `1m 10m`、为遗忘后的卡设置 `10m` 的步骤表。Again 回到第一步，Good 前进一步，Hard 重复当前步，Easy 直接毕业；最后一步之后的间隔由 FSRS 决定。关闭后恢复 FSRS 自带的短期调度；已经带有本功能学习步骤的卡也交回 FSRS。
 
 ## 安装
@@ -260,8 +260,12 @@ obsidian://fakecard?data=<URL 编码的 JSON>
 |---|---|
 | Generate cards from the whole note | 整篇按规则生成 |
 | Generate from the selected lines | 只处理选中行 |
+| New Q&A card from selection | 用选中内容新建问答卡 |
+| New cloze card from selection | 用选中内容新建填空卡 |
 | New card (manual) | 手动面板 |
 | Start reviewing | 复习 |
+| Record the answer (start/stop) | 复习答案面录音开关 |
+| Edit this card | 编辑当前复习卡 |
 | Browse and edit cards | 浏览/筛选/编辑 |
 | Open statistics | 统计 |
 | Import cards from Anki (.apkg) | Anki 导入 |
