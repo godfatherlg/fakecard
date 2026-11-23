@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.49';
+export const WHATS_NEW_VERSION = '1.0.50';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'Internal maintenance: the review view is split into clock, undo and card-renderer modules. Behaviour is unchanged; the critical paths now have 36 tests and run in CI.',
-        zh: '内部结构整理：复习界面拆成计时、撤销和卡片渲染三个模块，行为没有变化；关键路径已有 36 个测试，并接入 CI。',
+        en: 'Browse is a real virtual list now: only the rows around the viewport are built, row heights are measured, the header stays put, and selecting a row keeps your scroll position. The Show more button is gone.',
+        zh: '浏览页改成真正的虚拟列表：只渲染视口附近的行、按内容测量行高、表头固定，选中一行不再跳回顶部；「再显示」按钮已移除。',
+    },
+    {
+        en: 'Q&A and cloze cards are edited in their own panels from Browse and Review, like maps and images. Masks, notes and the card text stay visible while editing.',
+        zh: '问答卡和填空卡在浏览页、复习界面都改为打开各自的面板编辑，和导图/图片一致；编辑时能直接看到挖空和注释。',
+    },
+    {
+        en: 'Map repaints reuse rendered node text, so editing one line no longer sends every node through the Markdown renderer again.',
+        zh: '导图重绘会复用已渲染的节点文本，改一行不再让所有节点重新走一遍 Markdown 渲染。',
     },
 ];
 

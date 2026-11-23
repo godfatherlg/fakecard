@@ -1,59 +1,63 @@
-# 1.0.49
+# 1.0.50
 
 ## 中文
 
-这是一次**内部结构整理**版本，界面和操作没有变化，主要是把过大的复习视图拆开，并把关键路径用测试锁住。
+### 浏览页真正的虚拟列表
 
-### 代码拆分
+- 表格只渲染视口内及上下各 8 行，其余用上下占位行撑出真实滚动高度
+- 行高按实际内容测量，正面换行、匹配提示都不会被截断
+- 选中一行、勾选复选框后**保持当前滚动位置**；只有改搜索词、牌组或排序才回到顶部
+- 表头固定在顶部，滚动时列名始终可见
+- 从笔记角标跳转卡片时会自动滚到该行，即使它原本不在窗口里
+- 移除了「再显示 300 张」按钮：现在直接滚动即可
 
-- 新增 `src/reviewClock.ts`：计时格式、回忆预算、超时扣分计算
-- 新增 `src/reviewUndo.ts`：`UndoEntry` 与撤销栈
-- 新增 `src/reviewRender.ts`：问答/挖空 Markdown、导图画布、图片挖空与图片缩放写回
-- `reviewView.ts` 从约 1622 行降到 1486 行，只保留会话、队列、评分和交互逻辑
-- 行为不变：Ctrl+Z、计时胶囊、四种卡型渲染和图片缩放都按原逻辑工作
+### 编辑入口统一
 
-### 测试
+- 浏览页和复习界面里，问答卡改为打开**问答面板**，填空卡打开**填空面板**，不再进入临时 md
+- 导图、图片原本就走各自面板；现在四种卡型一致
+- 导图面板新增保存回调，在复习界面编辑保存后会刷新当前卡
+- 编辑时能直接看到挖空、注释、导图结构和图片遮罩，不再是 `{{c1::...}}` 原文
 
-- 新增 `tests/obsidian-stub.ts` 和 `vitest.config.ts`，让依赖 Obsidian API 的模块能在 Node 里测试
-- 新增覆盖：
-  - 坏日志文件隔离后真正重建当天文件（`append` / `appendMany`）
-  - 复习日志缓存命中、追加/删除同步、`invalidate`
-  - 队列计数：due / learning / new、每日上限、backlog、埋藏/暂停/毕业排除
-  - CSV 逗号、引号、换行转义和公式注入防护
-- 测试总数 **36**，CI 会跑 build + lint + i18n + test
+### 导图渲染缓存
+
+- 导图重绘时按「源文件 + 原始 Markdown」缓存节点文本的渲染结果，只重新渲染改动的行
+- 缓存上限 500 条，缓存命中会先清掉同步回退内容，避免文字重复
 
 ### 请测试
 
-- 正常复习一轮：问答、挖空、导图、图片各一张
-- 评分后 Ctrl+Z 是否能撤销
-- 图片 Ctrl+滚轮缩放后，重新打开是否保持大小
-- 导图分组切换、遮罩注释是否仍正常
+- 浏览页滚动几千张卡：行是否连续、表头是否固定、选中后位置是否保持
+- 搜索或切换牌组：是否回到顶部；排序是否回到顶部
+- 浏览页编辑问答/填空卡：是否打开面板，保存后列表和预览是否更新
+- 复习界面点编辑：是否打开对应面板
+- 导图连续修改多行：文字、粗体、挖空是否都正常，无重复
 
 ## English
 
-This is an **internal refactor** release: no visible change. The oversized review view was split up, and the critical paths are now covered by tests.
+### A real virtual list in Browse
 
-### Code split
+- Only the rows around the viewport (plus 8 above and below) are in the DOM; spacer rows give the list its full height
+- Row heights are measured from the content, so wrapped fronts and match hints are not clipped
+- Selecting a row or ticking a checkbox keeps the current scroll position; only a query, deck or sort change returns to the top
+- The header is sticky while the rows change underneath it
+- Jumping from a note badge scrolls the target row into the window even when it was not rendered
+- The "Show 300 more" button is gone: scrolling is enough
 
-- `src/reviewClock.ts`: clock formatting, recall budget, overtime points
-- `src/reviewUndo.ts`: `UndoEntry` and the undo stack
-- `src/reviewRender.ts`: Q&A/cloze Markdown, the map canvas, occlusion figures and the debounced zoom write
-- `reviewView.ts` drops from about 1622 to 1486 lines and keeps only session, queue, rating and interaction logic
-- Behaviour is unchanged: Ctrl+Z, the clock pills, all four card types and image zoom use the same code paths
+### One editor per card type
 
-### Tests
+- Q&A cards open the Q&A panel and cloze cards the cloze panel from Browse and Review, no longer a temporary note
+- Map and image cards already used their own panels; all four types now behave the same
+- MapPanelModal gained an onSaved callback, so the review card refreshes after an edit
+- Editing shows masks, notes, the map tree and occlusion masks directly instead of raw `{{c1::...}}`
 
-- `tests/obsidian-stub.ts` plus `vitest.config.ts` let modules that touch the Obsidian API run in Node
-- New coverage:
-  - a corrupt day file is moved aside and the real file recreated for `append` / `appendMany`
-  - review cache hits, append/remove updates and `invalidate`
-  - queue counts: due / learning / new, daily limit, backlog, buried/suspended/graduated excluded
-  - CSV commas, quotes, newlines and formula injection
-- **36 tests**, CI runs build + lint + i18n + test
+### Map render cache
+
+- Repaints cache rendered node text by source path and raw Markdown, so only edited lines go through the renderer
+- The cache is bounded at 500 entries; a hit clears the synchronous fallback first so text cannot duplicate
 
 ### Please test
 
-- A normal review pass with one Q&A, one cloze, one map and one image card
-- Rate and then press Ctrl+Z
-- Ctrl+wheel zoom on a picture, then reopen the card
-- Map group switching and mask notes
+- Scroll a few thousand cards: continuous rows, sticky header, selection keeps the position
+- Search or change deck: returns to the top; sorting also returns to the top
+- Edit a Q&A/cloze card from Browse: panel opens; list and preview refresh after saving
+- Press edit in Review: the matching panel opens
+- Edit several map lines: text, bold and masks stay correct without duplication
