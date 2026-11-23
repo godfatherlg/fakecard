@@ -52,6 +52,8 @@ export class MapPanelModal extends Modal {
     /** Preview side: show the words the masks are hiding. */
     private showAnswers = false;
     private revealButton: HTMLButtonElement | null = null;
+    /** Just applied a mask: ignore the mouseup that is still on its way. */
+    private suppressSelectionUntil = 0;
 
     onOpen(): void {
         const { contentEl } = this;
@@ -289,6 +291,19 @@ export class MapPanelModal extends Modal {
         this.schedulePreview();
     }
 
+    /**
+     * The mask was just applied: drop the selection and the floating button.
+     *
+     * Without this the DOM selection survives the repaint long enough for the
+     * document mouseup handler to run again, and the button reappears over the
+     * node until something else is clicked.
+     */
+    private finishMasking(): void {
+        this.suppressSelectionUntil = Date.now() + 500;
+        window.getSelection()?.removeAllRanges();
+        this.hideFloat();
+    }
+
     private wrapSelectionInHole(): void {
         // A selection inside the map wins: that is where the text is read, and
         // pointing at the words you want asked is the whole point.
@@ -296,6 +311,7 @@ export class MapPanelModal extends Modal {
             const range = this.selectionOffsets(this.activeEl);
             if (range) {
                 this.wrapNodeRange(this.activeNode, range.from, range.to);
+                this.finishMasking();
                 return;
             }
         }
@@ -307,6 +323,7 @@ export class MapPanelModal extends Modal {
         }
         const result = wrapSelection(this.text, from, to, this.currentGroup);
         this.setText(result.text, result.caret);
+        this.finishMasking();
     }
 
     /** Raw-text offsets of the current DOM selection inside one node. */
@@ -459,6 +476,10 @@ export class MapPanelModal extends Modal {
      */
     private onSelectionUp = (): void => {
         window.setTimeout(() => {
+            if (Date.now() < this.suppressSelectionUntil) {
+                this.hideFloat();
+                return;
+            }
             const selection = window.getSelection();
             if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
                 this.hideFloat();
@@ -522,6 +543,7 @@ export class MapPanelModal extends Modal {
         const inner = /\{\{c\d+::([\s\S]*?)(?:::[^}]*?)?\}\}/.exec(raw.slice(from, to))?.[1] ?? raw.slice(from, to);
         lines[node.line] = `${marker}${raw.slice(0, from)}${inner}${raw.slice(to)}`;
         this.setText(lines.join('\n'), 0);
+        this.finishMasking();
     }
 
     onClose(): void {

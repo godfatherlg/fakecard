@@ -2016,17 +2016,17 @@ body.theme-dark .fakecard-image-mask-label {
 
 /* The same blue a cloze hole uses: a mask is a mask, whatever the card type. */
 .fakecard-map-hole {
-  /* Blank characters (one per hidden one, set by the view) keep the same line
-     box as the text around them: no `display` change, no fixed height, so the
-     node does not grow a blank line above and below the hole. */
-  padding: 0 1px;
+  /* One unbreakable box of the hidden words' width (set by the view). Height
+     and vertical alignment are chosen to stay inside the line's own strut, so
+     the node neither grows a blank line nor wraps the mask onto its own line. */
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  margin: 0 1px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--color-blue) 25%, transparent);
-  color: transparent;
   font-variant-numeric: tabular-nums;
-  /* Ideographic spaces are break opportunities: without this, a narrow node
-     split the mask over two lines, each of them looking blank. */
-  white-space: nowrap;
 }
 
 /* --------------------------------------------------------- Mind map panel */
