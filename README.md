@@ -65,7 +65,7 @@ Data and privacy: cards are stored in `fakecard/cards/`, review logs in `fakecar
 
 Both are off by default; turn them on in **Settings -> fakecard**.
 
-- **Audio recordings**: open an existing card's edit panel and press Record. Every clip is saved with a time-stamped file name under `fakecard/media/`; its label starts as that time and can be renamed without touching the file. A card keeps as many clips as you record. Review shows a player strip above the card and never plays by itself.
+- **Audio recordings**: open an existing card's edit panel and press Record. Every clip is saved with a time-stamped file name under `fakecard/media/`; its label starts as that time and can be renamed without touching the file. A card keeps as many clips as you record. Review shows a player strip above the card and never plays by itself; after the answer is revealed, a compact Record button sits at the right of the timing hint row.
 - **Learning steps**: set step lists such as `1m 10m` for new cards and `10m` after a lapse. Again sends a card back to the first step, Good moves it one step on, Hard repeats the current step, Easy graduates immediately; after the last step FSRS picks the interval. Turning this off restores FSRS's own short-term schedule, and cards that already carry a learning step from this feature are left to FSRS as well.
 
 The rest of this document is in Chinese.
@@ -91,7 +91,7 @@ The rest of this document is in Chinese.
 
 两项都默认关闭，在「设置 → fakecard」里开启。
 
-- **录音**：打开已有卡片的编辑面板，点「录音」。每段录音按时间戳命名保存在 `fakecard/media/`；默认显示名也是这个时间，可以改名，但不会改文件名。一张卡可以保留多段录音。复习时卡片上方会显示播放条，不会自动播放；翻到答案后，答案下方也有一个紧凑的「录音」按钮，或使用命令 **Record the answer (start/stop)** 开始/停止。
+- **录音**：打开已有卡片的编辑面板，点「录音」。每段录音按时间戳命名保存在 `fakecard/media/`；默认显示名也是这个时间，可以改名，但不会改文件名。一张卡可以保留多段录音。复习时卡片上方会显示播放条，不会自动播放；翻到答案后，提示行右侧也有一个紧凑的「录音」按钮，或使用命令 **Record the answer (start/stop)** 开始/停止。
 - **学习步骤**：为新卡设置如 `1m 10m`、为遗忘后的卡设置 `10m` 的步骤表。Again 回到第一步，Good 前进一步，Hard 重复当前步，Easy 直接毕业；最后一步之后的间隔由 FSRS 决定。关闭后恢复 FSRS 自带的短期调度；已经带有本功能学习步骤的卡也交回 FSRS。
 
 ## 安装
