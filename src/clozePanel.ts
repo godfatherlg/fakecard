@@ -1,7 +1,7 @@
 import { App, Modal, Notice, setTooltip, Setting } from 'obsidian';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
-import { clozeGroups, holeHint, renderClozeHtml, unwrapSelection, withHoleHint, wrapBlockLines, wrapSelection } from './cloze';
+import { clozeGroups, holeAnswer, holeHint, renderClozeHtml, unwrapSelection, withHoleHint, wrapBlockLines, wrapSelection } from './cloze';
 import { closeHintEditor, openHintEditor } from './hintEditor';
 import { FieldPreview } from './fieldPreview';
 import { HistoryStack } from './history';
@@ -446,6 +446,13 @@ export class ClozePanelModal extends Modal {
             if (next === token) return;
             this.text = this.text.slice(0, from) + next + this.text.slice(to);
             this.textarea.value = this.text;
+            this.preview.show(this.text);
+            this.history.push(this.text);
+        }, () => {
+            // Removing the hole keeps the answer words in the text.
+            this.text = this.text.slice(0, from) + holeAnswer(token) + this.text.slice(to);
+            this.textarea.value = this.text;
+            this.rebuildGroupOptions();
             this.preview.show(this.text);
             this.history.push(this.text);
         });

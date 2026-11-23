@@ -120,6 +120,12 @@ export function holeHint(token: string): string | undefined {
     return match?.[1]?.trim() || undefined;
 }
 
+/** The words a hole hides, without the markers or the note. */
+export function holeAnswer(token: string): string {
+    const match = /^\{\{c\d+::([\s\S]*?)(?:::(.*?))?\}\}$/.exec(token);
+    return match?.[1] ?? token;
+}
+
 /** The same hole token with its note replaced; an empty note removes it. */
 export function withHoleHint(token: string, hint: string): string {
     const match = /^\{\{c(\d+)::([\s\S]*?)(?:::(.*?))?\}\}$/.exec(token);

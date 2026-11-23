@@ -2043,15 +2043,34 @@ body.theme-dark .fakecard-image-mask-label {
 }
 
 /* Note editor pinned under a mask (mind map and cloze panels). */
-.fakecard-hint-input {
-  position: fixed;
+.fakecard-hint-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   z-index: 9999;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border: 1px solid var(--interactive-accent);
   border-radius: 6px;
   background: var(--background-primary);
   box-shadow: var(--shadow-s);
+}
+
+.fakecard-hint-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
   font-size: var(--font-ui-smaller);
+}
+
+.fakecard-hint-remove {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------- Mind map panel */

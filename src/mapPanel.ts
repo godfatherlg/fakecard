@@ -1,7 +1,7 @@
 import { App, Modal, Notice, Setting, setTooltip } from 'obsidian';
 
 import type { CardRecord } from './card';
-import { clozeGroups, holeHint, parseCloze, unwrapSelection, withHoleHint, wrapSelection } from './cloze';
+import { clozeGroups, holeAnswer, holeHint, parseCloze, unwrapSelection, withHoleHint, wrapSelection } from './cloze';
 import { closeHintEditor, openHintEditor } from './hintEditor';
 import { plainOf, wrapRangePlainText } from './inlineMd';
 import { parseTags } from './ui';
@@ -575,6 +575,11 @@ export class MapPanelModal extends Modal {
             const next = withHoleHint(token, hint);
             if (next === token) return;
             lines[node.line] = `${marker}${raw.slice(0, from)}${next}${raw.slice(to)}`;
+            this.setText(lines.join('\n'), 0);
+            this.finishMasking();
+        }, () => {
+            // The mask itself goes away, the words stay in the sentence.
+            lines[node.line] = `${marker}${raw.slice(0, from)}${holeAnswer(token)}${raw.slice(to)}`;
             this.setText(lines.join('\n'), 0);
             this.finishMasking();
         });
