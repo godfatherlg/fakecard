@@ -360,9 +360,17 @@ export async function renderMindmap(
         host.dataset.view = `${scale},${tx},${ty}`;
     };
 
+    // A repaint replaces every node, but the previous render's settle timers
+    // are still pending. They must not touch this render's view: that is how a
+    // correct centre got overwritten by a measurement taken before layout.
+    const renderId = String((Number(host.dataset.renderId) || 0) + 1);
+    host.dataset.renderId = renderId;
+    const alive = (): boolean => host.dataset.renderId === renderId;
+
     const fit = (): void => {
         const rect = host.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
+        if (maxX === 0 && maxY === 0) return;
         const next = Math.min((rect.width - 40) / (maxX || 1), (rect.height - 40) / (maxY || 1), 1);
         scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
         tx = (rect.width - maxX * scale) / 2;
@@ -370,9 +378,23 @@ export async function renderMindmap(
         apply();
     };
 
-    /** Centre one node at the given scale - the only centring code there is. */
-    const centerOn = (el: HTMLElement, nextScale: number): void => {
+    /**
+     * Centre one node at the given scale - the only centring code there is.
+     *
+     * The node can still have no width when the first settle runs (markdown is
+     * rendered asynchronously), and a measurement of zero parks the map half a
+     * pane to the right. Retry on the next frames until it has a size; a later
+     * render cancels the retry through `alive`.
+     */
+    const centerOn = (el: HTMLElement, nextScale: number, attempt = 0): void => {
+        if (!alive()) return;
         const rect = host.getBoundingClientRect();
+        if ((rect.width === 0 || el.offsetWidth === 0) && attempt < 20) {
+            window.setTimeout(() => centerOn(el, nextScale, attempt + 1), 50);
+            return;
+        }
+        // A node from a render that has already been replaced must not apply.
+        if (!el.isConnected) return;
         const left = Number.parseFloat(el.style.left || '0');
         const top = Number.parseFloat(el.style.top || '0');
         scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale));
@@ -391,16 +413,28 @@ export async function renderMindmap(
     /** Editing wants the node at 100%: the view a text box needs. */
     const focusOn = (el: HTMLElement): void => centerOn(el, 1);
 
-    const centerOnQuestion = (): void => {
+    const centerOnQuestion = (attempt = 0): void => {
+        if (!alive()) return;
         // An explicit node wins (review passes the one the card asks about, so
         // the answer side stays where the question was). Then the first mask,
         // then the root - fitting everything would leave it small and askew.
         const focus = options.focusNodeId
             ? [...boxes.entries()].find(([node]) => node.id === options.focusNodeId)?.[1]
             : undefined;
-        const target = focus?.el ?? firstMasked ?? boxes.get(root)?.el ?? null;
+        // A mask span is inline and has no position of its own; centring it put
+        // the map half a pane to the right. Always centre the node that holds
+        // the mask.
+        const maskedNode = firstMasked?.closest<HTMLElement>('.fakecard-map-node') ?? null;
+        const target = focus?.el ?? maskedNode ?? boxes.get(root)?.el ?? null;
         if (target) {
             centerOn(target, fitScale());
+            return;
+        }
+        // The render is asynchronous: a settle that runs before the nodes are
+        // in the map has nothing to centre on, and fitting an empty map parks
+        // it half a pane to the right. Wait for the nodes instead.
+        if (boxes.size === 0 && attempt < 20) {
+            window.setTimeout(() => centerOnQuestion(attempt + 1), 50);
             return;
         }
         fit();
@@ -484,6 +518,7 @@ export async function renderMindmap(
     // First paint: review centres the question, an editor restores the view the
     // user already had. In both cases a repaint must not move the map.
     const settle = (): void => {
+        if (!alive()) return;
         if (host.getBoundingClientRect().width === 0) return;
         const saved = options.autoCenter === false && !options.forceCenter
             ? host.dataset.view
