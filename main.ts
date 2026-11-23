@@ -581,6 +581,7 @@ export default class FakeCardPlugin extends Plugin {
      */
     async rebuildIndex(): Promise<void> {
         this.store.invalidate();
+        this.reviews.invalidate();
         this.refreshStatusBar();
         for (const leaf of this.app.workspace.getLeavesOfType(BROWSE_VIEW_TYPE)) {
             const view = leaf.view;

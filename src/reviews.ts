@@ -48,7 +48,19 @@ export function dayKey(date: Date): string {
  * hand.
  */
 export class ReviewStore {
+    /**
+     * Parsed days, kept for the session. A rating reads today's log twice
+     * (quota and stats), and the status bar reads it again; without this every
+     * one of those reads re-parsed the same file.
+     */
+    private cache = new Map<string, ReviewLog[]>();
+
     constructor(private app: App, private libraryFolder: string) {}
+
+    /** Drop the cached days (a vault-wide rebuild, or an external edit). */
+    invalidate(): void {
+        this.cache.clear();
+    }
 
     private get reviewsFolder(): string {
         return normalizePath(`${this.libraryFolder}/reviews`);
@@ -115,22 +127,28 @@ export class ReviewStore {
         const day = dayKey(new Date(log.at));
         const path = this.dayPath(day);
         const file = this.app.vault.getAbstractFileByPath(path);
-        let logs: ReviewLog[] = [];
+        let logs = this.cache.get(day);
+        // A cached day whose file disappeared (sync, manual delete) is stale.
+        if (logs && !(file instanceof TFile)) logs = undefined;
         let movedAside = false;
-        if (file instanceof TFile) {
-            const read = await this.readDay(file);
-            if (read.corrupt) {
-                movedAside = await this.quarantine(file);
-                // Could not move it: do not write over a file we cannot read.
-                if (!movedAside) return;
-            } else {
-                logs = read.logs;
+        if (!logs) {
+            logs = [];
+            if (file instanceof TFile) {
+                const read = await this.readDay(file);
+                if (read.corrupt) {
+                    movedAside = await this.quarantine(file);
+                    // Could not move it: do not write over a file we cannot read.
+                    if (!movedAside) return;
+                } else {
+                    logs = read.logs;
+                }
             }
         }
-        logs.push(log);
-        const json = JSON.stringify(logs, null, 2);
+        const next = [...logs, log];
+        const json = JSON.stringify(next, null, 2);
         if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
         else await this.app.vault.create(path, json);
+        this.cache.set(day, next);
     }
 
     /**
@@ -156,35 +174,41 @@ export class ReviewStore {
         for (const [day, logs] of byDay) {
             const path = this.dayPath(day);
             const file = this.app.vault.getAbstractFileByPath(path);
-            let existing: ReviewLog[] = [];
+            let existing = this.cache.get(day);
+            if (existing && !(file instanceof TFile)) existing = undefined;
             let movedAside = false;
-            if (file instanceof TFile) {
-                const read = await this.readDay(file);
-                if (read.corrupt) {
-                    movedAside = await this.quarantine(file);
-                    if (!movedAside) continue;
-                } else {
-                    existing = read.logs;
+            if (!existing) {
+                existing = [];
+                if (file instanceof TFile) {
+                    const read = await this.readDay(file);
+                    if (read.corrupt) {
+                        movedAside = await this.quarantine(file);
+                        if (!movedAside) continue;
+                    } else {
+                        existing = read.logs;
+                    }
                 }
             }
 
             const seen = new Set(existing.map((log) => `${log.cardId}|${log.at}`));
+            const next = [...existing];
             let changed = false;
             for (const log of logs) {
                 const key = `${log.cardId}|${log.at}`;
                 if (seen.has(key)) continue;
                 seen.add(key);
-                existing.push(log);
+                next.push(log);
                 changed = true;
                 added++;
             }
             if (!changed) continue;
 
             // Keep the file chronological; the readers rely on it.
-            existing.sort((a, b) => a.at.localeCompare(b.at));
-            const json = JSON.stringify(existing, null, 2);
+            next.sort((a, b) => a.at.localeCompare(b.at));
+            const json = JSON.stringify(next, null, 2);
             if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
             else await this.app.vault.create(path, json);
+            this.cache.set(day, next);
         }
         return added;
     }
@@ -197,35 +221,46 @@ export class ReviewStore {
         const day = dayKey(new Date(at));
         const path = this.dayPath(day);
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof TFile)) return;
-
-        let logs: ReviewLog[];
-        try {
-            const parsed = JSON.parse(await this.app.vault.read(file)) as ReviewLog[];
-            if (!Array.isArray(parsed)) return;
-            logs = parsed;
-        } catch {
+        if (!(file instanceof TFile)) {
+            this.cache.delete(day);
             return;
         }
 
-        // Newest first: the entry just written is the last one for this card.
-        for (let i = logs.length - 1; i >= 0; i--) {
-            if (logs[i].cardId === cardId && logs[i].at === at) {
-                logs.splice(i, 1);
-                await this.app.vault.modify(file, JSON.stringify(logs, null, 2));
+        let logs = this.cache.get(day);
+        if (!logs) {
+            try {
+                const parsed = JSON.parse(await this.app.vault.read(file)) as ReviewLog[];
+                if (!Array.isArray(parsed)) return;
+                logs = parsed;
+            } catch {
                 return;
             }
         }
+
+        const next = logs.filter((log) => !(log.cardId === cardId && log.at === at));
+        if (next.length === logs.length) return;
+        await this.app.vault.modify(file, JSON.stringify(next, null, 2));
+        this.cache.set(day, next);
     }
 
     async forDay(date: Date): Promise<ReviewLog[]> {
-        const path = this.dayPath(dayKey(date));
+        const day = dayKey(date);
+        const cached = this.cache.get(day);
+        if (cached) return cached;
+
+        const path = this.dayPath(day);
         const file = this.app.vault.getAbstractFileByPath(path);
-        if (!(file instanceof TFile)) return [];
+        if (!(file instanceof TFile)) {
+            this.cache.set(day, []);
+            return [];
+        }
         try {
             const parsed = JSON.parse(await this.app.vault.cachedRead(file)) as ReviewLog[];
-            return Array.isArray(parsed) ? parsed : [];
+            if (!Array.isArray(parsed)) return [];
+            this.cache.set(day, parsed);
+            return parsed;
         } catch {
+            // Unreadable: do not cache, so a later append can quarantine it.
             return [];
         }
     }
