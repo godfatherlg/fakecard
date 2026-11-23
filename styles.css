@@ -203,12 +203,15 @@
   justify-content: center;
 }
 
-/* Toolbar: quiet metadata on the left, icon actions on the right. */
+/* Toolbar: quiet metadata on the left, icon actions on the right. In a narrow
+   pane the groups wrap onto their own lines: squeezed onto one row they would
+   paint over each other, and a control under another element cannot be
+   clicked. */
 .fakecard-review-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--background-modifier-border);
   font-size: var(--font-ui-smaller);
@@ -218,9 +221,16 @@
 .fakecard-review-meta,
 .fakecard-review-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+/* Same row as the metadata when there is room, the right edge of its own
+   wrapped line when there is not. */
+.fakecard-review-actions {
+  margin-left: auto;
 }
 
 .fakecard-review-deck {
@@ -553,6 +563,10 @@
 .fakecard-review-clock {
   display: flex;
   align-items: center;
+  /* The clock is one unit. Shrunk to zero width its pill and its restore
+     button overflow into the icon row beside it, where they are covered and
+     cannot be clicked; the row wraps instead. */
+  flex: 0 0 auto;
   min-width: 0;
 }
 
