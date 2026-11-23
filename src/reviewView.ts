@@ -174,6 +174,9 @@ export class ReviewView extends ItemView {
         this.cards = queue.cards;
         this.backlog = queue.backlog;
         this.recovery = queue.recovery;
+        // A new session has a new list; an entry from the old one would point
+        // at a card that may no longer be in it.
+        this.undoStack = [];
         this.total = queue.total;
         this.index = 0;
         this.revealed = false;
@@ -1221,6 +1224,7 @@ export class ReviewView extends ItemView {
 
         // Snapshot before anything mutates, so Ctrl+Z can put it back.
         const entry: UndoEntry = {
+            cardId: card.id,
             index: this.index,
             snapshots: [{ id: card.id, json: JSON.stringify(card) }],
         };
@@ -1328,7 +1332,13 @@ export class ReviewView extends ItemView {
             await this.plugin.reviews.remove(entry.reviewLog.cardId, entry.reviewLog.at);
         }
 
-        this.index = Math.min(entry.index, Math.max(0, this.cards.length - 1));
+        // By id, not by the old index: a deck filter or a reload may have
+        // rebuilt this.cards since the rating, and the same slot now holds a
+        // different card.
+        const at = this.cards.findIndex((card) => card.id === entry.cardId);
+        this.index = at >= 0
+            ? at
+            : Math.min(entry.index, Math.max(0, this.cards.length - 1));
         // Back to the question, not the answer: the point of undoing a rating
         // is to read the card again and rate it differently.
         this.revealed = false;
@@ -1629,6 +1639,8 @@ export class ReviewView extends ItemView {
 
 /** Card state captured before a rating, so Ctrl+Z can put it back. */
 interface UndoEntry {
+    /** The rated card, so undoing finds it after a reload or a filter change. */
+    cardId: string;
     index: number;
     /** Every card the rating touched, as JSON taken before the change. */
     snapshots: Array<{ id: string; json: string }>;

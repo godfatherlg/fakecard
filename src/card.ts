@@ -97,6 +97,11 @@ export interface CardRecord {
     childOf?: string;
     /** Parent card paused while its children are studied. */
     suspended?: boolean;
+    /**
+     * Hidden from the queue until this ISO time ("bury"). It is a pause, not a
+     * schedule change: the FSRS due date stays where it was.
+     */
+    buriedUntil?: string;
     /** Child card finished its run: kept with history, no longer asked. */
     graduated?: boolean;
     /** FSRS scheduling state. Absent until the card is first reviewed. */

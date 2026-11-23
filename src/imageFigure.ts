@@ -64,23 +64,22 @@ export function makeImageZoomable(
     img.dataset.fcZoom = 'on';
     img.addClass('is-zoomable');
 
-    const shell = host ?? (img.parentElement instanceof HTMLElement ? img.parentElement : null);
+    const shell = host ?? (img.parentElement?.instanceOf(HTMLElement) ? img.parentElement : null);
     let zoom = initialZoom;
     let baseWidth = 0;
     const apply = (): void => {
         shell?.toggleClass('is-zoomed', zoom !== 1);
+        shell?.toggleClass('is-zoom-wide', zoom !== 1);
         if (zoom === 1) {
-            img.setCssStyles({ width: '', maxWidth: '' });
-            shell?.setCssStyles({ maxWidth: '' });
+            img.removeClass('fakecard-zoom-image');
             scroller.removeClass('has-zoomed-image');
             return;
         }
         if (baseWidth === 0) baseWidth = img.getBoundingClientRect().width;
-        img.setCssStyles({
-            maxWidth: 'none',
-            width: `${Math.round(baseWidth * zoom)}px`,
+        img.addClass('fakecard-zoom-image');
+        img.setCssProps({
+            '--fakecard-zoom-width': `${Math.round(baseWidth * zoom)}px`,
         });
-        shell?.setCssStyles({ maxWidth: 'none' });
         scroller.addClass('has-zoomed-image');
     };
 
@@ -126,6 +125,7 @@ export function attachImageZoom(container: HTMLElement, scroller: HTMLElement): 
     const wire = (img: HTMLImageElement): void => makeImageZoomable(img, scroller);
     container.querySelectorAll('img').forEach((img) => wire(img));
     container.addEventListener('load', (event) => {
-        if (event.target instanceof HTMLImageElement) wire(event.target);
+        const target = event.target as Node | null;
+        if (target?.instanceOf(HTMLImageElement)) wire(target);
     }, true);
 }

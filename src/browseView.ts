@@ -27,9 +27,16 @@ export const BROWSE_VIEW_TYPE = 'fakecard-browse';
  * the text opens in Obsidian's own editor, so the card looks there exactly like
  * it will in review.
  */
+/** Rows rendered per page of the browse table. */
+const ROW_CHUNK = 300;
+
 export class BrowseView extends ItemView {
     private cards: CardRecord[] = [];
     private filtered: CardRecord[] = [];
+    /** How many rows of `filtered` are in the table right now. */
+    private rowLimit = ROW_CHUNK;
+    /** Typing coalesces into one filter pass. */
+    private filterTimer: number | null = null;
     private selectedId: string | null = null;
     /** Cloze / image preview: whether the masks are lifted. */
     private previewRevealed = false;
@@ -195,6 +202,30 @@ export class BrowseView extends ItemView {
         }
     }
 
+    /** Hide a card from today's queue without touching its schedule. */
+    private async setBuried(ids: Iterable<string>, buried: boolean): Promise<void> {
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+        const all = await this.plugin.store.list();
+        let changed = 0;
+        for (const id of ids) {
+            const card = all.find((entry) => entry.id === id);
+            if (!card || Boolean(card.buriedUntil) === buried) continue;
+            if (buried) card.buriedUntil = end.toISOString();
+            else delete card.buriedUntil;
+            card.updated = new Date().toISOString();
+            await this.plugin.store.save(card);
+            changed++;
+        }
+        if (changed > 0) {
+            new Notice(buried
+                ? ttf('{count} card(s) buried until tomorrow.', { count: changed })
+                : ttf('{count} card(s) unburied.', { count: changed }));
+            this.plugin.refreshStatusBar();
+            await this.reload();
+        }
+    }
+
     private async moveChecked(deck: string): Promise<void> {
         const all = await this.plugin.store.list();
         for (const id of this.checked) {
@@ -209,6 +240,8 @@ export class BrowseView extends ItemView {
     }
 
     private applyFilter(): void {
+        // A new result set starts from the first page again.
+        this.rowLimit = ROW_CHUNK;
         const context: SearchContext = {
             ratedAgo: this.ratedAgo,
             orphanIds: this.orphanIds,
@@ -445,7 +478,13 @@ export class BrowseView extends ItemView {
             this.searchHadFocus = true;
             this.suggestIndex = 0;
             this.suggestionsHidden = false;
-            this.applyFilter();
+            // The field itself updates at once; the table waits for a pause so
+            // typing does not rebuild hundreds of rows per keystroke.
+            if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
+            this.filterTimer = window.setTimeout(() => {
+                this.filterTimer = null;
+                this.applyFilter();
+            }, 100);
         });
         search.addEventListener('focus', () => {
             this.searchHadFocus = true;
@@ -563,6 +602,65 @@ export class BrowseView extends ItemView {
         });
     }
 
+    /** One table row, built the same way on the first page and on every later one. */
+    private createRow(card: CardRecord): HTMLElement {
+        const row = createEl('tr', { cls: 'fakecard-browse-row' });
+        // Used to bring the row into view when a badge in a note opens
+        // the card (selectCard).
+        row.setAttr('data-card-id', card.id);
+        if (card.id === this.selectedId) row.addClass('is-selected');
+
+        const checkCell = row.createEl('td');
+        const checkbox = checkCell.createEl('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = this.checked.has(card.id);
+        // `change` carries no modifiers, so the click remembers whether
+        // Shift was held when the box was ticked.
+        checkbox.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.shiftClick = event.shiftKey;
+        });
+        checkbox.addEventListener('change', () => {
+            if (this.shiftClick) {
+                this.shiftClick = false;
+                this.selectRange(card.id);
+                return;
+            }
+            if (checkbox.checked) this.checked.add(card.id);
+            else this.checked.delete(card.id);
+            this.lastChecked = card.id;
+            this.render();
+        });
+
+        const baseType = card.type === 'cloze'
+            ? tt('Cloze')
+            : card.type === 'image'
+                ? tt('Image')
+                : card.type === 'map'
+                    ? tt('Mind map')
+                    : tt('Q&A');
+        const state = card.graduated ? ` · ${tt('graduated')}` : card.suspended ? ` · ${tt('paused')}` : card.childOf ? ` · ${tt('child')}` : '';
+        // Front only - but a card found by a word that lives in its
+        // answer would look like a wrong hit, so say where it matched.
+        const frontCell = row.createEl('td');
+        frontCell.createDiv({ text: card.front.slice(0, 60) });
+        const hint = this.matchHint(card);
+        if (hint) frontCell.createDiv({ cls: 'fakecard-match-hint', text: hint });
+        row.createEl('td', { text: `${baseType}${state}` });
+        row.createEl('td', { text: card.deck ?? 'default' });
+        row.createEl('td', { text: String(card.reviews ?? 0) });
+        const dueCell = row.createEl('td', { text: this.dueLabel(card) });
+        if (card.fsrs) {
+            setTooltip(dueCell, new Date(card.fsrs.due).toLocaleString());
+        }
+        row.addEventListener('click', () => {
+            if (this.selectedId !== card.id) this.previewRevealed = false;
+            this.selectedId = card.id;
+            this.render();
+        });
+        return row;
+    }
+
     /** The table at the left and the preview of the selected card at the right. */
     private renderBody(host: HTMLElement): void {
         host.empty();
@@ -604,60 +702,25 @@ export class BrowseView extends ItemView {
             addSortable('Reviews', 'reviews');
             addSortable('Due', 'due');
 
-            for (const card of this.sortedRows()) {
-                const row = table.createEl('tr', { cls: 'fakecard-browse-row' });
-                // Used to bring the row into view when a badge in a note opens
-                // the card (selectCard).
-                row.setAttr('data-card-id', card.id);
-                if (card.id === this.selectedId) row.addClass('is-selected');
-
-                const checkCell = row.createEl('td');
-                const checkbox = checkCell.createEl('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = this.checked.has(card.id);
-                // `change` carries no modifiers, so the click remembers whether
-                // Shift was held when the box was ticked.
-                checkbox.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    this.shiftClick = event.shiftKey;
+            // The table is filled in chunks: a library with thousands of cards
+            // should not build thousands of rows before the first paint.
+            const rows = this.sortedRows();
+            for (const card of rows.slice(0, this.rowLimit)) {
+                table.appendChild(this.createRow(card));
+            }
+            if (rows.length > this.rowLimit) {
+                const more = listEl.createEl('button', { cls: 'fakecard-browse-more' });
+                const label = (): string => ttf('Show {count} more of {total}', {
+                    count: Math.min(ROW_CHUNK, rows.length - this.rowLimit),
+                    total: rows.length,
                 });
-                checkbox.addEventListener('change', () => {
-                    if (this.shiftClick) {
-                        this.shiftClick = false;
-                        this.selectRange(card.id);
-                        return;
-                    }
-                    if (checkbox.checked) this.checked.add(card.id);
-                    else this.checked.delete(card.id);
-                    this.lastChecked = card.id;
-                    this.render();
-                });
-
-                const baseType = card.type === 'cloze'
-                    ? tt('Cloze')
-                    : card.type === 'image'
-                        ? tt('Image')
-                        : card.type === 'map'
-                            ? tt('Mind map')
-                            : tt('Q&A');
-                const state = card.graduated ? ` · ${tt('graduated')}` : card.suspended ? ` · ${tt('paused')}` : card.childOf ? ` · ${tt('child')}` : '';
-                // Front only - but a card found by a word that lives in its
-                // answer would look like a wrong hit, so say where it matched.
-                const frontCell = row.createEl('td');
-                frontCell.createDiv({ text: card.front.slice(0, 60) });
-                const hint = this.matchHint(card);
-                if (hint) frontCell.createDiv({ cls: 'fakecard-match-hint', text: hint });
-                row.createEl('td', { text: `${baseType}${state}` });
-                row.createEl('td', { text: card.deck ?? 'default' });
-                row.createEl('td', { text: String(card.reviews ?? 0) });
-                const dueCell = row.createEl('td', { text: this.dueLabel(card) });
-                if (card.fsrs) {
-                    setTooltip(dueCell, new Date(card.fsrs.due).toLocaleString());
-                }
-                row.addEventListener('click', () => {
-                    if (this.selectedId !== card.id) this.previewRevealed = false;
-                    this.selectedId = card.id;
-                    this.render();
+                more.setText(label());
+                more.addEventListener('click', () => {
+                    const next = rows.slice(this.rowLimit, this.rowLimit + ROW_CHUNK);
+                    this.rowLimit += next.length;
+                    for (const card of next) table.appendChild(this.createRow(card));
+                    if (this.rowLimit >= rows.length) more.remove();
+                    else more.setText(label());
                 });
             }
         }
@@ -678,6 +741,11 @@ export class BrowseView extends ItemView {
             text: selected.suspended ? tt('Resume') : tt('Pause'),
         }).addEventListener('click', () => {
             void this.setSuspended([selected.id], !selected.suspended);
+        });
+        actions.createEl('button', {
+            text: selected.buriedUntil ? tt('Unbury') : tt('Bury'),
+        }).addEventListener('click', () => {
+            void this.setBuried([selected.id], !selected.buriedUntil);
         });
         actions.createEl('button', { text: tt('🗑 Delete') }).addEventListener('click', () => {
             new ConfirmDialog(
@@ -928,6 +996,8 @@ export class BrowseView extends ItemView {
     }
 
     async onClose(): Promise<void> {
+        if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
+        this.filterTimer = null;
         this.contentEl.empty();
         // The leaf may be reopened on this same instance: the shell's nodes went
         // with the content, so the next render has to build it again.

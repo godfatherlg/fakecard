@@ -164,7 +164,7 @@ export class ClozePanelModal extends Modal {
                 // Count visible characters up to the selection, then read their
                 // raw offsets off the map: the preview has dropped both the
                 // `{{c1::}}` markers and the `**` ones.
-                const pre = document.createRange();
+                const pre = activeDocument.createRange();
                 pre.selectNodeContents(content);
                 pre.setEnd(range.startContainer, range.startOffset);
                 const start = pre.toString().length;
@@ -201,7 +201,7 @@ export class ClozePanelModal extends Modal {
                 this.showFloat(range.getBoundingClientRect(), from, to, lines ?? undefined);
             }, 0);
         };
-        document.addEventListener('mouseup', onSelectionUp);
+        activeDocument.addEventListener('mouseup', onSelectionUp);
         this.selectionHandler = onSelectionUp;
 
         toolbar.createEl('button', { text: tt('New group') })
@@ -321,7 +321,7 @@ export class ClozePanelModal extends Modal {
             window.setTimeout(() => this.dimGroups(), 60);
             this.hideFloat();
         });
-        document.body.appendChild(button);
+        this.preview.content.ownerDocument.body.appendChild(button);
         this.floatEl = button;
     }
 
@@ -389,7 +389,7 @@ export class ClozePanelModal extends Modal {
 
     onClose(): void {
         closeHintEditor();
-        if (this.selectionHandler) document.removeEventListener('mouseup', this.selectionHandler);
+        if (this.selectionHandler) activeDocument.removeEventListener('mouseup', this.selectionHandler);
         this.hideFloat();
         this.preview?.dispose();
         if (this.historyTimer !== null) window.clearTimeout(this.historyTimer);

@@ -1,5 +1,6 @@
-import { App, TFile, TFolder, normalizePath } from 'obsidian';
+import { App, Notice, TFile, TFolder, normalizePath } from 'obsidian';
 import type { CardRecord } from './card';
+import { ttf } from './i18n';
 
 export const DEFAULT_LIBRARY_FOLDER = 'fakecard';
 
@@ -88,32 +89,48 @@ export class CardStore {
     }
 
     async save(card: CardRecord): Promise<void> {
-        await this.ensure();
-        const path = normalizePath(`${this.cardsFolder}/${card.id}.json`);
-        const json = JSON.stringify(card, null, 2);
-        this.writing.add(path);
-        const existing = this.app.vault.getAbstractFileByPath(path);
-        if (existing instanceof TFile) {
-            await this.app.vault.modify(existing, json);
-        } else {
-            await this.app.vault.create(path, json);
-        }
-        this.indexCard(card);
+        try {
+            await this.ensure();
+            const path = normalizePath(`${this.cardsFolder}/${card.id}.json`);
+            const json = JSON.stringify(card, null, 2);
+            this.writing.add(path);
+            const existing = this.app.vault.getAbstractFileByPath(path);
+            if (existing instanceof TFile) {
+                await this.app.vault.modify(existing, json);
+            } else {
+                await this.app.vault.create(path, json);
+            }
+            this.indexCard(card);
 
-        if (this.cached) {
-            const at = this.cached.findIndex((entry) => entry.id === card.id);
-            if (at >= 0) this.cached[at] = card;
-            else this.cached.push(card);
+            if (this.cached) {
+                const at = this.cached.findIndex((entry) => entry.id === card.id);
+                if (at >= 0) this.cached[at] = card;
+                else this.cached.push(card);
+            }
+        } catch (error) {
+            console.error('fakecard: could not save the card', card.id, error);
+            new Notice(ttf('Could not save the card: {message}', {
+                message: error instanceof Error ? error.message : String(error),
+            }));
+            throw error;
         }
     }
 
     async remove(id: string): Promise<void> {
-        const path = normalizePath(`${this.cardsFolder}/${id}.json`);
-        this.writing.add(path);
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof TFile) await this.app.fileManager.trashFile(file);
-        this.unindexCard(id);
-        if (this.cached) this.cached = this.cached.filter((entry) => entry.id !== id);
+        try {
+            const path = normalizePath(`${this.cardsFolder}/${id}.json`);
+            this.writing.add(path);
+            const file = this.app.vault.getAbstractFileByPath(path);
+            if (file instanceof TFile) await this.app.fileManager.trashFile(file);
+            this.unindexCard(id);
+            if (this.cached) this.cached = this.cached.filter((entry) => entry.id !== id);
+        } catch (error) {
+            console.error('fakecard: could not remove the card', id, error);
+            new Notice(ttf('Could not delete the card: {message}', {
+                message: error instanceof Error ? error.message : String(error),
+            }));
+            throw error;
+        }
     }
 
     async list(): Promise<CardRecord[]> {
@@ -126,16 +143,26 @@ export class CardStore {
         );
         // Hundreds of small files on a cold vault: read them together, not one
         // after another, or the first page after a restart crawls.
+        const broken: string[] = [];
         const loaded = await Promise.all(files.map(async (file) => {
             try {
                 const text = await this.app.vault.cachedRead(file);
                 return JSON.parse(text) as CardRecord;
-            } catch {
-                // A hand-edited file with a syntax error must not break the list.
+            } catch (error) {
+                // A hand-edited file with a syntax error must not break the
+                // list, but it must not disappear without a word either.
+                broken.push(file.name);
+                console.warn('fakecard: could not read card file', file.path, error);
                 return null;
             }
         }));
         const cards = loaded.filter((card): card is CardRecord => card !== null);
+        if (broken.length > 0) {
+            new Notice(ttf('{count} card file(s) could not be read and were skipped: {names}', {
+                count: broken.length,
+                names: broken.slice(0, 3).join(', ') + (broken.length > 3 ? '…' : ''),
+            }));
+        }
 
         this.cached = cards;
         this.index.clear();

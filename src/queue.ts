@@ -3,6 +3,61 @@ import type FakeCardPlugin from '../main';
 import type { CardRecord } from './card';
 import { pruneExpiredExamPlans } from './examPlan';
 
+/**
+ * Today's counts, without building the queue.
+ *
+ * The status bar repaints after every rating and only needs four numbers.
+ * Building the real queue there sorted every card and measured retrievability
+ * for the recovery order - work that is thrown away.
+ */
+export async function buildQueueCounts(
+    plugin: FakeCardPlugin,
+    deckFilter = 'all',
+): Promise<{ due: number; fresh: number; learning: number; backlog: number }> {
+    const every = await plugin.store.list();
+    const all = (deckFilter === 'all'
+        ? every
+        : every.filter((card) => card.deck === deckFilter))
+        .filter((card) => !card.suspended && !card.graduated);
+
+    const todayLogs = await plugin.reviews.forDay(new Date());
+    let limit = plugin.settings.maxReviewsPerDay + plugin.reviewLimitBoost;
+    if (plugin.settings.adaptiveDailyLoad) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const logs = (await plugin.reviews.forDay(yesterday)).filter((log) => !log.ahead);
+        if (logs.length >= 10) {
+            const success = logs.filter((log) => log.rating >= 3).length / logs.length;
+            if (success < 0.7) limit = Math.max(10, Math.round(limit * 0.8));
+            else if (success > 0.9) limit = Math.round(limit * 1.1);
+        }
+    }
+
+    const now = Date.now();
+    const waiting = all.filter((card) => card.fsrs
+        && card.fsrs.state !== State.New
+        && new Date(card.fsrs.due).getTime() <= now
+        && (!card.buriedUntil || new Date(card.buriedUntil).getTime() <= now));
+    const remaining = Math.max(0, limit - todayLogs.filter((log) => !log.ahead).length);
+    const due = Math.min(waiting.length, remaining);
+    const learning = Math.min(due, waiting.filter((card) => card.fsrs
+        && (card.fsrs.state === State.Learning || card.fsrs.state === State.Relearning)).length);
+    const fresh = all
+        .filter((card) => !card.fsrs || card.fsrs.state === State.New)
+        .slice(0, plugin.settings.pauseNewWhenBacklogged && waiting.length > limit
+            ? 0
+            : Math.max(0, plugin.settings.newCardsPerDay
+                - todayLogs.filter((log) => log.wasNew).length))
+        .length;
+
+    return {
+        due: due - learning,
+        learning,
+        fresh,
+        backlog: waiting.length - due,
+    };
+}
+
 /** Retrievability of a card right now; 1 for a card that was never seen. */
 function retrievability(card: CardRecord, now: number): number {
     const fsrs = card.fsrs;
@@ -93,7 +148,8 @@ export async function buildReviewQueue(
     const waiting = all
         .filter((card) => card.fsrs
             && card.fsrs.state !== State.New
-            && new Date(card.fsrs.due).getTime() <= now)
+            && new Date(card.fsrs.due).getTime() <= now
+            && (!card.buriedUntil || new Date(card.buriedUntil).getTime() <= now))
         .sort((a, b) => new Date(a.fsrs!.due).getTime() - new Date(b.fsrs!.due).getTime());
 
     // Recovery: while a large share of the due cards is well past its stability,

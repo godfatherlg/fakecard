@@ -386,6 +386,20 @@ const UI_ZH: Record<string, string> = {
     'Child card created - parent paused.': '子卡已创建 - 原卡已暂停。',
     'Nothing to undo.': '没有可撤销的操作。',
     'Rating undone.': '已撤销评分。',
+    'Could not save the card: {message}': '保存卡片失败：{message}',
+    'Could not delete the card: {message}': '删除卡片失败：{message}',
+    '{count} card file(s) could not be read and were skipped: {names}':
+        '有 {count} 个卡片文件无法读取，已跳过：{names}',
+    '{name} could not be read, so it was kept as {kept} and a new log started.':
+        '{name} 无法读取，已另存为 {kept}，并重新开始当天的记录。',
+    '{name} could not be read and could not be moved aside; it was left untouched.':
+        '{name} 无法读取，也无法移走；原文件未做改动。',
+    'Show {count} more of {total}': '再显示 {count} 张（共 {total} 张）',
+    'Export all cards (CSV)': '导出全部卡片（CSV）',
+    'Bury': '埋藏',
+    'Unbury': '取消埋藏',
+    '{count} card(s) buried until tomorrow.': '已埋藏 {count} 张卡，明天再出现。',
+    '{count} card(s) unburied.': '已取消埋藏 {count} 张卡。',
     'Review finished': '复习完成',
     'Review again': '再复习一轮',
     'Reloaded.': '已重新加载。',

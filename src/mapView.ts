@@ -201,8 +201,12 @@ export async function renderMindmap(
                         width: `${Math.max(260, el.offsetWidth + 80)}px`,
                     });
                     const grow = (): void => {
-                        input.setCssStyles({ height: 'auto' });
-                        input.setCssStyles({ height: `${Math.min(360, input.scrollHeight + 2)}px` });
+                        // Measure with the class that resets the height, then
+                        // give the measured height back as a real value.
+                        input.addClass('is-measuring');
+                        const height = input.scrollHeight;
+                        input.removeClass('is-measuring');
+                        input.setCssProps({ height: `${Math.min(360, height + 2)}px` });
                     };
                     input.addEventListener('input', grow);
                     grow();
@@ -214,18 +218,19 @@ export async function renderMindmap(
                     // is not enough: the map's mousedown calls preventDefault to
                     // start a drag, which keeps focus where it was.
                     const onDocumentDown = (down: MouseEvent): void => {
-                        if (down.target instanceof Node && input.contains(down.target)) return;
+                        const target = down.target as Node | null;
+                        if (target?.instanceOf(Node) && input.contains(target)) return;
                         finish(true);
                     };
                     const finish = (save: boolean): void => {
                         if (closed) return;
                         closed = true;
-                        document.removeEventListener('mousedown', onDocumentDown, true);
+                        activeDocument.removeEventListener('mousedown', onDocumentDown, true);
                         const next = input.value.trim();
                         input.remove();
                         if (save && next && next !== node.text) options.onNodeEdit?.(node, next);
                     };
-                    document.addEventListener('mousedown', onDocumentDown, true);
+                    activeDocument.addEventListener('mousedown', onDocumentDown, true);
                     input.addEventListener('keydown', (key) => {
                         // Enter must not reach the modal: its primary button would
                         // take it as "save and close".

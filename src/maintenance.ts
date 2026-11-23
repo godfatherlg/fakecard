@@ -82,3 +82,43 @@ export async function exportCards(plugin: FakeCardPlugin): Promise<void> {
     await plugin.app.vault.create(path, JSON.stringify(cards, null, 2));
     new Notice(ttf('Exported {count} card(s) to {path}', { count: cards.length, path }));
 }
+
+/** One CSV field: quotes doubled, wrapped when it contains a comma or line break. */
+function csvField(value: string): string {
+    return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/**
+ * The same export as a table, for spreadsheets and for other SRS tools.
+ *
+ * Cloze cards keep their raw `{{c1::...}}` text in `Text`, which is what an
+ * Anki import expects; the question and answer columns stay empty for them.
+ */
+export async function exportCardsCsv(plugin: FakeCardPlugin): Promise<void> {
+    const cards = await plugin.store.list();
+    const dir = normalizePath(`${plugin.settings.libraryFolder}/export`);
+    if (!plugin.app.vault.getAbstractFileByPath(dir)) {
+        await plugin.app.vault.createFolder(dir);
+    }
+    const rows: string[][] = [['Front', 'Back', 'Text', 'Deck', 'Tags', 'Type', 'Due', 'Interval', 'Reviews', 'Lapses', 'Source']];
+    for (const card of cards) {
+        rows.push([
+            card.type === 'qa' ? card.front : '',
+            card.type === 'qa' ? card.back : '',
+            card.type === 'cloze' ? (card.clozeText ?? '') : card.type === 'map' ? (card.mapText ?? '') : '',
+            card.deck ?? 'default',
+            (card.tags ?? []).join(' '),
+            card.type,
+            card.fsrs ? new Date(card.fsrs.due).toISOString() : '',
+            card.fsrs ? String(card.fsrs.scheduled_days ?? '') : '',
+            String(card.reviews ?? 0),
+            String(card.fsrs?.lapses ?? 0),
+            card.source.path,
+        ]);
+    }
+    const csv = rows.map((row) => row.map(csvField).join(',')).join('\r\n');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const path = normalizePath(`${dir}/fakecard-${stamp}.csv`);
+    await plugin.app.vault.create(path, csv);
+    new Notice(ttf('Exported {count} card(s) to {path}', { count: cards.length, path }));
+}

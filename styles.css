@@ -908,6 +908,17 @@ button.fakecard-review-show:hover {
   max-height: none;
 }
 
+/* A zoomed picture takes the width the view computes; the class is added and
+   removed instead of writing static styles into the element. */
+.is-zoom-wide {
+  max-width: none;
+}
+
+.fakecard-zoom-image {
+  max-width: none;
+  width: var(--fakecard-zoom-width);
+}
+
 .fakecard-review-body.has-zoomed-image,
 .fakecard-card-view.has-zoomed-image {
   overflow-x: auto;
@@ -1619,6 +1630,15 @@ body.theme-dark .fakecard-image-mask-label {
 
 .fakecard-browse-row {
   cursor: pointer;
+  /* Rows outside the viewport skip layout and paint; the table stays one DOM
+     tree, but a large library no longer renders every row it holds. */
+  content-visibility: auto;
+  contain-intrinsic-size: 34px;
+}
+
+.fakecard-browse-more {
+  display: block;
+  margin: 8px auto;
 }
 
 .fakecard-browse-row:hover,
@@ -2117,6 +2137,12 @@ body.theme-dark .fakecard-image-mask-label {
    the map does not flash through its unplaced state. */
 .fakecard-map-preview.is-laying-out {
   visibility: hidden;
+}
+
+/* Measuring pass for the inline node editor: height must be free while its
+   content is read, then the measured value is written back. */
+.fakecard-map-editor.is-measuring {
+  height: auto;
 }
 
 .fakecard-map-text {

@@ -1,4 +1,5 @@
-import { App, TFolder, TFile, normalizePath } from 'obsidian';
+import { App, Notice, TFolder, TFile, normalizePath } from 'obsidian';
+import { ttf } from './i18n';
 
 export interface ReviewLog {
     cardId: string;
@@ -67,6 +68,41 @@ export class ReviewStore {
         }
     }
 
+    /**
+     * One day's entries, and whether the file was unusable.
+     *
+     * A corrupt day file must not be rewritten over: that used to leave the
+     * day with only the newest entry. The caller quarantines it instead.
+     */
+    private async readDay(file: TFile): Promise<{ logs: ReviewLog[]; corrupt: boolean }> {
+        try {
+            const parsed = JSON.parse(await this.app.vault.cachedRead(file)) as ReviewLog[];
+            return Array.isArray(parsed)
+                ? { logs: parsed, corrupt: false }
+                : { logs: [], corrupt: true };
+        } catch {
+            return { logs: [], corrupt: true };
+        }
+    }
+
+    /** Move an unreadable day file aside so a fresh one can be written. */
+    private async quarantine(file: TFile): Promise<void> {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const target = file.path.replace(/\.json$/i, `.corrupt-${stamp}.json`);
+        try {
+            await this.app.vault.rename(file, target);
+            new Notice(ttf('{name} could not be read, so it was kept as {kept} and a new log started.', {
+                name: file.name,
+                kept: target.split('/').pop() ?? target,
+            }));
+        } catch (error) {
+            console.error('fakecard: could not move the review file aside', file.path, error);
+            new Notice(ttf('{name} could not be read and could not be moved aside; it was left untouched.', {
+                name: file.name,
+            }));
+        }
+    }
+
     async append(log: ReviewLog): Promise<void> {
         await this.ensure();
         const day = dayKey(new Date(log.at));
@@ -74,12 +110,9 @@ export class ReviewStore {
         const file = this.app.vault.getAbstractFileByPath(path);
         let logs: ReviewLog[] = [];
         if (file instanceof TFile) {
-            try {
-                logs = JSON.parse(await this.app.vault.cachedRead(file)) as ReviewLog[];
-                if (!Array.isArray(logs)) logs = [];
-            } catch {
-                logs = [];
-            }
+            const read = await this.readDay(file);
+            if (read.corrupt) await this.quarantine(file);
+            else logs = read.logs;
         }
         logs.push(log);
         const json = JSON.stringify(logs, null, 2);
@@ -112,12 +145,9 @@ export class ReviewStore {
             const file = this.app.vault.getAbstractFileByPath(path);
             let existing: ReviewLog[] = [];
             if (file instanceof TFile) {
-                try {
-                    const parsed = JSON.parse(await this.app.vault.read(file)) as ReviewLog[];
-                    if (Array.isArray(parsed)) existing = parsed;
-                } catch {
-                    existing = [];
-                }
+                const read = await this.readDay(file);
+                if (read.corrupt) await this.quarantine(file);
+                else existing = read.logs;
             }
 
             const seen = new Set(existing.map((log) => `${log.cardId}|${log.at}`));

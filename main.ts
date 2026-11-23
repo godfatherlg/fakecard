@@ -17,10 +17,10 @@ import {
     cleanGraduated as cleanGraduatedImpl,
     cleanOrphans as cleanOrphansImpl,
     exportCards as exportCardsImpl,
+    exportCardsCsv as exportCardsCsvImpl,
 } from './src/maintenance';
 import { QaPanelModal } from './src/qaPanel';
-import { buildReviewQueue } from './src/queue';
-import type { ReviewQueue } from './src/queue';
+import { buildQueueCounts } from './src/queue';
 import { ReviewView, REVIEW_VIEW_TYPE } from './src/reviewView';
 import { BrowseView, BROWSE_VIEW_TYPE } from './src/browseView';
 import { StatsView, STATS_VIEW_TYPE } from './src/statsView';
@@ -270,6 +270,14 @@ export default class FakeCardPlugin extends Plugin {
         });
 
         this.addCommand({
+            id: 'export-cards-csv',
+            name: tt('Export all cards (CSV)'),
+            callback: () => {
+                void this.exportCardsCsv();
+            },
+        });
+
+        this.addCommand({
             id: 'clean-orphans',
             name: tt('Clean up orphan cards (source note deleted)'),
             callback: () => {
@@ -497,9 +505,9 @@ export default class FakeCardPlugin extends Plugin {
         // never disagree about the size of today's queue.
         const leaf = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE)[0] ?? null;
         const deck = leaf?.view instanceof ReviewView ? leaf.view.deck : 'all';
-        let queue: ReviewQueue;
+        let queue: { due: number; fresh: number; learning: number };
         try {
-            queue = await buildReviewQueue(this, deck, { prune: false });
+            queue = await buildQueueCounts(this, deck);
         } catch {
             return;
         }
@@ -976,6 +984,10 @@ export default class FakeCardPlugin extends Plugin {
         return cleanGraduatedImpl(this);
     }
 
+    async exportCardsCsv(): Promise<void> {
+        return exportCardsCsvImpl(this);
+    }
+
     async exportCards(): Promise<void> {
         return exportCardsImpl(this);
     }
@@ -1201,7 +1213,7 @@ class CardTypeModal extends Modal {
             new QaPanelModal(this.app, this.plugin, this.sourcePath, undefined, back, undefined, front).open();
         });
 
-        row(tt('Cloze'), tt('Anki {{c1::...}} holes, one or more groups.'), () => {
+        row(tt('Cloze'), tt('Anki {{c1::...}} masks, one or more groups.'), () => {
             this.close();
             new ClozePanelModal(
                 this.app,

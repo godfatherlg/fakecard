@@ -23,7 +23,7 @@ export function openHintEditor(
     // as a mistake and pulls it back, which turned a field on <body> into a
     // focus fight. Within the dialog there is nothing to pull it away.
     const modal = anchor.closest<HTMLElement>('.modal');
-    const host = modal ?? document.body;
+    const host = modal ?? activeDocument.body;
     // createDiv, not createEl('div'): the review rule treats the tag argument
     // as the native call it knows how to replace.
     const box = createDiv({ cls: 'fakecard-hint-editor' });
@@ -65,13 +65,14 @@ export function openHintEditor(
 
     let closed = false;
     const onOutside = (event: MouseEvent): void => {
-        if (event.target instanceof Node && box.contains(event.target)) return;
+        const target = event.target as Node | null;
+        if (target?.instanceOf(Node) && box.contains(target)) return;
         close(true);
     };
     const close = (save: boolean): void => {
         if (closed) return;
         closed = true;
-        document.removeEventListener('mousedown', onOutside, true);
+        activeDocument.removeEventListener('mousedown', onOutside, true);
         const value = input.value.trim();
         box.remove();
         current = null;
@@ -95,7 +96,7 @@ export function openHintEditor(
     box.addEventListener('mousedown', (event) => event.stopPropagation());
     box.addEventListener('click', (event) => event.stopPropagation());
 
-    document.addEventListener('mousedown', onOutside, true);
+    activeDocument.addEventListener('mousedown', onOutside, true);
     current = { close };
     // After the click that opened it has finished, so nothing moves focus back
     // to the button that was pressed; a second pass catches the modal putting
@@ -106,7 +107,7 @@ export function openHintEditor(
         input.select();
     }, 0);
     window.setTimeout(() => {
-        if (closed || document.activeElement === input) return;
+        if (closed || activeDocument.activeElement === input) return;
         input.focus();
         input.select();
     }, 60);

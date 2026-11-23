@@ -200,7 +200,7 @@ export class MapPanelModal extends Modal {
                 .setButtonText(tt('Cancel'))
                 .onClick(() => this.close()));
 
-        document.addEventListener('mouseup', this.onSelectionUp);
+        activeDocument.addEventListener('mouseup', this.onSelectionUp);
         this.deck = this.card?.deck ?? this.plugin.settings.defaultDeck ?? 'default';
         this.tags = (this.card?.tags ?? []).join(', ');
         this.schedulePreview();
@@ -371,7 +371,7 @@ export class MapPanelModal extends Modal {
                 // Visible characters up to the caret, then back to raw offsets:
                 // the renderer dropped the Markdown markers, so a plain `+offset`
                 // would land a few characters early.
-                const rangeTo = document.createRange();
+                const rangeTo = activeDocument.createRange();
                 rangeTo.setStart(span, 0);
                 rangeTo.setEnd(container, offset);
                 const visible = rangeTo.toString().length;
@@ -550,7 +550,7 @@ export class MapPanelModal extends Modal {
             else this.wrapSelectionInHole();
             this.hideFloat();
         });
-        document.body.appendChild(button);
+        this.previewEl.ownerDocument.body.appendChild(button);
         this.floatEl = button;
     }
 
@@ -613,7 +613,7 @@ export class MapPanelModal extends Modal {
     onClose(): void {
         closeHintEditor();
         if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
-        document.removeEventListener('mouseup', this.onSelectionUp);
+        activeDocument.removeEventListener('mouseup', this.onSelectionUp);
         this.hideFloat();
         this.contentEl.empty();
     }
