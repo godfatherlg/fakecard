@@ -89,10 +89,10 @@ const renderedText = new Map<string, Node[]>();
 /**
  * Measured node sizes, keyed by depth, visible mask groups and raw text.
  *
- * A repaint recreates the nodes but usually changes one line; the other boxes
- * would be measured again, and every read forces a synchronous layout. The
- * width comes from `max-content` capped at a fixed 420px, so it does not depend
- * on the canvas or the zoom, only on what is drawn inside the box.
+ * A repaint usually changes one line; the other boxes would be measured again,
+ * and every read forces a synchronous layout. The width comes from
+ * `max-content` capped at a fixed 420px, so it does not depend on the canvas or
+ * the zoom, only on what is drawn inside the box.
  */
 const MEASURED_LIMIT = 2000;
 const measuredSize = new Map<string, { w: number; h: number }>();
@@ -112,15 +112,99 @@ interface Box {
     y: number;
 }
 
+interface NodeEntry {
+    el: HTMLElement;
+    /** Everything the element was drawn from: rebuild when any of it changes. */
+    key: string;
+    /** The node this element's listeners call back with - the latest render wins. */
+    node: OutlineNode;
+    /** The mask in the node that centring targets, if it has one. */
+    masked: HTMLElement | null;
+    /** Whether the asynchronous Markdown pass has run for this element. */
+    settled: boolean;
+}
+
+/** The view controls of the render that is on screen right now. */
+interface HostView {
+    focusOn(el: HTMLElement): void;
+    centerOnQuestion(attempt?: number): void;
+}
+
+/**
+ * One host's rendered nodes, kept between repaints.
+ *
+ * Listeners are bound once, when a node is drawn, so everything they read has
+ * to stay current here: the node (the outline is parsed again on every render),
+ * the callbacks, and the canvas the editor must be created in.
+ */
+interface HostState {
+    entries: Map<string, NodeEntry>;
+    /** The drawing rules the entries were made under; a different set rebuilds. */
+    affinity: string;
+    /** The root elements are drawn into - a new one on every render. */
+    canvas: HTMLElement | null;
+    /** Latest render options; reused listeners look their callbacks up here. */
+    options: MapRenderOptions;
+    /** Latest view controls; a reused node must move the map that is on screen. */
+    view: HostView | null;
+    /** Host-level listeners of the previous render, dropped by the next one. */
+    abort: AbortController | null;
+}
+
+const mapHosts = new WeakMap<HTMLElement, HostState>();
+
+/**
+ * Everything besides the source line that decides how a node is drawn.
+ *
+ * The mask classes, the split of the text into pieces and the listeners all
+ * come from these options, so a render with a different set cannot reuse the
+ * previous elements even when their text is unchanged.
+ */
+function maskAffinity(options: MapRenderOptions): string {
+    return [
+        [...options.maskGroups].sort((a, b) => a - b).join(','),
+        options.askedGroup ?? '',
+        [...(options.highlightGroups ?? [])].sort((a, b) => a - b).join(','),
+        options.maskSubtree ? '1' : '0',
+        options.onMaskClick ? '1' : '0',
+        options.onNodeClick || options.onNodeFocus || options.onNodeEdit ? '1' : '0',
+        // Rendered Markdown and the plain fallback differ in both width and
+        // text, so they are not interchangeable.
+        options.app && options.sourcePath ? options.sourcePath : '',
+    ].join('\u0000');
+}
+
 export async function renderMindmap(
     host: HTMLElement,
     root: OutlineNode,
     options: MapRenderOptions,
 ): Promise<MapHandle> {
+    const state: HostState = mapHosts.get(host) ?? {
+        entries: new Map(),
+        affinity: '',
+        canvas: null,
+        options,
+        view: null,
+        abort: null,
+    };
+    mapHosts.set(host, state);
+    state.options = options;
+    const affinity = maskAffinity(options);
+    // A mask toggle, a different callback or a different set of mask groups
+    // changes what a node holds: those renders build the elements again.
+    const reuse = state.affinity === affinity;
+    state.affinity = affinity;
+    // The previous render's pan and zoom listeners still hold its view; a new
+    // render replaces them instead of stacking another set on the same host.
+    state.abort?.abort();
+    const abort = new AbortController();
+    state.abort = abort;
+
     host.empty();
     host.addClass('fakecard-map');
 
     const canvas = host.createDiv({ cls: 'fakecard-map-canvas' });
+    state.canvas = canvas;
     // Nodes are measured in place, before they are positioned. Their width comes
     // from `width: max-content` in the stylesheet (capped by `max-width`), not
     // from the canvas - an absolutely positioned canvas has no width of its own,
@@ -128,8 +212,159 @@ export async function renderMindmap(
     const linkLayer = canvas.createSvg('svg', { cls: 'fakecard-map-links' });
 
     const boxes = new Map<OutlineNode, Box>();
-    const created: Array<{ node: OutlineNode; el: HTMLElement }> = [];
+    const drawn: NodeEntry[] = [];
+    const nextEntries = new Map<string, NodeEntry>();
+    const pendingMarkdown: NodeEntry[] = [];
     let firstMasked: HTMLElement | null = null;
+
+    /**
+     * Draw a node from scratch. Reused elements skip this entirely: their spans,
+     * classes and listeners are the ones the previous render made.
+     */
+    const drawNode = (entry: NodeEntry, node: OutlineNode, whole: boolean): void => {
+        const el = entry.el;
+        if (node.depth === 0) el.addClass('is-root');
+        if (whole) {
+            el.addClass('is-whole-mask');
+            if (options.askedGroup !== undefined && node.wholeHole !== options.askedGroup) {
+                el.addClass('is-other');
+            }
+            el.createSpan({ cls: 'fakecard-map-question', text: '?' });
+            entry.masked = el;
+        } else {
+            // A whole node that was the answer shows as one green block.
+            if (node.wholeHole !== undefined && options.highlightGroups?.has(node.wholeHole)) {
+                el.addClass('is-whole-answer');
+            }
+            for (const piece of splitNodeText(node.text, options.maskGroups)) {
+                // One span per raw piece, carrying its offsets: that is what
+                // turns a selection in the rendered node back into text.
+                const span = el.createSpan();
+                span.dataset.from = String(piece.from);
+                span.dataset.to = String(piece.to);
+                if (piece.masked) {
+                    // The answer must not be readable through the mask, and
+                    // the hole must occupy the same kind of line box as the
+                    // words it replaces. A fixed `[___]` reflowed the node,
+                    // and an inline-block of a set height made the line
+                    // taller (blank space above and below); plain spaces
+                    // keep the exact metrics of the surrounding text.
+                    span.addClass('fakecard-map-hole');
+                    if (options.askedGroup !== undefined && piece.group !== options.askedGroup) {
+                        span.addClass('is-other');
+                    }
+                    // Text inside the hole, not an empty box: a box with
+                    // padding and no content has no reliable metrics, and
+                    // this also matches what a cloze mask looks like.
+                    if (piece.hint) span.addClass('has-hint');
+                    span.setText(piece.hint ? `[${piece.hint}]` : '[___]');
+                    if (options.onMaskClick) {
+                        span.addClass('is-editable');
+                        // The entry, not this node: a repaint parses the
+                        // outline again and the mask must open the line as
+                        // it reads now.
+                        span.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            state.options.onMaskClick?.(entry.node, span);
+                        });
+                    }
+                    entry.masked ??= span;
+                    continue;
+                }
+                // The words that were hidden are marked as the answer once
+                // revealed - the same green a cloze card gives its holes.
+                if (piece.group !== undefined && options.highlightGroups?.has(piece.group)) {
+                    span.addClass('fakecard-map-answer');
+                }
+                // Fallback drawing first, so the node is never blank while
+                // Obsidian's renderer is still working on it.
+                span.dataset.raw = piece.text;
+                renderInlineMd(span, piece.text);
+            }
+        }
+        if (options.onNodeClick || options.onNodeFocus || options.onNodeEdit) {
+            el.addClass('is-clickable');
+            el.addEventListener('mousedown', (event) => {
+                event.stopPropagation();
+                // One node at a time reads as selected; the panel uses it to
+                // know which node a toolbar action applies to.
+                const selected = state.canvas?.querySelectorAll('.is-selected') ?? [];
+                for (let index = 0; index < selected.length; index++) {
+                    (selected[index] as HTMLElement).removeClass('is-selected');
+                }
+                el.addClass('is-selected');
+                state.options.onNodeFocus?.(entry.node, el);
+            });
+            el.addEventListener('click', (event) => {
+                event.stopPropagation();
+                state.options.onNodeClick?.(entry.node);
+            });
+        }
+        if (options.onNodeEdit) {
+            el.addEventListener('dblclick', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                // Editing is a focus mode: bring the node to the middle at
+                // 100% first, so the box is readable whatever the zoom was.
+                // The view is looked up live: this listener outlives the render.
+                state.view?.focusOn(el);
+                const layer = state.canvas;
+                if (!layer) return;
+                const input = layer.createEl('textarea', { cls: 'fakecard-map-editor' });
+                input.value = entry.node.text;
+                input.setCssStyles({
+                    left: `${Number.parseFloat(el.style.left || '0')}px`,
+                    top: `${Number.parseFloat(el.style.top || '0') - 2}px`,
+                    width: `${Math.max(260, el.offsetWidth + 80)}px`,
+                });
+                const grow = (): void => {
+                    // Measure with the class that resets the height, then
+                    // give the measured height back as a real value.
+                    input.addClass('is-measuring');
+                    const height = input.scrollHeight;
+                    input.removeClass('is-measuring');
+                    input.setCssProps({ height: `${Math.min(360, height + 2)}px` });
+                };
+                input.addEventListener('input', grow);
+                grow();
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+
+                let closed = false;
+                // Clicking anywhere else has to end the edit. A blur handler
+                // is not enough: the map's mousedown calls preventDefault to
+                // start a drag, which keeps focus where it was.
+                const onDocumentDown = (down: MouseEvent): void => {
+                    const target = down.target as Node | null;
+                    if (target?.instanceOf(Node) && input.contains(target)) return;
+                    finish(true);
+                };
+                const finish = (save: boolean): void => {
+                    if (closed) return;
+                    closed = true;
+                    activeDocument.removeEventListener('mousedown', onDocumentDown, true);
+                    const next = input.value.trim();
+                    input.remove();
+                    if (save && next && next !== entry.node.text) state.options.onNodeEdit?.(entry.node, next);
+                };
+                activeDocument.addEventListener('mousedown', onDocumentDown, true);
+                input.addEventListener('keydown', (key) => {
+                    // Enter must not reach the modal: its primary button would
+                    // take it as "save and close".
+                    key.stopPropagation();
+                    if (key.key === 'Escape') {
+                        key.preventDefault();
+                        finish(false);
+                    } else if (key.key === 'Enter' && !key.shiftKey) {
+                        key.preventDefault();
+                        finish(true);
+                    }
+                });
+                input.addEventListener('click', (event) => event.stopPropagation());
+                input.addEventListener('blur', () => finish(true));
+            });
+        }
+    };
 
     const build = (node: OutlineNode): void => {
         const whole = node.wholeHole !== undefined && options.maskGroups.has(node.wholeHole);
@@ -138,143 +373,31 @@ export async function renderMindmap(
         // must stay on screen.
         const hideChildren = whole && options.maskSubtree && !subtreeHasHoles(node);
         if (node.text.trim()) {
-            const el = canvas.createDiv({ cls: 'fakecard-map-node' });
-            if (node.depth === 0) el.addClass('is-root');
-            if (whole) {
-                el.addClass('is-whole-mask');
-                if (options.askedGroup !== undefined && node.wholeHole !== options.askedGroup) {
-                    el.addClass('is-other');
-                }
-                el.createSpan({ cls: 'fakecard-map-question', text: '?' });
-                firstMasked ??= el;
+            // The source line, not the drawn box: the drawn box follows from the
+            // line and the affinity checked above.
+            const key = `${node.depth}\u0000${node.wholeHole ?? ''}\u0000${node.text}`;
+            const prev = reuse ? state.entries.get(node.id) : undefined;
+            let entry: NodeEntry;
+            if (prev && prev.key === key) {
+                entry = prev;
+                // The outline is parsed again on every render: the listeners
+                // keep the entry so they always see the line as it reads now.
+                entry.node = node;
+                if (entry.el.parentElement !== canvas) canvas.appendChild(entry.el);
             } else {
-                // A whole node that was the answer shows as one green block.
-                if (node.wholeHole !== undefined && options.highlightGroups?.has(node.wholeHole)) {
-                    el.addClass('is-whole-answer');
-                }
-                for (const piece of splitNodeText(node.text, options.maskGroups)) {
-                    // One span per raw piece, carrying its offsets: that is what
-                    // turns a selection in the rendered node back into text.
-                    const span = el.createSpan();
-                    span.dataset.from = String(piece.from);
-                    span.dataset.to = String(piece.to);
-                    if (piece.masked) {
-                        // The answer must not be readable through the mask, and
-                        // the hole must occupy the same kind of line box as the
-                        // words it replaces. A fixed `[___]` reflowed the node,
-                        // and an inline-block of a set height made the line
-                        // taller (blank space above and below); plain spaces
-                        // keep the exact metrics of the surrounding text.
-                        span.addClass('fakecard-map-hole');
-                        if (options.askedGroup !== undefined && piece.group !== options.askedGroup) {
-                            span.addClass('is-other');
-                        }
-                        // Text inside the hole, not an empty box: a box with
-                        // padding and no content has no reliable metrics, and
-                        // this also matches what a cloze mask looks like.
-                        if (piece.hint) span.addClass('has-hint');
-                        span.setText(piece.hint ? `[${piece.hint}]` : '[___]');
-                        if (options.onMaskClick) {
-                            span.addClass('is-editable');
-                            span.addEventListener('click', (event) => {
-                                event.stopPropagation();
-                                options.onMaskClick?.(node, span);
-                            });
-                        }
-                        firstMasked ??= span;
-                        continue;
-                    }
-                    // The words that were hidden are marked as the answer once
-                    // revealed - the same green a cloze card gives its holes.
-                    if (piece.group !== undefined && options.highlightGroups?.has(piece.group)) {
-                        span.addClass('fakecard-map-answer');
-                    }
-                    // Fallback drawing first, so the node is never blank while
-                    // Obsidian's renderer is still working on it.
-                    span.dataset.raw = piece.text;
-                    renderInlineMd(span, piece.text);
-                }
+                entry = {
+                    el: canvas.createDiv({ cls: 'fakecard-map-node' }),
+                    key,
+                    node,
+                    masked: null,
+                    settled: false,
+                };
+                drawNode(entry, node, whole);
             }
-            if (options.onNodeClick || options.onNodeFocus || options.onNodeEdit) {
-                el.addClass('is-clickable');
-                el.addEventListener('mousedown', (event) => {
-                    event.stopPropagation();
-                    // One node at a time reads as selected; the panel uses it to
-                    // know which node a toolbar action applies to.
-                    const selected = canvas.querySelectorAll('.is-selected');
-                    for (let index = 0; index < selected.length; index++) {
-                        (selected[index] as HTMLElement).removeClass('is-selected');
-                    }
-                    el.addClass('is-selected');
-                    options.onNodeFocus?.(node, el);
-                });
-                el.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    options.onNodeClick?.(node);
-                });
-            }
-            if (options.onNodeEdit) {
-                el.addEventListener('dblclick', (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    // Editing is a focus mode: bring the node to the middle at
-                    // 100% first, so the box is readable whatever the zoom was.
-                    focusOn(el);
-                    const input = canvas.createEl('textarea', { cls: 'fakecard-map-editor' });
-                    input.value = node.text;
-                    input.setCssStyles({
-                        left: `${Number.parseFloat(el.style.left || '0')}px`,
-                        top: `${Number.parseFloat(el.style.top || '0') - 2}px`,
-                        width: `${Math.max(260, el.offsetWidth + 80)}px`,
-                    });
-                    const grow = (): void => {
-                        // Measure with the class that resets the height, then
-                        // give the measured height back as a real value.
-                        input.addClass('is-measuring');
-                        const height = input.scrollHeight;
-                        input.removeClass('is-measuring');
-                        input.setCssProps({ height: `${Math.min(360, height + 2)}px` });
-                    };
-                    input.addEventListener('input', grow);
-                    grow();
-                    input.focus();
-                    input.setSelectionRange(input.value.length, input.value.length);
-
-                    let closed = false;
-                    // Clicking anywhere else has to end the edit. A blur handler
-                    // is not enough: the map's mousedown calls preventDefault to
-                    // start a drag, which keeps focus where it was.
-                    const onDocumentDown = (down: MouseEvent): void => {
-                        const target = down.target as Node | null;
-                        if (target?.instanceOf(Node) && input.contains(target)) return;
-                        finish(true);
-                    };
-                    const finish = (save: boolean): void => {
-                        if (closed) return;
-                        closed = true;
-                        activeDocument.removeEventListener('mousedown', onDocumentDown, true);
-                        const next = input.value.trim();
-                        input.remove();
-                        if (save && next && next !== node.text) options.onNodeEdit?.(node, next);
-                    };
-                    activeDocument.addEventListener('mousedown', onDocumentDown, true);
-                    input.addEventListener('keydown', (key) => {
-                        // Enter must not reach the modal: its primary button would
-                        // take it as "save and close".
-                        key.stopPropagation();
-                        if (key.key === 'Escape') {
-                            key.preventDefault();
-                            finish(false);
-                        } else if (key.key === 'Enter' && !key.shiftKey) {
-                            key.preventDefault();
-                            finish(true);
-                        }
-                    });
-                    input.addEventListener('click', (event) => event.stopPropagation());
-                    input.addEventListener('blur', () => finish(true));
-                });
-            }
-            created.push({ node, el });
+            nextEntries.set(node.id, entry);
+            if (options.app && options.sourcePath && !entry.settled) pendingMarkdown.push(entry);
+            firstMasked ??= entry.masked;
+            drawn.push(entry);
         }
         // The branch is the answer: nothing below it is drawn on the question
         // side - unless a child is asked by another card.
@@ -282,18 +405,22 @@ export async function renderMindmap(
         for (const child of node.children) build(child);
     };
     build(root);
+    // Whatever was not built this time is off screen: it stays behind in the
+    // detached canvas and is collected with it.
+    state.entries = nextEntries;
 
     // Node text is rendered by Obsidian itself when a vault path is available,
     // so a node can hold anything a note can. It is async, which is why the map
     // measures only after every node has settled.
     //
-    // A repaint rebuilds the nodes but usually changes one line; the rendered
-    // HTML for a piece of text is reused, so only the edited line pays for
-    // MarkdownRenderer. The cache is bounded because the panel is not.
+    // A repaint usually changes one line; the rendered HTML for a piece of text
+    // is reused, so only the edited line pays for MarkdownRenderer. Reused nodes
+    // are skipped outright - their spans already hold what was rendered for the
+    // same line. The cache is bounded because the panel is not.
     if (options.app && options.sourcePath) {
         const component = new Component();
-        await Promise.all(created.map(async ({ el }) => {
-            const spans = el.querySelectorAll<HTMLElement>('[data-raw]');
+        await Promise.all(pendingMarkdown.map(async (entry) => {
+            const spans = entry.el.querySelectorAll<HTMLElement>('[data-raw]');
             for (let index = 0; index < spans.length; index++) {
                 const span = spans[index];
                 const raw = span.dataset.raw ?? '';
@@ -326,6 +453,7 @@ export async function renderMindmap(
                 }
                 renderedText.set(key, Array.from(span.childNodes, (child) => child.cloneNode(true)));
             }
+            entry.settled = true;
         }));
         // The renderer's children are done; releasing them here keeps embedded
         // notes from holding listeners for the life of the view.
@@ -335,20 +463,22 @@ export async function renderMindmap(
     // Sizes are known only now. A box whose text and visible masks did not
     // change keeps its last size: reading a rect after the DOM was written is
     // what forces a synchronous layout, and a repaint usually touches one node.
-    const misses: Array<{ node: OutlineNode; el: HTMLElement; key: string }> = [];
-    for (const { node, el } of created) {
-        const key = measuredKey(node, el);
+    const misses: Array<{ entry: NodeEntry; key: string }> = [];
+    for (const entry of drawn) {
+        const key = measuredKey(entry.node, entry.el);
         const cached = measuredSize.get(key);
         if (cached) {
-            boxes.set(node, { node, el, w: cached.w, h: cached.h, x: 0, y: 0 });
+            boxes.set(entry.node, { node: entry.node, el: entry.el, w: cached.w, h: cached.h, x: 0, y: 0 });
         } else {
-            misses.push({ node, el, key });
+            misses.push({ entry, key });
         }
     }
-    // One batch of reads, so the browser lays out once instead of per box.
+    // One batch of reads, so the browser lays out once instead of per box. The
+    // canvas is new and carries no transform yet, so these are natural sizes.
     for (const miss of misses) {
-        const rect = miss.el.getBoundingClientRect();
-        boxes.set(miss.node, { node: miss.node, el: miss.el, w: rect.width, h: rect.height, x: 0, y: 0 });
+        const rect = miss.entry.el.getBoundingClientRect();
+        const { node, el } = miss.entry;
+        boxes.set(node, { node, el, w: rect.width, h: rect.height, x: 0, y: 0 });
         measuredSize.set(miss.key, { w: rect.width, h: rect.height });
     }
     if (measuredSize.size > MEASURED_LIMIT) {
@@ -507,6 +637,10 @@ export async function renderMindmap(
         fit();
     };
 
+    // Node listeners outlive the render that bound them; they must reach the
+    // view of the canvas that is on screen now.
+    state.view = { focusOn, centerOnQuestion };
+
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
@@ -524,7 +658,7 @@ export async function renderMindmap(
         lastY = event.clientY;
         host.addClass('is-panning');
         event.preventDefault();
-    });
+    }, { signal: abort.signal });
     host.addEventListener('mousemove', (event) => {
         if (!dragging) return;
         tx += event.clientX - lastX;
@@ -532,13 +666,13 @@ export async function renderMindmap(
         lastX = event.clientX;
         lastY = event.clientY;
         apply();
-    });
+    }, { signal: abort.signal });
     const endDrag = (): void => {
         dragging = false;
         host.removeClass('is-panning');
     };
-    host.addEventListener('mouseup', endDrag);
-    host.addEventListener('mouseleave', endDrag);
+    host.addEventListener('mouseup', endDrag, { signal: abort.signal });
+    host.addEventListener('mouseleave', endDrag, { signal: abort.signal });
 
     host.addEventListener('wheel', (event) => {
         if (event.ctrlKey || event.metaKey) {
@@ -575,12 +709,12 @@ export async function renderMindmap(
         if (canPanY) ty -= panY;
         if (canPanX) tx -= panX;
         apply();
-    }, { passive: false });
+    }, { passive: false, signal: abort.signal });
 
     host.addEventListener('dblclick', (event) => {
         event.preventDefault();
         centerOnQuestion();
-    });
+    }, { signal: abort.signal });
 
     // First paint: review centres the question, an editor restores the view the
     // user already had. In both cases a repaint must not move the map.
