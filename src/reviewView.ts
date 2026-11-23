@@ -1,23 +1,21 @@
-import { ItemView, Menu, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
+import { ItemView, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
-import type { AnswerTimeBreakdown } from './answerTime';
-import { ChildCardPromptModal } from './childPrompt';
-import { childScore, isGraduatable } from './childStreak';
 
-import { MapPanelModal } from './mapPanel';
-
-import { ClozePanelModal } from './clozePanel';
-import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan } from './examPlan';
 import { tt, ttf } from './i18n';
 import { RatingKeys, keyLabel, matchesKey } from './keys';
 import { buildReviewQueue, ReviewQueue } from './queue';
-import { formatClock, pointsForRatio, recallBudget, slowStep } from './reviewClock';
 import { ReviewCardRenderer } from './reviewRender';
+import { ReviewChildCards } from './reviewChildCards';
+import { ReviewClocks } from './reviewClocks';
+import { ReviewDonePage } from './reviewDone';
+import { openCardEditor } from './reviewEdit';
+import { HoverPreview } from './reviewHover';
+import { renderRatingNudge } from './reviewNudge';
+import { capOverdueInterval, shortenEarlyInterval } from './reviewSchedule';
 import { UndoStack, type UndoEntry } from './reviewUndo';
-import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
 import type FakeCardPlugin from '../main';
 
@@ -49,54 +47,42 @@ export class ReviewView extends ItemView {
     private buried = 0;
     /** Renders the card body (text, map, picture) and owns the zoom write. */
     private readonly cardRenderer: ReviewCardRenderer;
-    /** When the finish page's refresh was last pressed, for its receipt line. */
-    private refreshedAt = 0;
-    private flashTimer: number | null = null;
+    /** Builds child cards and brings the parent back once they graduate. */
+    private readonly childCards: ReviewChildCards;
+    /** The two clocks and the measurement a rating is scored from. */
+    private readonly clocks: ReviewClocks;
+    /** The finish page and its refresh receipt. */
+    private readonly donePage: ReviewDonePage;
+    /** Ctrl/Cmd+hover previews for links in the card. */
+    private readonly hover: HoverPreview;
     /** Cards in the library for this deck filter, so an empty queue is not
      *  mistaken for an empty library. */
     private total = 0;
     /** True while the cards on screen were pulled in ahead of their due date. */
     private ahead = false;
-    /** Interval that reveals the answer-time hint; cleared on every render. */
-    private hintTimer: number | null = null;
-
-    /**
-     * The answer-side clock: memorising starts when the answer appears, so it
-     * is not the question-side count carried over.
-     */
-    private recall: { seconds: number; ratio: number; breakdown: AnswerTimeBreakdown } | null = null;
-    /** When that clock started; kept so a repaint resumes instead of resetting. */
-    private recallStartedAt = 0;
-    /** Start of the answering clock, for the fast/slow rating nudge. */
-    private questionStartedAt = 0;
-    /** Seconds the answer took to come out, frozen when the card is revealed. */
-    private answeredSeconds = 0;
     /** Today's queue is ordered for coming back after a long gap. */
     private recovery = false;
-    /**
-     * The clock was switched off. It stays off for the cards after this one
-     * too - a distraction lasts longer than one card - until the small clock
-     * button turns it back on. A clock that is off measures nothing and scores
-     * nothing, so it cannot leave a wrong Hard point behind.
-     */
-    private clockHidden = false;
     /** Ratings that can still be taken back with Ctrl+Z, newest last. */
     private undoStack = new UndoStack();
-    /** Link under the pointer, waiting for Ctrl+hover to turn into a preview. */
-    private hoverLink: HTMLElement | null = null;
-    /** Mouse event over that link, replayed when the preview is raised. */
-    private hoverEvent: MouseEvent | null = null;
-    private hoverParent: HTMLElement | null = null;
-    private hoverTimer: number | null = null;
-    /** Link whose preview is already open, so one dwell asks only once. */
-    private hoverPreviewed: HTMLElement | null = null;
-    /** Ctrl/Cmd state, tracked so a key press over a still pointer counts. */
-    private hoverModifier = false;
-    private hoverSourcePath = '';
 
     constructor(leaf: WorkspaceLeaf, private plugin: FakeCardPlugin) {
         super(leaf);
         this.cardRenderer = new ReviewCardRenderer(this.app, plugin, this);
+        this.childCards = new ReviewChildCards(this.app, plugin, () => {
+            void this.reload();
+        });
+        this.clocks = new ReviewClocks(plugin, {
+            render: () => this.render(),
+            isRevealed: () => this.revealed,
+            cardShownAt: () => this.cardShownAt,
+            restartCardShownAt: () => { this.cardShownAt = Date.now(); },
+        });
+        this.donePage = new ReviewDonePage(plugin, {
+            render: () => this.render(),
+            reload: () => { void this.reload(); },
+            startAhead: () => { void this.startAhead(); },
+        });
+        this.hover = new HoverPreview(this.app);
     }
 
     getViewType(): string {
@@ -117,8 +103,8 @@ export class ReviewView extends ItemView {
         this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => this.onKeyDown(event));
         // Pressing or releasing Ctrl over a link that is already under the
         // pointer produces no mouse event, so the dwell has to watch keys too.
-        this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => this.onHoverModifierKey(event));
-        this.registerDomEvent(activeDocument, 'keyup', (event: KeyboardEvent) => this.onHoverModifierKey(event));
+        this.registerDomEvent(activeDocument, 'keydown', (event: KeyboardEvent) => this.hover.handleKey(event));
+        this.registerDomEvent(activeDocument, 'keyup', (event: KeyboardEvent) => this.hover.handleKey(event));
         // A leaf restored with the workspace opens while the layout is still
         // being assembled. Painting a card then renders it into a leaf that is
         // not attached yet, and its wiki links come out without the classes and
@@ -185,8 +171,7 @@ export class ReviewView extends ItemView {
         this.ahead = false;
         this.loading = false;
         this.cardShownAt = Date.now();
-        this.answeredSeconds = 0;
-        this.questionStartedAt = 0;
+        this.clocks.resetSession();
         this.render();
     }
 
@@ -197,19 +182,12 @@ export class ReviewView extends ItemView {
 
     private render(): void {
         const container = this.contentEl;
-        this.clearAnswerTimeHint();
         // A card that is not revealed yet has no memory clock: the number
         // belongs to the pair (this card, this answer), not to the view.
-        if (!this.revealed) {
-            this.recall = null;
-            this.recallStartedAt = 0;
-        }
-        if (this.flashTimer !== null) {
-            window.clearTimeout(this.flashTimer);
-            this.flashTimer = null;
-        }
+        this.clocks.onRender(this.revealed);
+        this.donePage.cancelFlash();
         // The body element is rebuilt below; any tracked link is now detached.
-        this.endHoverDwell();
+        this.hover.reset();
         container.empty();
         container.addClass('fakecard-review');
         // Settings -> Card display: a centred column, or the whole pane.
@@ -277,7 +255,7 @@ export class ReviewView extends ItemView {
         });
 
         // These cards came from after today's queue: say so, or the interval
-        // correction in `shortenEarlyInterval` looks like a numbers bug.
+        // correction in `reviewSchedule` looks like a numbers bug.
         if (this.ahead) {
             meta.createSpan({ cls: 'fakecard-review-ahead', text: tt('studying ahead') });
         } else if (this.backlog > 0) {
@@ -335,20 +313,20 @@ export class ReviewView extends ItemView {
             const childButton = iconButton(
                 'git-branch',
                 tt('Pause this card and study it through a simpler stand-in'),
-                (event) => { void this.requestChildCard(card, event); },
+                (event) => { void this.childCards.request(card, event); },
             );
-            void this.markChildArmed(childButton, card);
+            void this.childCards.markArmed(childButton, card);
         }
         // One door per kind of content: text opens in Obsidian's own editor,
         // while an image card's content is the picture and its masks, which only
         // the mask panel can change (the editor could just rewrite the embed).
         if (card.type === 'image') {
             iconButton('image', tt('Edit the masks on this picture'), () => {
-                void this.editImageCard(card);
+                void openCardEditor(this.app, this.plugin, card, () => this.refreshCurrentCard());
             });
         } else {
             iconButton('pencil', tt('Edit the text in the editor'), () => {
-                void this.editTextInEditor(card);
+                void openCardEditor(this.app, this.plugin, card, () => this.refreshCurrentCard());
             });
         }
 
@@ -356,15 +334,7 @@ export class ReviewView extends ItemView {
         // card area stays what it is, the card. The answer side re-renders
         // through here too, so it simply picks its own clock.
         const clockHost = meta.createDiv({ cls: 'fakecard-review-clock' });
-        if (this.plugin.settings.answerTimeHint) {
-            if (this.clockHidden) {
-                this.renderClockRestore(clockHost, card);
-            } else if (this.revealed) {
-                this.renderMemorizeClock(clockHost, card);
-            } else {
-                this.renderQuestionClock(clockHost, card);
-            }
-        }
+        this.clocks.renderPill(clockHost, card, this.revealed);
         if (this.recovery) {
             const badge = meta.createSpan({ cls: 'fakecard-review-recovery', text: tt('Recovery mode') });
             setTooltip(badge, tt('Ordered for coming back after a break: cards you still remember first, the weak ones mixed in a few at a time.'));
@@ -375,7 +345,7 @@ export class ReviewView extends ItemView {
         const body = container.createDiv({ cls: 'fakecard-review-body' });
         // A map brings its own scrolling: the body must not scroll under it.
         if (card.type === 'map') body.addClass('is-map');
-        this.attachHoverPreview(body, card);
+        this.hover.attach(body, card);
 
         if (!this.revealed) {
             // Front. Q&A questions are centred; cloze fronts keep the text
@@ -410,7 +380,14 @@ export class ReviewView extends ItemView {
 
         // A one-line suggestion between the card and the buttons: noticeable,
         // but it never blocks a key or a click.
-        this.renderRatingNudge(container, card);
+        renderRatingNudge(container, card, {
+            settings: this.plugin.settings,
+            revealed: this.revealed,
+            answeredSeconds: this.clocks.answered,
+            clockHidden: this.clocks.hidden,
+            breakdown: this.clocks.budgetFor(card),
+            rate: (rating, mixed) => { void this.rate(rating, mixed); },
+        });
 
         // Rating buttons: one cell each, with the shortcut under the label.
         const ratings = container.createDiv({ cls: 'fakecard-review-ratings' });
@@ -450,648 +427,6 @@ export class ReviewView extends ItemView {
         });
     }
 
-
-    /**
-     * How badly the card has been failing lately. Every Hard adds 1 and every
-     * Again adds `childAgainScore`; any Good or Easy ends the run.
-     */
-    private async childFailingScore(card: CardRecord): Promise<number> {
-        const streak = Math.max(1, this.plugin.settings.childHardStreak);
-        // Wide window on purpose: an imported Anki history is often months old
-        // and must still count towards the failing streak.
-        const logs = await this.plugin.reviews.recentForCard(card.id, streak, 365);
-        return childScore(logs, this.plugin.settings.childAgainScore);
-    }
-
-    /** Colour the button once the card has failed often enough to deserve one. */
-    private async markChildArmed(button: HTMLButtonElement, card: CardRecord): Promise<void> {
-        const target = Math.max(1, this.plugin.settings.childHardStreak);
-        const score = await this.childFailingScore(card);
-        if (score < target || !button.isConnected) return;
-
-        button.addClass('is-armed');
-        setTooltip(button, tt('This card keeps failing - build a child card now'));
-    }
-
-    /**
-     * The button is always available, but building a child pauses the parent.
-     * Below the failing threshold that is a decision, not a misclick: explain
-     * it and wait for Continue before the type menu opens.
-     */
-    private async requestChildCard(parent: CardRecord, event: MouseEvent): Promise<void> {
-        if (!this.plugin.settings.childCardsEnabled) return;
-        const at = { x: event.clientX, y: event.clientY };
-        const target = Math.max(1, this.plugin.settings.childHardStreak);
-        const score = await this.childFailingScore(parent);
-
-        if (score >= target) {
-            this.chooseChildType(parent, at);
-            return;
-        }
-
-        // The card's own history, so the child can be chosen with the evidence
-        // in sight: a card that keeps getting "mixed up" wants a comparison,
-        // not another lone cloze.
-        const logs = await this.plugin.reviews.recentForCard(parent.id, 100, 730);
-        const stats = {
-            reviews: logs.length,
-            mixed: logs.filter((log) => log.mixed).length,
-        };
-        new ChildCardPromptModal(this.app, score, target, () => {
-            this.chooseChildType(parent, at);
-        }, stats).open();
-    }
-
-    /**
-     * Offer the shapes a child card can take. The parent's own text seeds the
-     * panel, so the user trims instead of retyping. An image parent can hand
-     * its picture to a new occlusion card.
-     */
-    private chooseChildType(parent: CardRecord, at: { x: number; y: number }): void {
-        if (!this.plugin.settings.childCardsEnabled) return;
-        const menu = new Menu();
-        menu.addItem((item) => item
-            .setTitle(tt('Q&A child card'))
-            .setIcon('file-text')
-            .onClick(() => this.openChildPanel(parent, 'qa')));
-        menu.addItem((item) => item
-            .setTitle(tt('Cloze child card'))
-            .setIcon('text-cursor-input')
-            .onClick(() => this.openChildPanel(parent, 'cloze')));
-        // Every card can get an image child: a text card just starts from an
-        // empty panel and takes the picture from the clipboard or a file.
-        menu.addItem((item) => item
-            .setTitle(tt('Image occlusion child card'))
-            .setIcon('image')
-            .onClick(() => this.openChildPanel(parent, 'image')));
-        menu.showAtPosition(at);
-    }
-
-    /**
-     * Open a panel prefilled from the parent. The new card is linked through
-     * childOf and never touches the parent's own text.
-     */
-    private openChildPanel(parent: CardRecord, type: 'qa' | 'cloze' | 'image'): void {
-        const onSaved = (): void => {
-            void this.attachChild(parent);
-        };
-
-        if (type === 'image') {
-            // An empty path opens the panel in "pick an image" mode: the
-            // parent has no picture, so the user pastes or imports one.
-            new ImagePanelModal(
-                this.app,
-                this.plugin,
-                parent.image?.path ?? '',
-                parent.source.path,
-                undefined,
-                onSaved,
-                parent.id,
-            ).open();
-            return;
-        }
-
-        if (type === 'cloze') {
-            const seed = parent.type === 'cloze' && parent.clozeText
-                ? parent.clozeText
-                : parent.back;
-            new ClozePanelModal(
-                this.app,
-                this.plugin,
-                parent.source.path,
-                undefined,
-                seed,
-                onSaved,
-                parent.id,
-            ).open();
-            return;
-        }
-
-        new QaPanelModal(
-            this.app,
-            this.plugin,
-            parent.source.path,
-            undefined,
-            parent.back,
-            onSaved,
-            parent.front,
-            parent.id,
-        ).open();
-    }
-
-    /**
-     * Pause the parent once a child really exists. A panel that was dismissed
-     * without saving must not leave the parent suspended with nothing to
-     * study it through.
-     */
-    private async attachChild(parent: CardRecord): Promise<void> {
-        const all = await this.plugin.store.list();
-        if (!all.some((card) => card.childOf === parent.id)) return;
-
-        parent.suspended = true;
-        await this.plugin.store.save(parent);
-        new Notice(tt('Child card created - parent paused.'));
-        await this.reload();
-    }
-
-    /**
-     * Obsidian's hover preview is raised by Markdown views: they listen for the
-     * pointer over an internal link and send a `hover-link` workspace event to
-     * the core Page preview plugin. This view renders its own markdown, so
-     * nothing raised that event - normal links and fakelink's virtual links
-     * both navigated on click but never showed a popover.
-     *
-     * Ctrl/Cmd+hover over a link raises the same preview here, but only after
-     * the pointer rests on it. The first version hooked `mousemove`, so every
-     * sweep across a card with Ctrl held popped whatever link it crossed.
-     * Pressing Ctrl while the pointer already sits on a link counts as well:
-     * that produces no mouse event, so the dwell watches the keyboard too.
-     */
-    private attachHoverPreview(el: HTMLElement, card: CardRecord): void {
-        this.hoverSourcePath = card.source.path || this.app.workspace.getActiveFile()?.path || '';
-        this.hoverParent = el;
-
-        const linkAt = (event: MouseEvent): HTMLElement | null =>
-            (event.target as HTMLElement | null)?.closest?.<HTMLElement>('a.internal-link') ?? null;
-
-        el.addEventListener('mouseover', (event: MouseEvent) => {
-            const link = linkAt(event);
-            if (link) this.startHoverDwell(link, event);
-        });
-        el.addEventListener('mouseout', (event: MouseEvent) => {
-            const link = linkAt(event);
-            if (!link) return;
-            const next = event.relatedTarget as HTMLElement | null;
-            if (next && link.contains(next)) return;
-            this.endHoverDwell();
-        });
-        // The body scrolls on its own: a still pointer can leave a link that
-        // slides away underneath it without any mouse event.
-        el.addEventListener('scroll', () => this.endHoverDwell(), { passive: true });
-    }
-
-    /** Pointer arrived on a link: start (or keep) the dwell that may preview. */
-    private startHoverDwell(link: HTMLElement, event: MouseEvent): void {
-        this.hoverModifier = event.ctrlKey || event.metaKey;
-        this.hoverEvent = event;
-        if (link === this.hoverLink) return;
-        this.clearHoverTimer();
-        this.hoverLink = link;
-        this.hoverPreviewed = null;
-        this.scheduleHoverPreview(400);
-    }
-
-    private scheduleHoverPreview(delay: number): void {
-        this.clearHoverTimer();
-        this.hoverTimer = window.setTimeout(() => {
-            this.hoverTimer = null;
-            this.showHoverPreview();
-        }, delay);
-    }
-
-    private showHoverPreview(): void {
-        const link = this.hoverLink;
-        const event = this.hoverEvent;
-        if (!link || !event || !this.hoverModifier) return;
-        if (this.hoverPreviewed === link) return;
-
-        const linktext = link.getAttribute('data-href') ?? link.getAttribute('href');
-        if (!linktext) return;
-
-        this.hoverPreviewed = link;
-        this.app.workspace.trigger('hover-link', {
-            event,
-            source: 'preview',
-            hoverParent: this.hoverParent ?? link,
-            targetEl: link,
-            linktext,
-            sourcePath: this.hoverSourcePath,
-        });
-    }
-
-    /** Ctrl/Cmd pressed or released while the pointer is already resting. */
-    private onHoverModifierKey(event: KeyboardEvent): void {
-        // Key events can target the document itself; only a modal or menu in
-        // front of the card should keep Ctrl quiet.
-        const target = event.target as HTMLElement | null;
-        if (target?.closest?.('.modal-container') || target?.closest?.('.menu')) return;
-
-        const held = event.ctrlKey || event.metaKey;
-
-        // Ctrl+<key> is a shortcut (undo, reveal, rating), not a hover: drop a
-        // preview that is still waiting for its dwell instead of popping it
-        // over the card mid-shortcut.
-        if (held && event.type === 'keydown' && event.key !== 'Control' && event.key !== 'Meta') {
-            this.clearHoverTimer();
-            return;
-        }
-
-        const wasHeld = this.hoverModifier;
-        this.hoverModifier = held;
-        if (held === wasHeld) return;
-
-        if (held) {
-            // Short dwell: the pointer is already parked, so this press is the
-            // hover. Long enough that Ctrl+S or Ctrl+Z over a link stay quiet.
-            if (this.hoverLink && this.hoverPreviewed !== this.hoverLink) this.scheduleHoverPreview(150);
-        } else {
-            this.clearHoverTimer();
-        }
-    }
-
-    private clearHoverTimer(): void {
-        if (this.hoverTimer === null) return;
-        window.clearTimeout(this.hoverTimer);
-        this.hoverTimer = null;
-    }
-
-    private endHoverDwell(): void {
-        this.clearHoverTimer();
-        this.hoverLink = null;
-        this.hoverPreviewed = null;
-        this.hoverEvent = null;
-    }
-
-    /**
-     * The recall clock, on the question's own row.
-     *
-     * Plain wall-clock time from when the card first appeared: pausing while
-     * the window was hidden made the number stop for no visible reason and
-     * disagree with the clock on the wall, and switching panes inside Obsidian
-     * never paused it at all - the same card behaved differently depending on
-     * where the user looked. It is the same pill the answer side reports in, so
-     * the two read as one measurement; the budget is in its tooltip.
-     */
-    private recallBudget(card: CardRecord): AnswerTimeBreakdown {
-        return recallBudget(card, this.plugin.settings);
-    }
-
-    private slowStep(): number {
-        return slowStep(this.plugin.settings);
-    }
-
-    private pointsForRatio(ratio: number): number {
-        return pointsForRatio(ratio, this.plugin.settings);
-    }
-
-    private recallPoints(): number {
-        // Only the answer-side clock is scored; a skipped card, or one whose
-        // clock was switched off, was not measured at all.
-        if (this.clockHidden || !this.revealed || !this.recall) return 0;
-        return this.pointsForRatio(this.recall.ratio);
-    }
-
-    private budgetTooltip(breakdown: AnswerTimeBreakdown): string {
-        return ttf(
-            'Budget {budget}: one pass {pass} × {repeat} more + first pass {first}',
-            {
-                budget: formatClock(breakdown.seconds),
-                pass: formatClock(Math.round(breakdown.memoryOnePass)),
-                repeat: String(Math.max(0, breakdown.passes - 1)),
-                first: formatClock(Math.round(breakdown.firstPass)),
-            },
-        );
-    }
-
-    /**
-     * The pill both sides use: the number, a reset that starts it over, and a
-     * switch that turns the whole clock off for this card.
-     */
-    private createRecallPill(host: HTMLElement): {
-        chip: HTMLElement;
-        timeEl: HTMLElement;
-        reset: HTMLButtonElement;
-        hide: HTMLButtonElement;
-    } {
-        const chip = host.createDiv({ cls: 'fakecard-recall' });
-        const timeEl = chip.createSpan({ cls: 'fakecard-recall-time' });
-        const reset = chip.createEl('button', { cls: 'fakecard-recall-reset' });
-        setIcon(reset, 'refresh-cw');
-        setTooltip(reset, tt('Restart the timer'));
-        const hide = chip.createEl('button', { cls: 'fakecard-recall-reset' });
-        setIcon(hide, 'eye-off');
-        setTooltip(hide, tt('Turn the clock off'));
-        return { chip, timeEl, reset, hide };
-    }
-
-    /** Switch the clock off: nothing is measured, so nothing can be scored. */
-    private hideClock(): void {
-        this.clockHidden = true;
-        this.recall = null;
-        this.recallStartedAt = 0;
-        this.render();
-    }
-
-    /** The small button that brings the clock back after it was switched off. */
-    private renderClockRestore(host: HTMLElement, card: CardRecord): void {
-        const button = host.createEl('button', { cls: 'fakecard-recall-restore' });
-        setIcon(button, 'clock');
-        setTooltip(button, tt('Turn the clock back on'));
-        button.addEventListener('click', () => {
-            this.clockHidden = false;
-            if (this.revealed) {
-                // Measuring starts again from now: the hidden stretch is not
-                // part of the memory and must not be scored.
-                const breakdown = this.recallBudget(card);
-                this.recall = { seconds: 0, ratio: 0, breakdown };
-                this.recallStartedAt = Date.now();
-            } else {
-                // Same on the question side: the time with the clock off is not
-                // answering time either.
-                this.cardShownAt = Date.now();
-            }
-            this.render();
-        });
-    }
-
-    /**
-     * Run a pill as a clock; returns the restart its reset button calls.
-     *
-     * `stopWhenRevealed` is what separates the two sides: the question clock is
-     * over once the answer appears, while a clock restarted on the answer side
-     * keeps running until the card is rated.
-     */
-    private runRecallClock(
-        chip: HTMLElement,
-        timeEl: HTMLElement,
-        breakdown: AnswerTimeBreakdown,
-        startAt: number,
-        label: string,
-        stopWhenRevealed: boolean,
-        /**
-         * Budget the pill counts against. The question side counts against one
-         * pass (the answering time, a hint); the answer side and the score use
-         * the whole memory budget.
-         */
-        displayBudget = breakdown.seconds,
-        /** Called after every tick with the ratio the pill is showing. */
-        onTick?: (ratio: number) => void,
-    ): () => void {
-        if (this.hintTimer !== null) window.clearInterval(this.hintTimer);
-        let startedAt = startAt;
-        let frozen = false;
-        if (stopWhenRevealed) this.questionStartedAt = startedAt;
-        const stopAt = Math.max(1.5, 1 + this.slowStep());
-
-        const tick = (): void => {
-            // A repaint replaces the pill; this closure belongs to the old one.
-            if (!chip.isConnected) return;
-            if (stopWhenRevealed && this.revealed) return;
-
-            const seconds = Math.floor((Date.now() - startedAt) / 1000);
-            const shownRatio = displayBudget > 0 ? seconds / displayBudget : 0;
-            // The real time is kept even after the display freezes: the rating
-            // scores what happened, not the number the pill stopped showing.
-            this.recall = {
-                seconds,
-                ratio: breakdown.seconds > 0 ? seconds / breakdown.seconds : 0,
-                breakdown,
-            };
-            // Past the first slow step the number is no longer news - it stops
-            // and waits for a deliberate reset.
-            if (frozen) return;
-            if (shownRatio >= stopAt) frozen = true;
-
-            timeEl.setText(ttf('{label} {elapsed} / {budget}', {
-                label: tt(label),
-                elapsed: formatClock(seconds),
-                budget: formatClock(displayBudget),
-            }));
-            chip.toggleClass('is-warning', shownRatio >= 1);
-            chip.toggleClass('is-late', shownRatio >= 1.5);
-            chip.toggleClass('is-stop', shownRatio >= stopAt);
-            onTick?.(shownRatio);
-        };
-
-        this.hintTimer = window.setInterval(tick, 500);
-        tick();
-        return () => {
-            startedAt = Date.now();
-            if (stopWhenRevealed) this.questionStartedAt = startedAt;
-            frozen = false;
-            tick();
-        };
-    }
-
-    /** The question side: the answering clock, on the question's own row. */
-    private renderQuestionClock(host: HTMLElement, card: CardRecord): void {
-        if (this.revealed) return;
-        const breakdown = this.recallBudget(card);
-        const { chip, timeEl, reset, hide } = this.createRecallPill(host);
-        chip.addClass('is-live');
-        // One pass, not the whole memory budget: this clock is the reminder
-        // that answering should not drag on, and nothing here is scored.
-        setTooltip(chip, ttf(
-            'Answering budget {budget}: base plus reading time for one pass',
-            { budget: formatClock(Math.round(breakdown.onePass)) },
-        ));
-        // Measuring from when the card was first shown (not from this render)
-        // keeps the clock honest across a repaint.
-        const restart = this.runRecallClock(
-            chip,
-            timeEl,
-            breakdown,
-            this.cardShownAt || Date.now(),
-            'Answering',
-            true,
-            breakdown.onePass,
-        );
-        reset.addEventListener('click', (event) => {
-            event.stopPropagation();
-            restart();
-        });
-        hide.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.hideClock();
-        });
-    }
-
-    /** Stop the hint's clock; called on every render and when the view closes. */
-    private clearAnswerTimeHint(): void {
-        if (this.hintTimer !== null) window.clearInterval(this.hintTimer);
-        this.hintTimer = null;
-    }
-
-    /**
-     * After rating a child: a run of Good ratings graduates it; once every
-     * child of the parent has graduated, the parent comes back.
-     */
-    private async checkChild(child: CardRecord): Promise<{ id: string; json: string } | null> {
-        if (!child.childOf) return null;
-
-        const streak = Math.max(1, this.plugin.settings.childGoodStreak);
-        const logs = await this.plugin.reviews.recentForCard(child.id, streak);
-        if (!isGraduatable(logs.map((log) => log.rating), streak)) return null;
-
-        child.graduated = true;
-        await this.plugin.store.save(child);
-
-        const all = await this.plugin.store.list();
-        const siblings = all.filter((card) => card.childOf === child.childOf);
-        if (siblings.length === 0 || !siblings.every((card) => card.graduated)) return null;
-
-        const parent = all.find((card) => card.id === child.childOf);
-        if (!parent) return null;
-        // Snapshot before the parent is touched: undoing the child's rating
-        // must put the parent back to paused if it was.
-        const snapshot = { id: parent.id, json: JSON.stringify(parent) };
-        parent.suspended = false;
-        await this.plugin.store.save(parent);
-        return snapshot;
-    }
-
-    /**
-     * Back into the mask panel with this card's own boxes: add, move, reshape or
-     * delete them, exactly like when the card was created. Saving there keeps the
-     * card id and its FSRS history.
-     */
-    private async editImageCard(card: CardRecord): Promise<void> {
-        const image = card.image;
-        if (!image) return;
-        // One card holds one group; the panel edits the picture, so it needs the
-        // groups of every card made from it - otherwise saving would treat the
-        // other groups as deleted and take their cards with them.
-        const all = await this.plugin.store.list();
-        const groups = all
-            .filter((entry) => entry.type === 'image' && entry.image?.path === image.path)
-            .flatMap((entry) => entry.image?.groups ?? []);
-        new ImagePanelModal(
-            this.app,
-            this.plugin,
-            image.path,
-            card.source.path,
-            card,
-            () => this.refreshCurrentCard(),
-            undefined,
-            groups,
-        ).open();
-    }
-
-    /**
-     * Open the field that is on screen in Obsidian's own editor: the question,
-     * the answer, or the cloze body. Image cards have no text field - their
-     * content is the picture and the masks drawn over it.
-     */
-    private async editTextInEditor(card: CardRecord): Promise<void> {
-        // Every type is edited in the panel that created it: masks, notes and
-        // the map/picture stay visible, and the card is refreshed in place.
-        if (card.type === 'map') {
-            new MapPanelModal(
-                this.app,
-                this.plugin,
-                card.source.path,
-                card,
-                '',
-                () => this.refreshCurrentCard(),
-            ).open();
-            return;
-        }
-        if (card.type === 'cloze') {
-            new ClozePanelModal(
-                this.app,
-                this.plugin,
-                card.source.path,
-                card,
-                undefined,
-                () => this.refreshCurrentCard(),
-            ).open();
-            return;
-        }
-        new QaPanelModal(
-            this.app,
-            this.plugin,
-            card.source.path,
-            card,
-            undefined,
-            () => this.refreshCurrentCard(),
-        ).open();
-    }
-
-    /**
-     * A single line between the card and the buttons, shown only when the
-     * timing is unusual.
-     *
-     * It never blocks anything: ignoring it leaves the four buttons and their
-     * shortcuts exactly as they were, and only a click on the line changes the
-     * rating. The row is dismissed per card.
-     */
-    private renderRatingNudge(container: HTMLElement, card: CardRecord): void {
-        const settings = this.plugin.settings;
-        if (!settings.antiMiddleNudges || !this.revealed) return;
-        const fsrsCard = card.fsrs;
-        if (!fsrsCard || fsrsCard.state !== State.Review) return;
-        // Learning cards live in minutes, where "fast" means nothing.
-        if ((fsrsCard.scheduled_days ?? 0) < 1) return;
-
-        const breakdown = this.recall?.breakdown ?? this.recallBudget(card);
-        // A fast recall can mean "too easy" or "no idea at all", so both are
-        // offered. The mixed-up mark does not depend on timing: two answers can
-        // fight at any speed, and it is the only way to say so.
-        const measured = settings.answerTimeHint && !this.clockHidden
-            && this.answeredSeconds >= 1 && breakdown.onePass > 0;
-        const ratio = measured ? this.answeredSeconds / breakdown.onePass : 1;
-        const fast = measured && ratio <= 0.5;
-        const slow = measured && ratio >= 1.5;
-
-        const row = container.createDiv({ cls: 'fakecard-nudge' });
-        if (fast || slow) {
-            const elapsed = formatClock(this.answeredSeconds);
-            const budget = formatClock(Math.round(breakdown.onePass));
-            row.createSpan({
-                cls: 'fakecard-nudge-text',
-                text: fast
-                    ? ttf('Quick: {elapsed} / {budget}', { elapsed, budget })
-                    : ttf('Slow: {elapsed} / {budget}', { elapsed, budget }),
-            });
-        }
-
-        const add = (label: string, rating: Rating, mixed = false): void => {
-            row.createEl('button', { cls: 'fakecard-nudge-button', text: label })
-                .addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    void this.rate(rating, mixed);
-                });
-        };
-        if (fast) {
-            add(tt('Too easy (Easy)'), Rating.Easy);
-            add(tt('No idea (Again)'), Rating.Again);
-        } else if (slow) {
-            add(tt('Stuck (Again)'), Rating.Again);
-            add(tt('Mixed up (Hard)'), Rating.Hard, true);
-        } else {
-            add(tt('Mixed up (Hard)'), Rating.Hard, true);
-        }
-    }
-
-    /**
-     * A success after a long gap is weak evidence: the card had decayed, so one
-     * late pass must not push it out for months. Cap the new interval at 1.5x
-     * the previous one (and 60 days), which two on-time reviews then undo by
-     * growing normally again.
-     */
-    private capOverdueInterval(
-        previous: FsrsCard,
-        scheduled: FsrsCard,
-        now: Date,
-        rating: Rating,
-    ): void {
-        if (!this.plugin.settings.gapIntervalCap) return;
-        if (rating < Rating.Good) return;
-        if (previous.state !== State.Review) return;
-        const last = previous.last_review
-            ? new Date(previous.last_review).getTime()
-            : new Date(previous.due).getTime();
-        const elapsed = Math.max(0, (now.getTime() - last) / 86400000);
-        const stability = previous.stability ?? 0;
-        // ~5x past stability is roughly below 70% retrievability.
-        if (stability <= 0 || elapsed < stability * 5) return;
-        const previousInterval = Math.max(1, previous.scheduled_days ?? 1);
-        const cap = Math.min(60, Math.ceil(previousInterval * 1.5));
-        if (scheduled.scheduled_days <= cap) return;
-        scheduled.scheduled_days = cap;
-        scheduled.due = new Date(now.getTime() + cap * 86400000);
-    }
-
     private async rate(rating: Rating, mixed = false): Promise<void> {
         const card = this.cards[this.index];
         if (!card) return;
@@ -1107,8 +442,20 @@ export class ReviewView extends ItemView {
         const fsrsCard: FsrsCard = card.fsrs ?? createEmptyCard();
         const now = new Date();
         const scheduling = scheduler.next(fsrsCard, now, rating as Grade);
-        this.shortenEarlyInterval(card, scheduling.card, now, rating);
-        this.capOverdueInterval(fsrsCard, scheduling.card, now, rating);
+        shortenEarlyInterval(
+            card.fsrs,
+            scheduling.card,
+            now,
+            rating,
+            this.plugin.settings.scaleEarlyReviews,
+        );
+        capOverdueInterval(
+            fsrsCard,
+            scheduling.card,
+            now,
+            rating,
+            this.plugin.settings.gapIntervalCap,
+        );
 
         const wasNew = !card.fsrs;
         card.fsrs = scheduling.card;
@@ -1128,7 +475,7 @@ export class ReviewView extends ItemView {
         // is usually distraction, not a missing memory, and must not keep the
         // failing run alive. One step past the budget is worth
         // `answerTimeSlowPoints` Hard points (0.5 by default).
-        const slowPoints = rating <= Rating.Hard ? this.recallPoints() : 0;
+        const slowPoints = rating <= Rating.Hard ? this.clocks.score() : 0;
         await this.plugin.reviews.append({
             cardId: card.id,
             at: card.updated,
@@ -1143,7 +490,7 @@ export class ReviewView extends ItemView {
         entry.reviewLog = { cardId: card.id, at: card.updated };
 
         if (card.childOf) {
-            const parent = await this.checkChild(card);
+            const parent = await this.childCards.checkChild(card);
             if (parent) entry.snapshots.push(parent);
         }
 
@@ -1153,42 +500,6 @@ export class ReviewView extends ItemView {
         this.revealed = false;
         this.cardShownAt = Date.now();
         this.render();
-    }
-
-    /**
-     * Keep a rating made before the due date honest.
-     *
-     * FSRS assumes the rating arrived when the card was scheduled; taken at
-     * face value, studying a 30-day card on day 3 would push it out as if it
-     * had just been reviewed on time. Subtracting the days gained early gives
-     * back what that unearned head start was worth, and the result is clamped
-     * so a card is never scheduled earlier than it already was.
-     *
-     * Only reviews of learned cards are touched: new and learning cards are
-     * scheduled in minutes, and an Again is a real failure whose shorter
-     * interval should stand.
-     */
-    private shortenEarlyInterval(
-        card: CardRecord,
-        scheduled: FsrsCard,
-        now: Date,
-        rating: Rating,
-    ): void {
-        if (!this.plugin.settings.scaleEarlyReviews) return;
-        const previous = card.fsrs;
-        if (!previous || previous.state !== State.Review) return;
-        if (rating === Rating.Again || scheduled.state !== State.Review) return;
-
-        const earlyDays = (new Date(previous.due).getTime() - now.getTime()) / 86400000;
-        if (earlyDays <= 0) return;
-
-        const fsrsDays = Math.max(1, scheduled.scheduled_days);
-        const honestDays = Math.max(earlyDays, fsrsDays - earlyDays);
-        const rounded = Math.max(1, Math.round(honestDays));
-        if (rounded >= fsrsDays) return;
-
-        scheduled.scheduled_days = rounded;
-        scheduled.due = new Date(now.getTime() + rounded * 86400000);
     }
 
     /**
@@ -1225,7 +536,7 @@ export class ReviewView extends ItemView {
         // is to read the card again and rate it differently.
         this.revealed = false;
         this.cardShownAt = Date.now();
-        this.clearAnswerTimeHint();
+        this.clocks.clearHint();
         this.render();
         new Notice(tt('Rating undone.'));
     }
@@ -1285,176 +596,22 @@ export class ReviewView extends ItemView {
 
     private reveal(): void {
         if (this.revealed) return;
-        // Freeze the answering time for the fast/slow nudge. The question clock
-        // may be a few hundred milliseconds stale, and its reset moves this.
-        this.answeredSeconds = this.questionStartedAt > 0
-            ? Math.max(0, Math.round((Date.now() - this.questionStartedAt) / 1000))
-            : 0;
-        // Memorising starts with the answer: a fresh clock, not the question
-        // count carried over. The question clock measured answering, which is a
-        // different thing and is never scored.
-        if (this.plugin.settings.answerTimeHint && !this.clockHidden) {
-            const card = this.cards[this.index];
-            const breakdown = this.recallBudget(card);
-            this.recall = { seconds: 0, ratio: 0, breakdown };
-            this.recallStartedAt = Date.now();
-        } else {
-            this.recall = null;
-            this.recallStartedAt = 0;
-        }
+        // Freeze the answering time for the fast/slow nudge, then start the
+        // answer-side clock: memorising starts with the answer.
+        this.clocks.freezeAnswered();
+        this.clocks.startOnReveal(this.cards[this.index]);
         this.revealed = true;
         this.render();
     }
 
-    /**
-     * How the recall went, on the answer side.
-     *
-     * The question side counts up; this is the same measurement, frozen and put
-     * next to the budget it was measured against, so the comparison is visible
-     * exactly when the answer appears instead of disappearing with the clock.
-     */
-    /**
-     * The answer side: a memory clock that starts with the answer.
-     *
-     * It is its own measurement - memorising the answer from the correct text -
-     * not the question-side count carried over. The badge appears as soon as the
-     * time passes the first slow step, so the price of the overtime is visible
-     * before the rating is given.
-     */
-    private renderMemorizeClock(host: HTMLElement, card: CardRecord): void {
-        const recall = this.recall;
-        if (!recall || !this.plugin.settings.answerTimeHint) return;
-        const { chip, timeEl, reset, hide } = this.createRecallPill(host);
-        chip.addClass('is-live');
-        setTooltip(chip, this.budgetTooltip(recall.breakdown));
-
-        const badge = chip.createSpan({ cls: 'fakecard-recall-badge' });
-        badge.hide();
-
-        const restart = this.runRecallClock(
-            chip,
-            timeEl,
-            recall.breakdown,
-            this.recallStartedAt || Date.now(),
-            'Recalling',
-            false,
-            recall.breakdown.seconds,
-            (ratio) => {
-                const points = this.pointsForRatio(ratio);
-                if (points > 0) {
-                    badge.setText(ttf('Too slow: +{points} Hard', { points: String(points) }));
-                    badge.show();
-                } else {
-                    badge.hide();
-                }
-                chip.toggleClass('is-over', points > 0);
-            },
-        );
-        reset.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.recallStartedAt = Date.now();
-            restart();
-        });
-        hide.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.hideClock();
-        });
-    }
-
-    /**
-     * The end of a session, with the two ways to keep going.
-     *
-     * They never appear together, because they mean different things: a card
-     * behind the daily limit is today's work (no interval scaling), a card that
-     * is not due yet is borrowed from the future (its interval is scaled).
-     */
+    /** The finish page's state: the page itself lives in `reviewDone`. */
     private renderDone(container: HTMLElement): void {
-        container.createEl('h2', { text: tt('Review finished') });
-        container.createEl('p', {
-            cls: 'fakecard-review-done-note',
-            text: this.cards.length === 0
-                // Nothing was due when the page was drawn (refresh, or the
-                // session ended and the queue came back empty).
-                ? tt('Nothing else is due today.')
-                : ttf('{count} card(s) in the library.', { count: this.total }),
+        this.donePage.render(container, {
+            emptyQueue: this.cards.length === 0,
+            total: this.total,
+            backlog: this.backlog,
+            buried: this.buried,
         });
-
-        // A buried card is not due and not behind the limit: say where it went,
-        // or the finish page reads as if the library lost it.
-        if (this.buried > 0) {
-            container.createEl('p', {
-                cls: 'fakecard-review-done-note',
-                text: ttf('{count} card(s) are buried until tomorrow.', { count: this.buried }),
-            });
-        }
-
-        const actions = container.createDiv({ cls: 'fakecard-review-done' });
-
-        if (this.backlog > 0) {
-            container.createEl('p', {
-                cls: 'fakecard-review-done-note',
-                text: ttf('{count} due card(s) are waiting behind the daily limit.', { count: this.backlog }),
-            });
-            const more = actions.createEl('button', {
-                cls: 'mod-cta fakecard-review-done-primary',
-                text: ttf('Study more today ({count} left)', { count: this.backlog }),
-            });
-            setTooltip(more, ttf(
-                'Today still has {count} due card(s) the daily limit cut off. Each press allows {step} more; they are due today, so intervals are not scaled.',
-                { count: this.backlog, step: this.plugin.boostStepSize() },
-            ));
-            more.addEventListener('click', () => {
-                this.plugin.boostReviewLimit();
-                void this.reload();
-            });
-        } else if (!this.plugin.settings.scaleEarlyReviews) {
-            // Study ahead without the interval correction would inflate the
-            // schedules of the very cards it borrows, so it stays off.
-            container.createEl('p', {
-                cls: 'fakecard-review-done-note',
-                text: tt('Study ahead is off: turn on interval scaling in Settings to use it.'),
-            });
-        } else {
-            const batch = Math.max(1, this.plugin.settings.aheadBatch);
-            const ahead = actions.createEl('button', {
-                cls: 'fakecard-review-done-primary',
-                text: ttf('Study {count} cards ahead', { count: batch }),
-            });
-            setTooltip(ahead, tt('Today is clear. These cards are not due yet; because they are early, a rating shortens the new interval by the days you gained early.'));
-            ahead.addEventListener('click', () => {
-                void this.startAhead();
-            });
-        }
-
-        const refresh = actions.createEl('button', {
-            cls: 'fakecard-review-done-refresh',
-            text: tt('Refresh'),
-        });
-        setTooltip(refresh, tt('Recompute today\'s queue. Only needed after adding or editing cards during the session.'));
-        refresh.addEventListener('click', () => {
-            // Same page, same buttons: without a trace of the click the button
-            // looks broken. The line below says what the fresh queue holds and
-            // fades on its own.
-            this.refreshedAt = Date.now();
-            void this.reload();
-        });
-
-        if (Date.now() - this.refreshedAt < 2500) {
-            container.createEl('p', {
-                cls: 'fakecard-review-done-flash',
-                text: this.backlog > 0
-                    ? ttf('Refreshed - {count} due card(s) are waiting.', { count: this.backlog })
-                    : this.buried > 0
-                        ? ttf('Refreshed - {count} card(s) are buried until tomorrow.', { count: this.buried })
-                        : tt('Refreshed - nothing else is due today.'),
-            });
-            // The flash is a receipt, not a state: drop it after a moment.
-            this.flashTimer = window.setTimeout(() => {
-                this.flashTimer = null;
-                this.refreshedAt = 0;
-                this.render();
-            }, 2500);
-        }
     }
 
     /**
@@ -1479,7 +636,7 @@ export class ReviewView extends ItemView {
 
     /**
      * Borrow a few cards from the future: not due yet, hardest first, and
-     * reviewed with the early-interval correction (see `shortenEarlyInterval`).
+     * reviewed with the early-interval correction (see `reviewSchedule`).
      */
     private async startAhead(): Promise<void> {
         if (!this.plugin.settings.scaleEarlyReviews) {
@@ -1517,12 +674,10 @@ export class ReviewView extends ItemView {
     }
 
     async onClose(): Promise<void> {
-        this.clearAnswerTimeHint();
+        this.clocks.clearHint();
+        this.donePage.cancelFlash();
+        this.hover.reset();
         this.cardRenderer.close();
-        if (this.flashTimer !== null) {
-            window.clearTimeout(this.flashTimer);
-            this.flashTimer = null;
-        }
         this.contentEl.empty();
     }
 }
