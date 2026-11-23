@@ -45,6 +45,8 @@ export class ReviewView extends ItemView {
     private cardShownAt = 0;
     /** Due cards the daily limit kept out of the current queue. */
     private backlog = 0;
+    /** Cards hidden until tomorrow by a bury. */
+    private buried = 0;
     /** Renders the card body (text, map, picture) and owns the zoom write. */
     private readonly cardRenderer: ReviewCardRenderer;
     /** When the finish page's refresh was last pressed, for its receipt line. */
@@ -172,6 +174,7 @@ export class ReviewView extends ItemView {
         this.decks = queue.decks;
         this.cards = queue.cards;
         this.backlog = queue.backlog;
+        this.buried = queue.buried;
         this.recovery = queue.recovery;
         // A new session has a new list; an entry from the old one would point
         // at a card that may no longer be in it.
@@ -283,6 +286,15 @@ export class ReviewView extends ItemView {
                 text: ttf('{count} more due', { count: this.backlog }),
             });
             setTooltip(badge, tt('These cards are due today; the daily limit kept them out of this session.'));
+        }
+        // A bury is invisible by design; the count is what keeps a card from
+        // looking lost. Shown next to the backlog because both are "not now".
+        if (!this.ahead && this.buried > 0) {
+            const badge = meta.createSpan({
+                cls: 'fakecard-review-buried',
+                text: ttf('{count} buried', { count: this.buried }),
+            });
+            setTooltip(badge, tt('Hidden until tomorrow; the schedule is unchanged.'));
         }
 
         const actions = bar.createDiv({ cls: 'fakecard-review-actions' });
@@ -1367,6 +1379,15 @@ export class ReviewView extends ItemView {
                 : ttf('{count} card(s) in the library.', { count: this.total }),
         });
 
+        // A buried card is not due and not behind the limit: say where it went,
+        // or the finish page reads as if the library lost it.
+        if (this.buried > 0) {
+            container.createEl('p', {
+                cls: 'fakecard-review-done-note',
+                text: ttf('{count} card(s) are buried until tomorrow.', { count: this.buried }),
+            });
+        }
+
         const actions = container.createDiv({ cls: 'fakecard-review-done' });
 
         if (this.backlog > 0) {
@@ -1423,7 +1444,9 @@ export class ReviewView extends ItemView {
                 cls: 'fakecard-review-done-flash',
                 text: this.backlog > 0
                     ? ttf('Refreshed - {count} due card(s) are waiting.', { count: this.backlog })
-                    : tt('Refreshed - nothing else is due today.'),
+                    : this.buried > 0
+                        ? ttf('Refreshed - {count} card(s) are buried until tomorrow.', { count: this.buried })
+                        : tt('Refreshed - nothing else is due today.'),
             });
             // The flash is a receipt, not a state: drop it after a moment.
             this.flashTimer = window.setTimeout(() => {

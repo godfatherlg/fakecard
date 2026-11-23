@@ -54,7 +54,7 @@ export async function buildQueueCounts(
     const learning = Math.min(due, waiting.filter((card) => card.fsrs
         && (card.fsrs.state === State.Learning || card.fsrs.state === State.Relearning)).length);
     const fresh = all
-        .filter((card) => !card.fsrs || card.fsrs.state === State.New)
+        .filter((card) => (!card.fsrs || card.fsrs.state === State.New) && !isBuried(card, now))
         .slice(0, plugin.settings.pauseNewWhenBacklogged && waiting.length > limit
             ? 0
             : Math.max(0, plugin.settings.newCardsPerDay
@@ -98,6 +98,8 @@ export interface ReviewQueue {
     fresh: number;
     /** Due cards the daily limit kept out of today's session. */
     backlog: number;
+    /** Cards hidden until tomorrow by a bury - not rescheduled, just held back. */
+    buried: number;
     /** Cards in this deck filter that could be scheduled at all. */
     total: number;
     /** Today's queue is ordered for coming back after a long gap. */
@@ -143,6 +145,10 @@ export async function buildReviewQueue(
         - todayLogs.filter((log) => log.wasNew).length);
 
     const now = Date.now();
+    // Buried cards stay in the library with their schedule untouched; the view
+    // tells how many are held back instead of leaving the user wondering where
+    // a card they saw a minute ago went.
+    const buried = all.filter((card) => isBuried(card, now)).length;
     const waiting = all
         .filter((card) => card.fsrs
             && card.fsrs.state !== State.New
@@ -188,7 +194,9 @@ export async function buildReviewQueue(
     const newAllowance = plugin.settings.pauseNewWhenBacklogged && behind ? 0 : remainingNew;
 
     const fresh = all
-        .filter((card) => !card.fsrs || card.fsrs.state === State.New)
+        // A bury works for new cards too: they are hidden until tomorrow like
+        // any other card the user put away for the day.
+        .filter((card) => (!card.fsrs || card.fsrs.state === State.New) && !isBuried(card, now))
         .sort((a, b) => a.created.localeCompare(b.created))
         .slice(0, newAllowance);
 
@@ -205,6 +213,7 @@ export async function buildReviewQueue(
         // Due cards the daily limit kept out of the session: they are today's
         // work, just not reached yet.
         backlog: waiting.length - due.length,
+        buried,
         total: all.length,
         recovery,
     };

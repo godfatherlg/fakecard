@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { State } from 'ts-fsrs';
 import type { CardRecord } from '../src/card';
-import { buildQueueCounts } from '../src/queue';
+import { buildQueueCounts, buildReviewQueue } from '../src/queue';
 
 const DAY = 86400000;
 
@@ -79,5 +79,56 @@ describe('queue counts', () => {
         const counts = await buildQueueCounts(plugin(mixed), 'other');
         expect(counts.fresh).toBe(1);
         expect(counts.due).toBe(0);
+    });
+
+    it('keeps a buried new card out of the fresh count', async () => {
+        const counts = await buildQueueCounts(plugin([
+            card('new', undefined),
+            card('buriedNew', undefined, { buriedUntil: new Date(Date.now() + DAY).toISOString() }),
+        ]));
+        expect(counts).toEqual({ due: 0, learning: 0, fresh: 1, backlog: 0 });
+    });
+});
+
+function reviewPlugin(cards: CardRecord[], settings: Partial<Record<string, unknown>> = {}) {
+    return {
+        settings: {
+            maxReviewsPerDay: 2,
+            newCardsPerDay: 3,
+            adaptiveDailyLoad: false,
+            pauseNewWhenBacklogged: false,
+            recoveryMode: false,
+            ...settings,
+        },
+        reviewLimitBoost: 0,
+        store: { list: async () => cards, loadDecks: async () => ['default'] },
+        reviews: { forDay: async () => [] },
+    } as never;
+}
+
+describe('review queue', () => {
+    const buriedUntil = new Date(Date.now() + DAY).toISOString();
+    const cards = [
+        card('due', { state: State.Review, due: past, last_review: past, stability: 5 }),
+        card('fresh', undefined),
+        card('buried', { state: State.Review, due: past, last_review: past, stability: 5 }, { buriedUntil }),
+        card('buriedNew', undefined, { buriedUntil }),
+    ];
+
+    it('keeps buried cards out of the session but counts them', async () => {
+        const queue = await buildReviewQueue(reviewPlugin(cards), 'all', { prune: false });
+        expect(queue.cards.map((entry) => entry.id)).toEqual(['due', 'fresh']);
+        expect(queue.buried).toBe(2);
+        expect(queue.total).toBe(4);
+    });
+
+    it('brings a bury back once its deadline has passed', async () => {
+        const yesterday = new Date(Date.now() - DAY).toISOString();
+        const woke = cards.map((entry) => (
+            entry.buriedUntil ? { ...entry, buriedUntil: yesterday } : entry
+        ));
+        const queue = await buildReviewQueue(reviewPlugin(woke), 'all', { prune: false });
+        expect(queue.buried).toBe(0);
+        expect(queue.cards.map((entry) => entry.id)).toEqual(['due', 'buried', 'fresh', 'buriedNew']);
     });
 });

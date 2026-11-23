@@ -1827,6 +1827,16 @@ body.theme-dark .fakecard-image-mask-label {
   color: var(--text-muted);
 }
 
+/* Badge in the toolbar while cards are buried until tomorrow. */
+.fakecard-review-buried {
+  font-size: 0.72em;
+  letter-spacing: 0.04em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-blue) 14%, transparent);
+  color: var(--text-muted);
+}
+
 /* Badge in the toolbar while cards are being studied ahead of schedule. */
 .fakecard-review-ahead {
   font-size: 0.72em;

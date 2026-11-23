@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, setTooltip } from 'obsidian';
 import { State } from 'ts-fsrs';
-import type { CardRecord } from './card';
+import { isBuried, type CardRecord } from './card';
 import { dayStreak, lastDays } from './reviews';
 import type { ReviewLog } from './reviews';
 import { tt, ttf } from './i18n';
@@ -158,6 +158,20 @@ export class StatsView extends ItemView {
             const chip = stateRow.createDiv({ cls: 'fakecard-stat-chip' });
             chip.createSpan({ cls: 'fakecard-stat-chip-value', text: String(states.get(state) ?? 0) });
             chip.createSpan({ cls: 'fakecard-stat-chip-label', text: tt(label) });
+        }
+
+        // --- Hidden from the queue ---
+        // A bury does not change the schedule, so buried cards still keep their
+        // state above; this count is what makes "All cards" reconcile with what
+        // the queue actually offers.
+        const buried = this.cards.filter((card) => isBuried(card)).length;
+        if (buried > 0) {
+            container.createEl('h3', { text: tt('Hidden from the queue') });
+            const hiddenRow = container.createDiv({ cls: 'fakecard-stats-states' });
+            const chip = hiddenRow.createDiv({ cls: 'fakecard-stat-chip' });
+            chip.createSpan({ cls: 'fakecard-stat-chip-value', text: String(buried) });
+            chip.createSpan({ cls: 'fakecard-stat-chip-label', text: tt('Buried') });
+            setTooltip(chip, tt('Hidden until tomorrow; the schedule is unchanged.'));
         }
 
         // --- Maturity (Anki style: < 21 days = young, >= 21 = mature) ---
