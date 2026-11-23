@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting } from 'obsidian';
+import { App, Modal, Notice, setTooltip, Setting } from 'obsidian';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
 import { clozeGroups, holeHint, renderClozeHtml, unwrapSelection, withHoleHint, wrapBlockLines, wrapSelection } from './cloze';
@@ -29,6 +29,8 @@ export class ClozePanelModal extends Modal {
     private historyTimer: number | null = null;
     private deckEl!: HTMLSelectElement;
     private tagsEl!: HTMLInputElement;
+    /** Preview side: show the words the masks are hiding. */
+    private showAnswers = false;
 
     constructor(
         app: App,
@@ -75,6 +77,7 @@ export class ClozePanelModal extends Modal {
             this.sourcePath,
             (text) => {
                 const group = this.currentGroup();
+                if (this.showAnswers) return renderClozeHtml(text, new Set<number>());
                 return renderClozeHtml(text, new Set([group]), group);
             },
         );
@@ -216,6 +219,15 @@ export class ClozePanelModal extends Modal {
 
         toolbar.createEl('button', { text: tt('Remove cloze') })
             .addEventListener('click', () => this.removeCloze());
+
+        // Same switch as the mind map panel: write the card from both sides.
+        const reveal = toolbar.createEl('button', { text: tt('Show answer'), attr: { type: 'button' } });
+        setTooltip(reveal, tt('Show the masked text in the preview'));
+        reveal.addEventListener('click', () => {
+            this.showAnswers = !this.showAnswers;
+            reveal.setText(this.showAnswers ? tt('Hide answer') : tt('Show answer'));
+            this.preview.show(this.text);
+        });
 
         if (this.card) {
             toolbar.createEl('button', { text: tt('↗ Edit in editor') })

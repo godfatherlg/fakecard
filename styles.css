@@ -2019,13 +2019,13 @@ body.theme-dark .fakecard-image-mask-label {
 
 /* The same blue a cloze hole uses: a mask is a mask, whatever the card type. */
 .fakecard-map-hole {
-  /* An empty inline box widened by padding (set by the view): no text, so
-     there is nothing to wrap, and no fixed height, so the line box is the
-     text's own. The background paints the padding area as the hole. */
+  /* Same shape as a cloze mask: inline text in brackets on a blue field. Text,
+     not a sized box, so it flows with the sentence and shares its line box. */
   display: inline;
-  padding: 0;
+  padding: 0 4px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--color-blue) 25%, transparent);
+  color: var(--text-normal);
   font-variant-numeric: tabular-nums;
 }
 

@@ -5,20 +5,6 @@ import type { OutlineNode } from './outline';
 import { splitNodeText } from './outline';
 
 /**
- * Width of a mask, in ems, for the words it hides.
- *
- * A CJK character is about one em wide, a Latin one about half. The hole is an
- * empty inline box widened by padding: it has no text to break, no fixed
- * height to raise the line, and it moves to the next line as one piece.
- */
-function maskedWidth(text: string): number {
-    const cjk = /[\u2e80-\u9fff\uac00-\ud7af\uff00-\uffef]/;
-    const width = Array.from(text)
-        .reduce((sum, char) => sum + (cjk.test(char) ? 1 : 0.5), 0);
-    return Math.max(0.5, width);
-}
-
-/**
  * A mind map drawn from an outline.
  *
  * Right-growing tree: depth runs left to right, each level starts after the
@@ -140,18 +126,11 @@ export async function renderMindmap(
                         // taller (blank space above and below); plain spaces
                         // keep the exact metrics of the surrounding text.
                         span.addClass('fakecard-map-hole');
-                        if (piece.hint) {
-                            // The note written for this hole is shown inside it,
-                            // exactly like a cloze hint.
-                            span.addClass('has-hint');
-                            span.setText(`[${piece.hint}]`);
-                        } else {
-                            const width = maskedWidth(piece.text);
-                            span.setCssStyles({
-                                paddingLeft: `${width / 2}em`,
-                                paddingRight: `${width / 2}em`,
-                            });
-                        }
+                        // Text inside the hole, not an empty box: a box with
+                        // padding and no content has no reliable metrics, and
+                        // this also matches what a cloze mask looks like.
+                        if (piece.hint) span.addClass('has-hint');
+                        span.setText(piece.hint ? `[${piece.hint}]` : '[___]');
                         if (options.onMaskClick) {
                             span.addClass('is-editable');
                             span.addEventListener('click', (event) => {
