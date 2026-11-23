@@ -33,6 +33,7 @@ export class MapPanelModal extends Modal {
         private sourcePath: string,
         private card?: CardRecord,
         initialText = '',
+        private onSaved?: () => void,
     ) {
         super(app);
         this.text = (card?.mapText ?? initialText) || '';
@@ -502,6 +503,7 @@ export class MapPanelModal extends Modal {
         }
         this.close();
         this.plugin.refreshStatusBar();
+        this.onSaved?.();
     }
 
     /**

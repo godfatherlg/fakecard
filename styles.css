@@ -1647,15 +1647,20 @@ body.theme-dark .fakecard-image-mask-label {
 
 .fakecard-browse-row {
   cursor: pointer;
-  /* Rows outside the viewport skip layout and paint; the table stays one DOM
-     tree, but a large library no longer renders every row it holds. */
-  content-visibility: auto;
-  contain-intrinsic-size: 34px;
 }
 
-.fakecard-browse-more {
-  display: block;
-  margin: 8px auto;
+/* The header stays put while the virtual rows change underneath it. */
+.fakecard-browse-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--background-primary);
+}
+
+/* Height carriers for rows that are not in the DOM. */
+.fakecard-browse-spacer td {
+  padding: 0;
+  border: 0;
 }
 
 .fakecard-browse-row:hover,

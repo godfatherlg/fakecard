@@ -19,7 +19,6 @@ import { ReviewCardRenderer } from './reviewRender';
 import { UndoStack, type UndoEntry } from './reviewUndo';
 import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
-import type { EditableField } from './tempEdit';
 import type FakeCardPlugin from '../main';
 
 export const REVIEW_VIEW_TYPE = 'fakecard-review';
@@ -962,16 +961,38 @@ export class ReviewView extends ItemView {
      * content is the picture and the masks drawn over it.
      */
     private async editTextInEditor(card: CardRecord): Promise<void> {
-        // A map has a panel of its own: a temp note cannot show masks, notes or
-        // the tree, so the map is edited where it is written.
+        // Every type is edited in the panel that created it: masks, notes and
+        // the map/picture stay visible, and the card is refreshed in place.
         if (card.type === 'map') {
-            new MapPanelModal(this.app, this.plugin, card.source.path, card).open();
+            new MapPanelModal(
+                this.app,
+                this.plugin,
+                card.source.path,
+                card,
+                '',
+                () => this.refreshCurrentCard(),
+            ).open();
             return;
         }
-        const field: EditableField = card.type === 'cloze'
-            ? 'clozeText'
-            : (this.revealed ? 'back' : 'front');
-        await this.plugin.tempEdit.open(card, field);
+        if (card.type === 'cloze') {
+            new ClozePanelModal(
+                this.app,
+                this.plugin,
+                card.source.path,
+                card,
+                undefined,
+                () => this.refreshCurrentCard(),
+            ).open();
+            return;
+        }
+        new QaPanelModal(
+            this.app,
+            this.plugin,
+            card.source.path,
+            card,
+            undefined,
+            () => this.refreshCurrentCard(),
+        ).open();
     }
 
     /**

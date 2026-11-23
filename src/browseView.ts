@@ -1,6 +1,7 @@
 import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setTooltip } from 'obsidian';
 import { isBuried, type CardRecord } from './card';
-import type { EditableField } from './tempEdit';
+import { ClozePanelModal } from './clozePanel';
+import { QaPanelModal } from './qaPanel';
 import { clozeGroups, renderClozeHtml } from './cloze';
 import { ConfirmDialog } from './confirm';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
@@ -27,14 +28,26 @@ export const BROWSE_VIEW_TYPE = 'fakecard-browse';
  * the text opens in Obsidian's own editor, so the card looks there exactly like
  * it will in review.
  */
-/** Rows rendered per page of the browse table. */
-const ROW_CHUNK = 300;
+/** Fallback height before a row has been measured. */
+const DEFAULT_ROW_HEIGHT = 40;
+/** Extra rows above and below the viewport, to make scrolling feel continuous. */
+const VIRTUAL_OVERSCAN = 8;
 
 export class BrowseView extends ItemView {
     private cards: CardRecord[] = [];
     private filtered: CardRecord[] = [];
-    /** How many rows of `filtered` are in the table right now. */
-    private rowLimit = ROW_CHUNK;
+    /** Rows as currently sorted; invalidated when the filter or sort changes. */
+    private rowsCache: CardRecord[] | null = null;
+    /** Measured row heights, and the prefix sums built from them. */
+    private rowHeights = new Map<string, number>();
+    private rowOffsets: number[] | null = null;
+    /** The table parts the scroll window replaces, and its scroll container. */
+    private listEl: HTMLElement | null = null;
+    private tbodyEl: HTMLElement | null = null;
+    private theadEl: HTMLElement | null = null;
+    private virtualFrame: number | null = null;
+    /** One corrective pass after measured heights change. */
+    private adjustingHeights = false;
     /** Typing coalesces into one filter pass. */
     private filterTimer: number | null = null;
     private selectedId: string | null = null;
@@ -84,6 +97,34 @@ export class BrowseView extends ItemView {
         const key = this.sortKey;
         const direction = this.sortAsc ? 1 : -1;
         return [...this.filtered].sort((a, b) => direction * compareCards(a, b, key));
+    }
+
+    private rows(): CardRecord[] {
+        this.rowsCache ??= this.sortedRows();
+        return this.rowsCache;
+    }
+
+    /** Rebuild prefix sums after a measurement pass or a filter change. */
+    private ensureOffsets(rows: readonly CardRecord[]): number[] {
+        if (this.rowOffsets && this.rowOffsets.length === rows.length + 1) return this.rowOffsets;
+        const offsets = [0];
+        for (const card of rows) {
+            offsets.push(offsets[offsets.length - 1] + (this.rowHeights.get(card.id) ?? DEFAULT_ROW_HEIGHT));
+        }
+        this.rowOffsets = offsets;
+        return offsets;
+    }
+
+    /** Largest row index whose top is at or above `y`. */
+    private rowAt(offsets: readonly number[], y: number): number {
+        let low = 0;
+        let high = offsets.length - 2;
+        while (low < high) {
+            const mid = Math.ceil((low + high) / 2);
+            if (offsets[mid] <= y) low = mid;
+            else high = mid - 1;
+        }
+        return low;
     }
 
     /** `MM-DD` for a scheduled card, a dash for one that never ran. */
@@ -240,9 +281,11 @@ export class BrowseView extends ItemView {
     }
 
     private applyFilter(resetRows = false): void {
-        // Only a new query starts from the first page; a reload after a bulk
-        // action keeps the pages the user had already opened.
-        if (resetRows) this.rowLimit = ROW_CHUNK;
+        // Only a new query starts at the top; a reload after a bulk action
+        // keeps the reader's place.
+        this.rowsCache = null;
+        this.rowOffsets = null;
+        if (resetRows) this.rowHeights.clear();
         const context: SearchContext = {
             ratedAgo: this.ratedAgo,
             orphanIds: this.orphanIds,
@@ -255,7 +298,7 @@ export class BrowseView extends ItemView {
         if (!this.filtered.some((card) => card.id === this.selectedId)) {
             this.selectedId = this.filtered[0]?.id ?? null;
         }
-        this.render();
+        this.render(resetRows);
     }
 
     /**
@@ -271,9 +314,7 @@ export class BrowseView extends ItemView {
         this.selectedId = cardId;
         this.previewRevealed = false;
         void this.reload().then(() => {
-            this.contentEl
-                .querySelector<HTMLElement>(`[data-card-id="${cardId}"]`)
-                ?.scrollIntoView({ block: 'center' });
+            this.scrollToCard(cardId);
         });
     }
 
@@ -412,12 +453,15 @@ export class BrowseView extends ItemView {
         menu.showAtPosition({ x: rect.left, y: rect.bottom + 4 });
     }
 
-    private render(): void {
+    private render(resetScroll = false): void {
         const container = this.contentEl;
         container.addClass('fakecard-browse');
         if (!this.shell) this.buildShell(container);
         const shell = this.shell;
         if (!shell) return;
+        // A repaint (selecting a row, ticking a box) keeps the reader's place;
+        // only a new query or sort starts at the top.
+        const previousScroll = resetScroll ? 0 : (this.listEl?.scrollTop ?? 0);
 
         // The field is never rebuilt, so a keystroke keeps its caret and its
         // input method to itself. Only a query set from outside (a chip, the
@@ -438,6 +482,14 @@ export class BrowseView extends ItemView {
         this.renderChips(shell.chips);
         this.renderSelection(shell.selection);
         this.renderBody(shell.body);
+        if (this.listEl) {
+            // The new tbody is empty, so scrollTop would clamp to 0 if it were
+            // set first. Fill the top window, then restore the old offset (the
+            // spacers now give the list its full height) and draw that window.
+            this.renderVirtualRows();
+            this.listEl.scrollTop = previousScroll;
+            this.renderVirtualRows();
+        }
         this.renderSuggestions(shell.suggest);
     }
 
@@ -615,6 +667,83 @@ export class BrowseView extends ItemView {
         });
     }
 
+    /** Fill the table with the rows around the current scroll position. */
+    private renderVirtualRows(): void {
+        const list = this.listEl;
+        const tbody = this.tbodyEl;
+        if (!list || !tbody) return;
+
+        const rows = this.rows();
+        if (rows.length === 0) {
+            tbody.empty();
+            return;
+        }
+        const offsets = this.ensureOffsets(rows);
+        const header = this.theadEl?.getBoundingClientRect().height ?? 0;
+        const top = Math.max(0, list.scrollTop - header);
+        const viewport = list.clientHeight || DEFAULT_ROW_HEIGHT * 20;
+        const start = Math.max(0, this.rowAt(offsets, top) - VIRTUAL_OVERSCAN);
+        const end = Math.min(rows.length,
+            this.rowAt(offsets, top + viewport) + 1 + VIRTUAL_OVERSCAN);
+
+        tbody.empty();
+        this.addSpacer(tbody, offsets[start]);
+        for (let index = start; index < end; index++) {
+            tbody.appendChild(this.createRow(rows[index]));
+        }
+        this.addSpacer(tbody, offsets[rows.length] - offsets[end]);
+        this.measureRows(rows, start, end);
+    }
+
+    private addSpacer(tbody: HTMLElement, height: number): void {
+        if (height <= 0) return;
+        const row = tbody.createEl('tr', { cls: 'fakecard-browse-spacer' });
+        const cell = row.createEl('td');
+        cell.setAttr('colspan', '6');
+        cell.setCssProps({ height: `${Math.round(height)}px` });
+    }
+
+    /** Keep the measured offset table in sync with what the rows really are. */
+    private measureRows(rows: readonly CardRecord[], start: number, end: number): void {
+        const tbody = this.tbodyEl;
+        if (!tbody) return;
+        let changed = false;
+        for (let index = start; index < end; index++) {
+            const row = tbody.querySelector<HTMLElement>(`tr[data-card-id="${rows[index].id}"]`);
+            if (!row) continue;
+            const height = row.getBoundingClientRect().height;
+            if (height <= 0) continue;
+            const known = this.rowHeights.get(rows[index].id);
+            if (known === undefined || Math.abs(known - height) > 0.5) {
+                this.rowHeights.set(rows[index].id, height);
+                changed = true;
+            }
+        }
+        if (!changed || this.adjustingHeights) return;
+        // The spacers were built from defaults; one pass with the real heights
+        // fixes the scrollbar and the visible slice. It settles immediately.
+        this.adjustingHeights = true;
+        this.rowOffsets = null;
+        window.requestAnimationFrame(() => {
+            this.adjustingHeights = false;
+            this.renderVirtualRows();
+        });
+    }
+
+    /** Bring a card's row into the window (badge links, parent jumps). */
+    private scrollToCard(cardId: string): void {
+        const rows = this.rows();
+        const at = rows.findIndex((card) => card.id === cardId);
+        if (at < 0 || !this.listEl) return;
+        const offsets = this.ensureOffsets(rows);
+        const header = this.theadEl?.getBoundingClientRect().height ?? 0;
+        this.listEl.scrollTop = Math.max(0, offsets[at] - header);
+        this.renderVirtualRows();
+        this.tbodyEl
+            ?.querySelector<HTMLElement>(`tr[data-card-id="${cardId}"]`)
+            ?.scrollIntoView({ block: 'center' });
+    }
+
     /** One table row, built the same way on the first page and on every later one. */
     private createRow(card: CardRecord): HTMLElement {
         const row = createEl('tr', { cls: 'fakecard-browse-row' });
@@ -679,6 +808,10 @@ export class BrowseView extends ItemView {
     private renderBody(host: HTMLElement): void {
         host.empty();
         const body = host;
+        // The old table is gone; these refs must not point at a detached one.
+        this.listEl = null;
+        this.tbodyEl = null;
+        this.theadEl = null;
 
         // Left: table.
         const listEl = body.createDiv({ cls: 'fakecard-browse-list' });
@@ -686,7 +819,8 @@ export class BrowseView extends ItemView {
             listEl.createEl('p', { text: tt('No card matches.') });
         } else {
             const table = listEl.createEl('table', { cls: 'fakecard-browse-table' });
-            const head = table.createEl('tr');
+            const thead = table.createTHead();
+            const head = thead.insertRow();
             head.createEl('th', { text: '' });
             // Every column sorts: click once for ascending, again to reverse.
             // A second click is also how the default order comes back.
@@ -705,7 +839,10 @@ export class BrowseView extends ItemView {
                         this.sortKey = key;
                         this.sortAsc = true;
                     }
-                    this.render();
+                    this.rowsCache = null;
+                    this.rowOffsets = null;
+                    this.rowHeights.clear();
+                    this.render(true);
                 });
             };
             // The front is the text you search by, not something to reorder by:
@@ -716,27 +853,19 @@ export class BrowseView extends ItemView {
             addSortable('Reviews', 'reviews');
             addSortable('Due', 'due');
 
-            // The table is filled in chunks: a library with thousands of cards
-            // should not build thousands of rows before the first paint.
-            const rows = this.sortedRows();
-            for (const card of rows.slice(0, this.rowLimit)) {
-                table.appendChild(this.createRow(card));
-            }
-            if (rows.length > this.rowLimit) {
-                const more = listEl.createEl('button', { cls: 'fakecard-browse-more' });
-                const label = (): string => ttf('Show {count} more of {total}', {
-                    count: Math.min(ROW_CHUNK, rows.length - this.rowLimit),
-                    total: rows.length,
+            const tbody = table.createTBody();
+            this.listEl = listEl;
+            this.theadEl = thead;
+            this.tbodyEl = tbody;
+            // The table only holds the rows around the viewport; spacers keep
+            // the scrollbar the height of the whole result.
+            listEl.addEventListener('scroll', () => {
+                if (this.virtualFrame !== null) return;
+                this.virtualFrame = window.requestAnimationFrame(() => {
+                    this.virtualFrame = null;
+                    this.renderVirtualRows();
                 });
-                more.setText(label());
-                more.addEventListener('click', () => {
-                    const next = rows.slice(this.rowLimit, this.rowLimit + ROW_CHUNK);
-                    this.rowLimit += next.length;
-                    for (const card of next) table.appendChild(this.createRow(card));
-                    if (this.rowLimit >= rows.length) more.remove();
-                    else more.setText(label());
-                });
-            }
+            });
         }
 
         // Right: preview + actions.
@@ -825,22 +954,31 @@ export class BrowseView extends ItemView {
             void this.saveMeta(selected, { tags: parseTags(tagsInput.value) });
         });
 
-        // The text itself is edited in Obsidian's own editor, one button per
-        // field: live preview, links, math - everything a note gets.
+        // Every card type opens its own editor panel: masks, notes, the tree
+        // and the picture are all visible while editing, instead of raw
+        // {{c1::...}} text in a temporary note.
         const editors = previewEl.createDiv({ cls: 'fakecard-browse-editors' });
-        const addEditor = (field: EditableField, label: string, line?: number): void => {
-            editors.createEl('button', { text: label }).addEventListener('click', () => {
-                void this.plugin.tempEdit.open(selected, field, line);
-            });
-        };
         if (selected.type === 'cloze') {
-            addEditor('clozeText', tt('✎ Edit cloze text'));
+            editors.createEl('button', { text: tt('✎ Edit cloze text') }).addEventListener('click', () => {
+                new ClozePanelModal(
+                    this.app,
+                    this.plugin,
+                    selected.source.path,
+                    selected,
+                    undefined,
+                    () => { void this.reload(); },
+                ).open();
+            });
         } else if (selected.type === 'map') {
-            // The map is edited in its own panel, the same one that creates it:
-            // a temp note shows `{{c1::...}}` as raw text, which cannot show a
-            // mask, its note, or the shape of the map while it is being edited.
             editors.createEl('button', { text: tt('✎ Edit mind map') }).addEventListener('click', () => {
-                new MapPanelModal(this.app, this.plugin, selected.source.path, selected).open();
+                new MapPanelModal(
+                    this.app,
+                    this.plugin,
+                    selected.source.path,
+                    selected,
+                    '',
+                    () => { void this.reload(); },
+                ).open();
             });
         } else if (selected.type === 'image') {
             // Only the masks are real content: `front`/`back` are `![[image]]`
@@ -865,8 +1003,16 @@ export class BrowseView extends ItemView {
                 ).open();
             });
         } else {
-            addEditor('front', tt('✎ Edit question'));
-            addEditor('back', tt('✎ Edit answer'));
+            editors.createEl('button', { text: tt('✎ Edit Q&A') }).addEventListener('click', () => {
+                new QaPanelModal(
+                    this.app,
+                    this.plugin,
+                    selected.source.path,
+                    selected,
+                    undefined,
+                    () => { void this.reload(); },
+                ).open();
+            });
         }
 
         this.renderCardPreview(previewEl, selected);
@@ -1012,6 +1158,11 @@ export class BrowseView extends ItemView {
     async onClose(): Promise<void> {
         if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
         this.filterTimer = null;
+        if (this.virtualFrame !== null) window.cancelAnimationFrame(this.virtualFrame);
+        this.virtualFrame = null;
+        this.listEl = null;
+        this.tbodyEl = null;
+        this.theadEl = null;
         this.contentEl.empty();
         // The leaf may be reopened on this same instance: the shell's nodes went
         // with the content, so the next render has to build it again.

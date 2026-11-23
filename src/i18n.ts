@@ -549,6 +549,7 @@ const UI_ZH: Record<string, string> = {
     '✎ Edit question': '✎ 编辑题目',
     '✎ Edit answer': '✎ 编辑答案',
     '✎ Edit cloze text': '✎ 编辑填空正文',
+    '✎ Edit Q&A': '✎ 编辑问答',
 
     '🗑 Delete': '🗑 删除',
     'Delete this card?': '删除这张卡片？',
