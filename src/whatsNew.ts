@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.42';
+export const WHATS_NEW_VERSION = '1.0.43';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -26,7 +26,7 @@ interface WhatsNewEntry {
 const WHATS_NEW: WhatsNewEntry[] = [
     {
         en: 'A map now masks every group, like a cloze card: the group being asked keeps the blue accent and the others are neutral. Review follows the same "Mask all groups" setting, so the two card types behave alike.',
-        zh: '导图现在和 cloze 一样把**所有组**都挖空：所问组蓝色，其他组灰色。复习也遵循同一个「正面挖空所有分组」设置，两种卡型行为一致。',
+        zh: '导图现在和 cloze 一样把所有组都挖空：所问组蓝色，其他组灰色。复习也遵循同一个「正面挖空所有分组」设置，两种卡型行为一致。',
     },
     {
         en: 'Switching c1 / c2 / c3 centres on the node that group actually asks, and the map no longer swallows the wheel at its edges - once the content ends, the panel scrolls so deck, tags and Save can be reached.',
