@@ -483,20 +483,22 @@ export class MapPanelModal extends Modal {
         }
 
         if (this.card) {
-            await this.plugin.syncMapGroup(this.card, text);
+            if (!await this.plugin.syncMapGroup(this.card, text)) return;
             // Deck and tags belong to the whole map: setting them on this card
             // alone left the other groups of the same map on the old values.
-            await this.plugin.applyMapMeta(this.card, this.deck, parseTags(this.tags));
+            if (!await this.plugin.applyMapMeta(this.card, this.deck, parseTags(this.tags))) return;
         } else {
             const cards = this.plugin.createMapCards(text, this.sourcePath, undefined, this.deck);
             const tags = parseTags(this.tags);
             const groupId = `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            let saved = 0;
             for (const card of cards) {
                 card.mapGroupId = groupId;
                 card.tags = tags;
-                await this.plugin.store.save(card);
+                if (await this.plugin.store.save(card)) saved++;
             }
-            new Notice(ttf('Saved {count} map card(s).', { count: cards.length }));
+            if (saved === 0) return;
+            new Notice(ttf('Saved {count} map card(s).', { count: saved }));
         }
         this.close();
         this.plugin.refreshStatusBar();

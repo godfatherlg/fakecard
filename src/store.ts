@@ -4,6 +4,15 @@ import { ttf } from './i18n';
 
 export const DEFAULT_LIBRARY_FOLDER = 'fakecard';
 
+/** One Notice for a run of failures (an import can fail many files at once). */
+let lastSaveNoticeAt = 0;
+function saveFailedNotice(message: string): void {
+    const now = Date.now();
+    if (now - lastSaveNoticeAt < 4000) return;
+    lastSaveNoticeAt = now;
+    new Notice(message);
+}
+
 /**
  * Cards live in a plain folder inside the vault:
  *
@@ -88,7 +97,8 @@ export class CardStore {
         await this.app.vault.createFolder(path);
     }
 
-    async save(card: CardRecord): Promise<void> {
+    /** True when the card reached the vault; false is already explained to the user. */
+    async save(card: CardRecord): Promise<boolean> {
         try {
             await this.ensure();
             const path = normalizePath(`${this.cardsFolder}/${card.id}.json`);
@@ -107,16 +117,17 @@ export class CardStore {
                 if (at >= 0) this.cached[at] = card;
                 else this.cached.push(card);
             }
+            return true;
         } catch (error) {
             console.error('fakecard: could not save the card', card.id, error);
-            new Notice(ttf('Could not save the card: {message}', {
+            saveFailedNotice(ttf('Could not save the card: {message}', {
                 message: error instanceof Error ? error.message : String(error),
             }));
-            throw error;
+            return false;
         }
     }
 
-    async remove(id: string): Promise<void> {
+    async remove(id: string): Promise<boolean> {
         try {
             const path = normalizePath(`${this.cardsFolder}/${id}.json`);
             this.writing.add(path);
@@ -124,12 +135,13 @@ export class CardStore {
             if (file instanceof TFile) await this.app.fileManager.trashFile(file);
             this.unindexCard(id);
             if (this.cached) this.cached = this.cached.filter((entry) => entry.id !== id);
+            return true;
         } catch (error) {
             console.error('fakecard: could not remove the card', id, error);
-            new Notice(ttf('Could not delete the card: {message}', {
+            saveFailedNotice(ttf('Could not delete the card: {message}', {
                 message: error instanceof Error ? error.message : String(error),
             }));
-            throw error;
+            return false;
         }
     }
 

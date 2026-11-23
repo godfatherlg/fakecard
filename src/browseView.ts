@@ -191,8 +191,7 @@ export class BrowseView extends ItemView {
             if (!card || Boolean(card.suspended) === suspended) continue;
             card.suspended = suspended;
             card.updated = new Date().toISOString();
-            await this.plugin.store.save(card);
-            changed++;
+            if (await this.plugin.store.save(card)) changed++;
         }
         if (changed > 0) {
             new Notice(suspended
@@ -215,8 +214,7 @@ export class BrowseView extends ItemView {
             if (buried) card.buriedUntil = end.toISOString();
             else delete card.buriedUntil;
             card.updated = new Date().toISOString();
-            await this.plugin.store.save(card);
-            changed++;
+            if (await this.plugin.store.save(card)) changed++;
         }
         if (changed > 0) {
             new Notice(buried
@@ -229,14 +227,15 @@ export class BrowseView extends ItemView {
 
     private async moveChecked(deck: string): Promise<void> {
         const all = await this.plugin.store.list();
+        let moved = 0;
         for (const id of this.checked) {
             const card = all.find((entry) => entry.id === id);
             if (!card) continue;
             card.deck = deck;
-            await this.plugin.store.save(card);
+            if (await this.plugin.store.save(card)) moved++;
         }
         this.checked.clear();
-        new Notice(tt('Cards moved.'));
+        if (moved > 0) new Notice(ttf('{count} card(s) moved.', { count: moved }));
         await this.reload();
     }
 
@@ -602,9 +601,14 @@ export class BrowseView extends ItemView {
                 ttf('Delete {count} card(s)?', { count: this.checked.size }),
                 tt('Delete'),
                 async () => {
-                    for (const id of this.checked) await this.plugin.store.remove(id);
+                    let removed = 0;
+                    for (const id of this.checked) {
+                        if (await this.plugin.store.remove(id)) removed++;
+                    }
                     this.checked.clear();
-                    new Notice(tt('Cards deleted.'));
+                    if (removed > 0) {
+                        new Notice(ttf('{count} card(s) deleted.', { count: removed }));
+                    }
                     await this.reload();
                 },
             ).open();
@@ -763,7 +767,7 @@ export class BrowseView extends ItemView {
                 `${tt('Delete this card?')}\n\n${selected.front.slice(0, 120)}`,
                 tt('Delete'),
                 async () => {
-                    await this.plugin.store.remove(selected.id);
+                    if (!await this.plugin.store.remove(selected.id)) return;
                     new Notice(tt('Card deleted.'));
                     await this.reload();
                 },

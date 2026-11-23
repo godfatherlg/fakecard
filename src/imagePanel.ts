@@ -637,8 +637,12 @@ export class ImagePanelModal extends Modal {
         }
 
         if (!this.card) {
-            for (const card of cards) await this.plugin.store.save(card);
-            new Notice(ttf('Saved {count} image card(s).', { count: cards.length }));
+            let saved = 0;
+            for (const card of cards) {
+                if (await this.plugin.store.save(card)) saved++;
+            }
+            if (saved === 0) return;
+            new Notice(ttf('Saved {count} image card(s).', { count: saved }));
             this.close();
             this.onSaved?.();
             return;

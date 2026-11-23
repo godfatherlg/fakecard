@@ -532,6 +532,10 @@ const UI_ZH: Record<string, string> = {
     'Child': '子卡',
     'Orphan': '孤儿',
     'Cards moved.': '卡片已移动。',
+    '{count} card(s) moved.': '已移动 {count} 张卡片。',
+    '{count} card(s) deleted.': '已删除 {count} 张卡片。',
+    'Saved {saved} of {total} cards - see the console for the rest.':
+        '已保存 {saved} / {total} 张卡，其余见控制台。',
     'Search… (deck:deckname tag:tag is:due is:child -tag:x prop:due<7)': '搜索…（deck:牌组名 tag:标签 is:due is:child -tag:x prop:due<7）',
     '{count} selected': '已选 {count} 张',
     'Move to…': '移动到…',

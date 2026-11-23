@@ -1119,9 +1119,10 @@ export default class FakeCardPlugin extends Plugin {
      * text of the one being edited.
      */
     /** Deck and tags are properties of the whole map, not of one of its cards. */
-    async applyMapMeta(card: CardRecord, deck: string, tags: string[]): Promise<void> {
+    async applyMapMeta(card: CardRecord, deck: string, tags: string[]): Promise<boolean> {
         const all = await this.store.list();
         const groupId = card.mapGroupId;
+        let ok = true;
         for (const entry of all) {
             if (entry.type !== 'map') continue;
             const sameMap = groupId ? entry.mapGroupId === groupId : entry.id === card.id;
@@ -1129,11 +1130,13 @@ export default class FakeCardPlugin extends Plugin {
             entry.deck = deck;
             entry.tags = [...tags];
             entry.updated = new Date().toISOString();
-            await this.store.save(entry);
+            if (!await this.store.save(entry)) ok = false;
         }
+        return ok;
     }
 
-    async syncMapGroup(card: CardRecord, mapText: string): Promise<void> {
+    async syncMapGroup(card: CardRecord, mapText: string): Promise<boolean> {
+        let ok = true;
         const all = await this.store.list();
         const groupId = card.mapGroupId;
         const siblings = all.filter((entry) => entry.type === 'map'
@@ -1150,7 +1153,7 @@ export default class FakeCardPlugin extends Plugin {
                 existing.front = plain;
                 existing.back = plain;
                 existing.updated = now;
-                await this.store.save(existing);
+                if (!await this.store.save(existing)) ok = false;
                 continue;
             }
             const [fresh] = this.createMapCards(mapText, card.source.path, undefined, card.deck)
@@ -1158,13 +1161,14 @@ export default class FakeCardPlugin extends Plugin {
             if (!fresh) continue;
             fresh.mapGroupId = groupId ?? card.id;
             fresh.tags = [...card.tags];
-            await this.store.save(fresh);
+            if (!await this.store.save(fresh)) ok = false;
         }
 
         for (const sibling of siblings) {
             if (wanted.includes(sibling.mapGroup ?? 1)) continue;
-            await this.store.remove(sibling.id);
+            if (!await this.store.remove(sibling.id)) ok = false;
         }
+        return ok;
     }
 
     createCards(draft: CardDraft, sourcePath: string): CardRecord[] {
@@ -1174,7 +1178,7 @@ export default class FakeCardPlugin extends Plugin {
         return [this.createQaCard(draft.front, draft.back, sourcePath, 'default', draft.heading)];
     }
 
-    async syncClozeGroup(card: CardRecord, clozeText: string): Promise<void> {
+    async syncClozeGroup(card: CardRecord, clozeText: string): Promise<boolean> {
         return syncClozeGroupImpl(this, card, clozeText);
     }
 }

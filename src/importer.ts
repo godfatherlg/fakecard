@@ -189,9 +189,8 @@ export async function importCardJson(plugin: FakeCardPlugin, jsonText: string): 
                     const snapshot = findSourceSnapshot(content, card);
                     if (snapshot) card.source.snapshot = snapshot;
                 }
-                await plugin.store.save(card);
+                if (await plugin.store.save(card)) count++;
             }
-            count += cards.length;
         } else if (type === 'map') {
             const mapText = asText(raw.mapText ?? raw.front).trim();
             if (!mapText) continue;
@@ -200,16 +199,16 @@ export async function importCardJson(plugin: FakeCardPlugin, jsonText: string): 
             for (const card of cards) {
                 card.mapGroupId = groupId;
                 if (Array.isArray(raw.tags)) card.tags = raw.tags.map((tag) => asText(tag)).filter(Boolean);
-                await plugin.store.save(card);
+                if (await plugin.store.save(card)) count++;
             }
-            count += cards.length;
         } else if (type === 'image') {
             const image = raw.image as { path?: unknown; groups?: unknown } | undefined;
             const path = typeof image?.path === 'string' ? image.path : '';
             if (!path || !Array.isArray(image?.groups)) continue;
             const cards = plugin.createImageCards(image as unknown as CardImage, sourcePath);
-            for (const card of cards) await plugin.store.save(card);
-            count += cards.length;
+            for (const card of cards) {
+                if (await plugin.store.save(card)) count++;
+            }
         } else {
             const front = asText(raw.front ?? raw.question).trim();
             const back = asText(raw.back ?? raw.answer).trim();
@@ -222,8 +221,7 @@ export async function importCardJson(plugin: FakeCardPlugin, jsonText: string): 
                 const snapshot = findSourceSnapshot(content, card);
                 if (snapshot) card.source.snapshot = snapshot;
             }
-            await plugin.store.save(card);
-            count++;
+            if (await plugin.store.save(card)) count++;
         }
     }
     return count;

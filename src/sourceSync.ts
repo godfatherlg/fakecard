@@ -18,7 +18,8 @@ export async function syncClozeGroup(
     plugin: FakeCardPlugin,
     card: CardRecord,
     clozeText: string,
-): Promise<void> {
+): Promise<boolean> {
+    let ok = true;
     const normalized = clozeText.includes('{{c')
         ? clozeText
         : clozeText.replace(/==([^=]+)==/g, (_m, inner: string) => `{{c1::${inner}}}`);
@@ -43,9 +44,9 @@ export async function syncClozeGroup(
             existing.front = renderCloze(normalized, new Set([group]));
             existing.back = fullText;
             existing.updated = now;
-            await plugin.store.save(existing);
+            if (!await plugin.store.save(existing)) ok = false;
         } else {
-            await plugin.store.save({
+            if (!await plugin.store.save({
                 id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                 type: 'cloze',
                 deck: card.deck,
@@ -58,7 +59,7 @@ export async function syncClozeGroup(
                 tags: [],
                 created: now,
                 updated: now,
-            });
+            })) ok = false;
         }
     }
 
@@ -68,5 +69,8 @@ export async function syncClozeGroup(
         .filter(([group]) => !groups.includes(group))
         .map(([, entry]) => entry);
     await backupCards(plugin, removed, 'sync-removed');
-    for (const entry of removed) await plugin.store.remove(entry.id);
+    for (const entry of removed) {
+        if (!await plugin.store.remove(entry.id)) ok = false;
+    }
+    return ok;
 }

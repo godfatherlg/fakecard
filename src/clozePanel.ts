@@ -524,16 +524,24 @@ export class ClozePanelModal extends Modal {
         if (this.card) {
             // Update every card that belongs to this cloze group (each group
             // is its own card with its own schedule).
-            await this.plugin.syncClozeGroup(this.card, text);
+            if (!await this.plugin.syncClozeGroup(this.card, text)) return;
             this.card.deck = deck;
             this.card.tags = tags;
-            await this.plugin.store.save(this.card);
+            if (!await this.plugin.store.save(this.card)) return;
         } else {
             const cards = this.plugin.createClozeCards(text, this.sourcePath, undefined, deck);
+            let saved = 0;
             for (const card of cards) {
                 card.tags = tags;
                 if (this.childOf) card.childOf = this.childOf;
-                await this.plugin.store.save(card);
+                if (await this.plugin.store.save(card)) saved++;
+            }
+            if (saved === 0) return;
+            if (saved < cards.length) {
+                new Notice(ttf('Saved {saved} of {total} cards - see the console for the rest.', {
+                    saved,
+                    total: cards.length,
+                }));
             }
         }
         new Notice(tt('Card saved.'));

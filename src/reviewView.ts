@@ -1241,9 +1241,7 @@ export class ReviewView extends ItemView {
         card.reviews = (card.reviews ?? 0) + 1;
         if (rating >= Rating.Good) card.correct = (card.correct ?? 0) + 1;
         card.updated = new Date().toISOString();
-        try {
-            await this.plugin.store.save(card);
-        } catch {
+        if (!await this.plugin.store.save(card)) {
             // The store already showed the reason. Put the card back where it
             // was and stay on it: advancing without a saved review would log a
             // rating the disk never received.

@@ -45,8 +45,11 @@ export async function cleanOrphans(plugin: FakeCardPlugin): Promise<void> {
     const path = normalizePath(`${dir}/orphans-${stamp}.json`);
     await plugin.app.vault.create(path, JSON.stringify(orphans, null, 2));
 
-    for (const card of orphans) await plugin.store.remove(card.id);
-    new Notice(ttf('Removed {count} orphan card(s). Backup: {path}', { count: orphans.length, path }));
+    let removed = 0;
+    for (const card of orphans) {
+        if (await plugin.store.remove(card.id)) removed++;
+    }
+    new Notice(ttf('Removed {count} orphan card(s). Backup: {path}', { count: removed, path }));
 }
 
 /** Remove graduated child cards (backed up first), keeping the parent. */
@@ -66,8 +69,11 @@ export async function cleanGraduated(plugin: FakeCardPlugin): Promise<void> {
     const path = normalizePath(`${dir}/graduated-${stamp}.json`);
     await plugin.app.vault.create(path, JSON.stringify(graduated, null, 2));
 
-    for (const card of graduated) await plugin.store.remove(card.id);
-    new Notice(ttf('Removed {count} graduated child card(s). Backup: {path}', { count: graduated.length, path }));
+    let removed = 0;
+    for (const card of graduated) {
+        if (await plugin.store.remove(card.id)) removed++;
+    }
+    new Notice(ttf('Removed {count} graduated child card(s). Backup: {path}', { count: removed, path }));
 }
 
 /** Write every card to a JSON file inside the library (backup/migration). */

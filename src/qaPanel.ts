@@ -186,7 +186,8 @@ export class QaPanelModal extends Modal {
                 card.deck = this.deckEl.value || card.deck;
                 card.tags = parseTags(this.tagsEl.value);
                 card.updated = new Date().toISOString();
-                void this.plugin.store.save(card).then(() => {
+                void this.plugin.store.save(card).then((saved) => {
+                    if (!saved) return;
                     this.close();
                     void this.plugin.tempEdit.open(card, field);
                 });
@@ -245,12 +246,12 @@ export class QaPanelModal extends Modal {
             this.card.deck = deck;
             this.card.tags = tags;
             this.card.updated = new Date().toISOString();
-            await this.plugin.store.save(this.card);
+            if (!await this.plugin.store.save(this.card)) return;
         } else {
             const card = this.plugin.createQaCard(front, back, this.sourcePath, deck);
             card.tags = tags;
             if (this.childOf) card.childOf = this.childOf;
-            await this.plugin.store.save(card);
+            if (!await this.plugin.store.save(card)) return;
         }
         new Notice(tt('Card saved.'));
         this.close();
