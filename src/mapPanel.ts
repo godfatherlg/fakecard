@@ -55,6 +55,8 @@ export class MapPanelModal extends Modal {
     private revealButton: HTMLButtonElement | null = null;
     /** The map has been painted once; the first paint is hidden until settled. */
     private painted = false;
+    /** The next draw centres on the current group instead of restoring a view. */
+    private recenter = false;
     /** Just applied a mask: ignore the mouseup that is still on its way. */
     private suppressSelectionUntil = 0;
 
@@ -140,7 +142,7 @@ export class MapPanelModal extends Modal {
             onShowView: () => {
                 // The map is being shown fresh: centre it, do not inherit the
                 // position the empty canvas had.
-                this.previewEl.dataset.view = '';
+                this.recenter = true;
                 this.drawPreview();
             },
             onShowEdit: () => {
@@ -226,7 +228,7 @@ export class MapPanelModal extends Modal {
             this.currentGroup = Number.parseInt(this.groupSelect.value, 10) || 1;
             // A group switch is a new question: centre that group's node instead
             // of keeping the view of the previous one.
-            this.previewEl.dataset.view = '';
+            this.recenter = true;
             this.schedulePreview();
         };
     }
@@ -251,13 +253,16 @@ export class MapPanelModal extends Modal {
         // it until then is what stops the layout flashing on open.
         const first = !this.painted;
         if (first) this.previewEl.addClass('is-laying-out');
+        const forceCenter = this.recenter;
+        this.recenter = false;
         void renderMindmap(this.previewEl, parseOutline(this.text), {
             maskGroups,
             highlightGroups: this.showAnswers ? new Set([group]) : undefined,
             maskSubtree: this.plugin.settings.mapMaskSubtree,
             // The view belongs to the user from here on; only entering the map
-            // stage (which clears the stored view) re-centres it.
+            // stage, or picking another group, re-centres it.
             autoCenter: false,
+            forceCenter,
             app: this.app,
             sourcePath: this.sourcePath,
             // No click-to-toggle here: a click must not repaint the map, or the

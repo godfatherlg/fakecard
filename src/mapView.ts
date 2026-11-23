@@ -24,6 +24,11 @@ export interface MapRenderOptions {
     highlightGroups?: ReadonlySet<number>;
     /** A fully masked node also hides its children. */
     maskSubtree: boolean;
+    /**
+     * Ignore the saved view for this render: centre on the question even when
+     * the host already carries a position from the previous one.
+     */
+    forceCenter?: boolean;
     /** When given, a node can be clicked - the panel uses it to toggle a mask. */
     onNodeClick?: (node: OutlineNode) => void;
     /** Called when a node is pressed, so the panel knows where a selection is. */
@@ -452,7 +457,9 @@ export async function renderMindmap(
     // user already had. In both cases a repaint must not move the map.
     const settle = (): void => {
         if (host.getBoundingClientRect().width === 0) return;
-        const saved = options.autoCenter === false ? host.dataset.view : undefined;
+        const saved = options.autoCenter === false && !options.forceCenter
+            ? host.dataset.view
+            : undefined;
         if (saved) {
             const [nextScale, nextX, nextY] = saved.split(',').map(Number);
             if ([nextScale, nextX, nextY].every((value) => Number.isFinite(value))) {
