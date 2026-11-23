@@ -2016,7 +2016,12 @@ body.theme-dark .fakecard-image-mask-label {
 
 /* The same blue a cloze hole uses: a mask is a mask, whatever the card type. */
 .fakecard-map-hole {
-  padding: 0 4px;
+  /* An inline block the width of the hidden words (set inline by the view), so
+     masking a word does not reflow the rest of the node onto new lines. */
+  display: inline-block;
+  height: 1em;
+  vertical-align: text-bottom;
+  padding: 0 1px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--color-blue) 25%, transparent);
   color: var(--text-normal);

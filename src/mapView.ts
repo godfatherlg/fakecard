@@ -117,9 +117,14 @@ export async function renderMindmap(
                     span.dataset.from = String(piece.from);
                     span.dataset.to = String(piece.to);
                     if (piece.masked) {
-                        // The answer must not be readable through the mask.
+                        // The answer must not be readable through the mask, and
+                        // the hole must not be wider than the words it hides:
+                        // `[___]` is five characters, so masking a two-character
+                        // word reflowed the whole node onto new lines.
                         span.addClass('fakecard-map-hole');
-                        span.setText('[___]');
+                        span.setCssStyles({
+                            width: `${Math.max(1, piece.text.length)}ch`,
+                        });
                         firstMasked ??= span;
                         continue;
                     }
