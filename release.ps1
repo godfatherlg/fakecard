@@ -25,7 +25,10 @@ param(
     # only place where "fresh install" bugs show up. Deploy there too, always.
     [string] $TestVault = 'F:\OBtest\test\.obsidian\plugins\fakecard',
     [int]    $TimeoutSeconds = 300,
-    [switch] $SkipVault
+    [switch] $SkipVault,
+    # Push the tag and return at once. The workflow keeps building; verify and
+    # deploy afterwards, so a slow asset host cannot hold the whole release.
+    [switch] $NoWait
 )
 
 # Native commands write progress to stderr; with 'Stop' PowerShell would treat
@@ -60,11 +63,23 @@ function Enable-SystemProxy {
 # direct attempt is the one that fails on a poisoned asset host.
 function Save-ReleaseAssets([string] $dir, [string] $version) {
     $patterns = @('--pattern', 'main.js', '--pattern', 'manifest.json', '--pattern', 'styles.css')
+    $gh = (Get-Command gh -ErrorAction SilentlyContinue).Source
+    if (-not $gh) { return $false }
     $attempt = 0
     while ($attempt -lt 2) {
         $attempt++
-        gh release download $version --repo $script:Repo @patterns --dir $dir --clobber 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) { return $true }
+        # gh has no timeout of its own; a stalled release-assets connection used
+        # to hang the whole release at the last step. 45s is far more than three
+        # small files need.
+        $argsList = @('release', 'download', $version, '--repo', $script:Repo, '--dir', $dir, '--clobber') + $patterns
+        $proc = Start-Process -FilePath $gh -ArgumentList $argsList -NoNewWindow -PassThru
+        $exited = $proc.WaitForExit(45000)
+        if (-not $exited) {
+            try { $proc.Kill() } catch { }
+            Write-Host "asset download timed out after 45s (attempt $attempt)" -ForegroundColor Yellow
+        } elseif ($proc.ExitCode -eq 0) {
+            return $true
+        }
         if ($attempt -eq 1 -and -not (Enable-SystemProxy)) { return $false }
     }
     return $false
@@ -124,6 +139,14 @@ Assert-Ok "git push $Branch"
 git push origin $next
 Assert-Ok "git push $next"
 
+if ($NoWait) {
+    Write-Host "`nTag $next pushed. The workflow builds in the background:" -ForegroundColor Green
+    Write-Host "  https://github.com/$Repo/actions/workflows/release.yml"
+    Write-Host "  https://github.com/$Repo/releases/tag/$next"
+    Write-Host "Verify and deploy once it turns green; this shell is free now." -ForegroundColor Green
+    exit 0
+}
+
 Step "Waiting for the Release workflow on tag $next"
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -158,13 +181,26 @@ if (-not $SkipVault) {
     Step "Deploying into the test vault ($TestVault)"
     if (-not (Test-Path -LiteralPath $TestVault)) {
         Write-Host "test vault not found, skipping: $TestVault" -ForegroundColor Yellow
-    } elseif (Save-ReleaseAssets $TestVault $next) {
-        Write-Host "installed into the test vault." -ForegroundColor Yellow
+    } else {
+        $mainManifest = Join-Path $Vault 'manifest.json'
+        $mainVersion = if (Test-Path -LiteralPath $mainManifest) {
+            (Get-Content $mainManifest -Raw -Encoding UTF8 | ConvertFrom-Json).version
+        } else { $null }
+        if ($mainVersion -eq $next) {
+            # The main vault already holds the verified assets; a second network
+            # download only adds another chance to stall at the end.
+            foreach ($file in 'main.js', 'manifest.json', 'styles.css') {
+                Copy-Item -LiteralPath (Join-Path $Vault $file) -Destination (Join-Path $TestVault $file) -Force
+            }
+            Write-Host "installed into the test vault from the main vault." -ForegroundColor Yellow
+        } elseif (Save-ReleaseAssets $TestVault $next) {
+            Write-Host "installed into the test vault." -ForegroundColor Yellow
+        } else {
+            Fail "could not place the assets into $TestVault - grab them by hand from https://github.com/$Repo/releases/tag/$next"
+        }
         Write-Host "NOW RELOAD THAT VAULT AND OPEN THE FAKECARD SETTINGS TAB:" -ForegroundColor Yellow
         Write-Host "  it must open instantly, and the 'what is new' dialog should" -ForegroundColor Yellow
         Write-Host "  appear once (it is skipped when data.json has no lastSeenVersion)." -ForegroundColor Yellow
-    } else {
-        Fail "could not download the assets into $TestVault - grab them by hand from https://github.com/$Repo/releases/tag/$next"
     }
 }
 
