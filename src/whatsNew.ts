@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.44';
+export const WHATS_NEW_VERSION = '1.0.45';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,8 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'The note field is now built with Obsidian\'s createEl helper, as the plugin review asks. Nothing looks or behaves differently.',
-        zh: '注释输入框改用插件评审要求的 createEl 创建，外观和行为都没有变化。',
+        en: 'The note field is built with Obsidian\'s createDiv helper now; the review rule also flags createEl with a div or span tag. Nothing looks or behaves differently.',
+        zh: '注释输入框的容器改用 Obsidian 的 createDiv 创建（评审规则也会把 createEl(\'div\') 视为可替换调用）。外观和行为都没有变化。',
     },
 ];
 

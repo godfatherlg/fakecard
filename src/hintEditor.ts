@@ -24,7 +24,9 @@ export function openHintEditor(
     // focus fight. Within the dialog there is nothing to pull it away.
     const modal = anchor.closest<HTMLElement>('.modal');
     const host = modal ?? document.body;
-    const box = createEl('div', { cls: 'fakecard-hint-editor' });
+    // createDiv, not createEl('div'): the review rule treats the tag argument
+    // as the native call it knows how to replace.
+    const box = createDiv({ cls: 'fakecard-hint-editor' });
 
     const input = box.createEl('input', { cls: 'fakecard-hint-input' });
     input.type = 'text';
