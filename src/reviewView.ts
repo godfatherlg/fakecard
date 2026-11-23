@@ -1,15 +1,13 @@
-import { ItemView, MarkdownRenderer, Menu, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
+import { ItemView, Menu, Notice, WorkspaceLeaf, setIcon, setTooltip } from 'obsidian';
 import { createEmptyCard, fsrs, Rating, State } from 'ts-fsrs';
 import type { Card as FsrsCard, Grade } from 'ts-fsrs';
 import type { CardRecord } from './card';
 import type { AnswerTimeBreakdown } from './answerTime';
 import { ChildCardPromptModal } from './childPrompt';
 import { childScore, isGraduatable } from './childStreak';
-import { clozeGroups, renderClozeHtml } from './cloze';
-import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
+
 import { MapPanelModal } from './mapPanel';
-import { renderMindmap } from './mapView';
-import { findQuestionNode, outlineGroups, parseOutline } from './outline';
+
 import { ClozePanelModal } from './clozePanel';
 import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan } from './examPlan';
@@ -17,6 +15,7 @@ import { tt, ttf } from './i18n';
 import { RatingKeys, keyLabel, matchesKey } from './keys';
 import { buildReviewQueue, ReviewQueue } from './queue';
 import { formatClock, pointsForRatio, recallBudget, slowStep } from './reviewClock';
+import { ReviewCardRenderer } from './reviewRender';
 import { UndoStack, type UndoEntry } from './reviewUndo';
 import { QaPanelModal } from './qaPanel';
 import { jumpToCardSource } from './sourceJump';
@@ -47,9 +46,8 @@ export class ReviewView extends ItemView {
     private cardShownAt = 0;
     /** Due cards the daily limit kept out of the current queue. */
     private backlog = 0;
-    /** Zoom waiting to be written to its card, and the timer that writes it. */
-    private pendingZoom: { cardId: string; zoom: number } | null = null;
-    private zoomTimer: number | null = null;
+    /** Renders the card body (text, map, picture) and owns the zoom write. */
+    private readonly cardRenderer: ReviewCardRenderer;
     /** When the finish page's refresh was last pressed, for its receipt line. */
     private refreshedAt = 0;
     private flashTimer: number | null = null;
@@ -97,6 +95,7 @@ export class ReviewView extends ItemView {
 
     constructor(leaf: WorkspaceLeaf, private plugin: FakeCardPlugin) {
         super(leaf);
+        this.cardRenderer = new ReviewCardRenderer(this.app, plugin, this);
     }
 
     getViewType(): string {
@@ -372,7 +371,7 @@ export class ReviewView extends ItemView {
             // flow; image cards draw the picture with the first group masked.
             const frontEl = body.createDiv({ cls: 'fakecard-review-front' });
             if (card.type === 'qa') frontEl.addClass('fakecard-qa-front');
-            this.renderCardBody(frontEl, card, false);
+            this.cardRenderer.render(frontEl, card, false);
 
             // Outside the scrolling body, in the slot the rating row will
             // occupy: the button keeps its place when the card flips instead
@@ -388,14 +387,14 @@ export class ReviewView extends ItemView {
         if (card.type === 'qa') {
             // Q&A keeps both sides: question above, answer below.
             const frontEl = body.createDiv({ cls: 'fakecard-review-front fakecard-qa-front' });
-            this.renderCardBody(frontEl, card, false);
+            this.cardRenderer.render(frontEl, card, false);
             const backEl = body.createDiv({ cls: 'fakecard-review-back' });
-            this.renderCardBody(backEl, card, true);
+            this.cardRenderer.render(backEl, card, true);
         } else {
             // Cloze and image cards reveal in place - the same block shows the
             // answer, there is no separate answer side.
             const bodyEl = body.createDiv({ cls: 'fakecard-review-front' });
-            this.renderCardBody(bodyEl, card, true);
+            this.cardRenderer.render(bodyEl, card, true);
         }
 
         // A one-line suggestion between the card and the buttons: noticeable,
@@ -440,139 +439,6 @@ export class ReviewView extends ItemView {
         });
     }
 
-    private renderCardBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
-        if (card.type === 'image' && card.image) {
-            this.renderImageBody(el, card, revealed);
-            return;
-        }
-        if (card.type === 'map') {
-            this.renderMapBody(el, card, revealed);
-            return;
-        }
-        // Same class the reading view uses, so headings, lists and spacing look
-        // like the note the card came from.
-        el.addClass('markdown-rendered');
-        void MarkdownRenderer.render(
-            this.app,
-            revealed ? this.backText(card) : this.frontText(card),
-            el,
-            card.source.path,
-            this,
-        ).then(() => {
-            // A cloze or Q&A card can carry pictures too; they zoom the same
-            // way an occlusion picture does.
-            // The generic form says what the selector returns without an
-            // assertion: the scroller is the review body, a real element.
-            attachImageZoom(el, el.closest<HTMLElement>('.fakecard-review-body') ?? el);
-        });
-    }
-
-    /**
-     * A map card is a canvas, not a column of text: it pans and zooms, and it
-     * opens centred on the node it is asking about.
-     */
-    private renderMapBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
-        const group = card.mapGroup ?? 1;
-        const root = parseOutline(card.mapText ?? '');
-        // Centred on the node this card asks about, on both sides: revealing the
-        // answer should not scroll the map away from the question.
-        const focus = findQuestionNode(root, group);
-        // Same rule as a cloze card: "mask all groups" hides every hole, with
-        // the asked group in the accent colour and the rest neutral.
-        const maskGroups = revealed
-            ? new Set<number>()
-            : this.plugin.settings.maskAllGroups
-                ? new Set(outlineGroups(root))
-                : new Set([group]);
-        void renderMindmap(el, root, {
-            maskGroups,
-            askedGroup: group,
-            // Revealed: mark the words that were hidden, the way a cloze card
-            // marks its answers.
-            highlightGroups: revealed ? new Set([group]) : undefined,
-            maskSubtree: this.plugin.settings.mapMaskSubtree,
-            focusNodeId: focus?.id,
-            app: this.app,
-            sourcePath: card.source.path,
-        });
-        el.addClass('fakecard-map-host');
-    }
-
-    private renderImageBody(el: HTMLElement, card: CardRecord, revealed: boolean): void {
-        const wrap = buildImageFigure(this.app, card, revealed, this.plugin.settings.maskAllGroups);
-        if (!wrap) return;
-        el.appendChild(wrap);
-        wrap.addClass('is-zoomable');
-        const scroller = el.closest<HTMLElement>('.fakecard-review-body') ?? el;
-        const img = wrap.querySelector('img');
-        if (!img) return;
-        // The size a card was last read at is the size it comes back at: the
-        // zoom is saved on the card, so there is no separate width to set
-        // anywhere - the gesture is the setting.
-        makeImageZoomable(img, scroller, wrap, card.image?.zoom ?? 1, (zoom) => {
-            this.rememberZoom(card, zoom);
-        });
-    }
-
-    /**
-     * Persist the zoom after the gesture settles.
-     *
-     * A wheel flicks through a dozen values; writing each one would rewrite the
-     * card a dozen times. Half a second of quiet is one write.
-     */
-    private rememberZoom(card: CardRecord, zoom: number): void {
-        if (!card.image) return;
-        this.pendingZoom = { cardId: card.id, zoom };
-        if (this.zoomTimer !== null) window.clearTimeout(this.zoomTimer);
-        this.zoomTimer = window.setTimeout(() => {
-            this.zoomTimer = null;
-            const pending = this.pendingZoom;
-            this.pendingZoom = null;
-            if (!pending) return;
-            void (async () => {
-                const live = (await this.plugin.store.list()).find((entry) => entry.id === pending.cardId);
-                if (!live?.image) return;
-                // 1 is the default: store nothing rather than a no-op number.
-                if (Math.abs(pending.zoom - 1) < 0.01) delete live.image.zoom;
-                else live.image.zoom = Math.round(pending.zoom * 100) / 100;
-                live.updated = new Date().toISOString();
-                await this.plugin.store.save(live);
-            })();
-        }, 500);
-    }
-
-    private frontText(card: CardRecord): string {
-        // A map has no text side; this is only what search and hover previews
-        // read, and the holes are stripped there.
-        if (card.type === 'map' && card.mapText) {
-            return card.mapText.replace(/\{\{c\d+::([\s\S]*?)(?:::[^}]*?)?\}\}/g, '$1');
-        }
-        if (card.type === 'cloze' && card.clozeText) {
-            // Each card asks exactly its own group; when "mask all groups" is
-            // on every group is hidden on the front.
-            if (card.clozeGroup !== undefined) {
-                return renderClozeHtml(
-                    card.clozeText,
-                    this.plugin.settings.maskAllGroups ? 'all' : new Set([card.clozeGroup]),
-                    card.clozeGroup,
-                );
-            }
-            const groups = clozeGroups(card.clozeText);
-            return renderClozeHtml(
-                card.clozeText,
-                groups.length > 0 ? new Set([groups[0]]) : 'all',
-                groups[0],
-            );
-        }
-        return card.front;
-    }
-
-    private backText(card: CardRecord): string {
-        if (card.type === 'cloze' && card.clozeText) {
-            return renderClozeHtml(card.clozeText, new Set<number>());
-        }
-        return card.back;
-    }
 
     /**
      * How badly the card has been failing lately. Every Hard adds 1 and every
@@ -1608,10 +1474,7 @@ export class ReviewView extends ItemView {
 
     async onClose(): Promise<void> {
         this.clearAnswerTimeHint();
-        if (this.zoomTimer !== null) {
-            window.clearTimeout(this.zoomTimer);
-            this.zoomTimer = null;
-        }
+        this.cardRenderer.close();
         if (this.flashTimer !== null) {
             window.clearTimeout(this.flashTimer);
             this.flashTimer = null;
