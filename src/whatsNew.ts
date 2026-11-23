@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.43';
+export const WHATS_NEW_VERSION = '1.0.44';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,8 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'A map now masks every group, like a cloze card: the group being asked keeps the blue accent and the others are neutral. Review follows the same "Mask all groups" setting, so the two card types behave alike.',
-        zh: '导图现在和 cloze 一样把所有组都挖空：所问组蓝色，其他组灰色。复习也遵循同一个「正面挖空所有分组」设置，两种卡型行为一致。',
-    },
-    {
-        en: 'Switching c1 / c2 / c3 centres on the node that group actually asks, and the map no longer swallows the wheel at its edges - once the content ends, the panel scrolls so deck, tags and Save can be reached.',
-        zh: '切换 c1 / c2 / c3 会居中到该组真正提问的节点；地图滚到边界后不再吞掉滚轮，继续滚会滚动外层，能滚到牌组、标签和保存按钮。',
+        en: 'The note field is now built with Obsidian\'s createEl helper, as the plugin review asks. Nothing looks or behaves differently.',
+        zh: '注释输入框改用插件评审要求的 createEl 创建，外观和行为都没有变化。',
     },
 ];
 

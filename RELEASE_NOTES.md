@@ -1,31 +1,19 @@
-# 1.0.43
+# 1.0.44
 
 ## 中文
 
-### 文案修正
+### 代码审查项修正
 
-1.0.42 的「更新说明」里有两处 `**` 被当成普通文字显示出来，已去掉。功能与 1.0.42 完全一致：
+- 注释输入框的创建改用 Obsidian 的 `createEl`，不再用 `document.createElement`（评审项 `prefer-create-el`）
+- 外观和行为完全不变
 
-- 导图所有组都挖空，所问组蓝色、其他组灰色；复习遵循「正面挖空所有分组」
-- 切换 c1 / c2 / c3 居中到该组真正提问的节点
-- 地图滚到边界后，继续滚轮会滚动外层，能滚到牌组、标签和保存
-
-### 请测试
-
-- 重载后弹出的更新说明里是否不再出现星号
-- 其余按 1.0.42 的验证项即可
+1.0.42 / 1.0.43 的功能保持不变：导图所有组挖空、按分组居中、地图滚轮边界、更新说明文案修正。
 
 ## English
 
-### Text fix
+### Review finding fixed
 
-The 1.0.42 update dialog showed two `**` markers as plain text; they are gone. Everything else is identical to 1.0.42:
+- The note field is built with Obsidian's `createEl` instead of `document.createElement` (`prefer-create-el`)
+- No visible change
 
-- Every group of a map is masked, the asked group in the accent and the rest neutral; review follows "Mask all groups"
-- c1 / c2 / c3 centre on the node that group actually asks
-- At the edge of the map the wheel scrolls the panel, so deck, tags and Save can be reached
-
-### Please test
-
-- Does the update dialog open without the stray asterisks
-- Otherwise the 1.0.42 checks apply
+Everything from 1.0.42 / 1.0.43 is unchanged: all-group masks, group centring, wheel release at the map edges, and the corrected update note.
