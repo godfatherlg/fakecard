@@ -16,10 +16,12 @@ export function openHintEditor(
     onSave: (hint: string) => void,
 ): void {
     closeHintEditor(false);
-    const input = document.body.createEl('input', { cls: 'fakecard-hint-input' });
+    const input = document.createElement('input');
+    input.className = 'fakecard-hint-input';
     input.type = 'text';
     input.placeholder = tt('Note shown while hidden (optional)');
     input.value = hint;
+    document.body.appendChild(input);
 
     const rect = anchor.getBoundingClientRect();
     input.setCssStyles({
@@ -55,10 +57,25 @@ export function openHintEditor(
             close(false);
         }
     });
+    // The map and the card behind the field have their own mousedown handlers
+    // (pan, select, focus); a click inside the note is not one of those.
+    input.addEventListener('mousedown', (event) => event.stopPropagation());
+    input.addEventListener('click', (event) => event.stopPropagation());
     document.addEventListener('mousedown', onOutside, true);
     current = { close };
-    input.focus();
-    input.select();
+    // After the click that opened it has finished, so nothing moves focus back
+    // to the button that was pressed; a second pass catches the modal putting
+    // focus back after that.
+    window.setTimeout(() => {
+        if (closed) return;
+        input.focus();
+        input.select();
+    }, 0);
+    window.setTimeout(() => {
+        if (closed || document.activeElement === input) return;
+        input.focus();
+        input.select();
+    }, 60);
 }
 
 export function closeHintEditor(save = false): void {
