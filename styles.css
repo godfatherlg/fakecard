@@ -2031,6 +2031,19 @@ body.theme-dark .fakecard-image-mask-label {
   font-variant-numeric: tabular-nums;
 }
 
+/* Another group's hole, when everything is masked: neutral, the way a cloze
+   card draws the groups it is not asking about. */
+.fakecard-map-hole.is-other {
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.fakecard-map-node.is-whole-mask.is-other {
+  border-color: var(--background-modifier-border);
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
 /* A hole with a note shows the note inside it, like a cloze hint. */
 .fakecard-map-hole.has-hint {
   padding: 0 4px;

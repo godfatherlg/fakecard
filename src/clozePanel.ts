@@ -78,7 +78,9 @@ export class ClozePanelModal extends Modal {
             (text) => {
                 const group = this.currentGroup();
                 if (this.showAnswers) return renderClozeHtml(text, new Set<number>());
-                return renderClozeHtml(text, new Set([group]), group);
+                // Every group is masked; the selected one keeps the accent,
+                // the others are neutral - the same picture review gives.
+                return renderClozeHtml(text, 'all', group);
             },
         );
         this.preview.show(this.text);

@@ -20,6 +20,11 @@ import { splitNodeText } from './outline';
 export interface MapRenderOptions {
     /** Groups to hide. Empty means the answer side: everything is shown. */
     maskGroups: ReadonlySet<number>;
+    /**
+     * The group this card asks, when every group is masked: its holes keep the
+     * blue accent, the others are drawn neutral, the way a cloze card does it.
+     */
+    askedGroup?: number;
     /** Groups to mark as answers once revealed: the words that were hidden. */
     highlightGroups?: ReadonlySet<number>;
     /** A fully masked node also hides its children. */
@@ -110,6 +115,9 @@ export async function renderMindmap(
             if (node.depth === 0) el.addClass('is-root');
             if (whole) {
                 el.addClass('is-whole-mask');
+                if (options.askedGroup !== undefined && node.wholeHole !== options.askedGroup) {
+                    el.addClass('is-other');
+                }
                 el.createSpan({ cls: 'fakecard-map-question', text: '?' });
                 firstMasked ??= el;
             } else {
@@ -131,6 +139,9 @@ export async function renderMindmap(
                         // taller (blank space above and below); plain spaces
                         // keep the exact metrics of the surrounding text.
                         span.addClass('fakecard-map-hole');
+                        if (options.askedGroup !== undefined && piece.group !== options.askedGroup) {
+                            span.addClass('is-other');
+                        }
                         // Text inside the hole, not an empty box: a box with
                         // padding and no content has no reliable metrics, and
                         // this also matches what a cloze mask looks like.

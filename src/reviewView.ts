@@ -10,7 +10,7 @@ import { clozeGroups, renderClozeHtml } from './cloze';
 import { attachImageZoom, buildImageFigure, makeImageZoomable } from './imageFigure';
 import { MapPanelModal } from './mapPanel';
 import { renderMindmap } from './mapView';
-import { findQuestionNode, parseOutline } from './outline';
+import { findQuestionNode, outlineGroups, parseOutline } from './outline';
 import { ClozePanelModal } from './clozePanel';
 import { ImagePanelModal } from './imagePanel';
 import { daysLeft, nextExamPlan } from './examPlan';
@@ -473,8 +473,16 @@ export class ReviewView extends ItemView {
         // Centred on the node this card asks about, on both sides: revealing the
         // answer should not scroll the map away from the question.
         const focus = findQuestionNode(root, group);
+        // Same rule as a cloze card: "mask all groups" hides every hole, with
+        // the asked group in the accent colour and the rest neutral.
+        const maskGroups = revealed
+            ? new Set<number>()
+            : this.plugin.settings.maskAllGroups
+                ? new Set(outlineGroups(root))
+                : new Set([group]);
         void renderMindmap(el, root, {
-            maskGroups: revealed ? new Set<number>() : new Set([group]),
+            maskGroups,
+            askedGroup: group,
             // Revealed: mark the words that were hidden, the way a cloze card
             // marks its answers.
             highlightGroups: revealed ? new Set([group]) : undefined,

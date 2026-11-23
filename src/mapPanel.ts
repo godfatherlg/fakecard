@@ -6,7 +6,7 @@ import { closeHintEditor, openHintEditor } from './hintEditor';
 import { plainOf, wrapRangePlainText } from './inlineMd';
 import { parseTags } from './ui';
 import { tt, ttf } from './i18n';
-import { findQuestionNode, type OutlineNode, parseOutline } from './outline';
+import { findQuestionNode, type OutlineNode, outlineGroups, parseOutline } from './outline';
 import { addFillScreenButton } from './panelFill';
 import { createStages, type StageSwitch } from './panelStages';
 import { renderMindmap } from './mapView';
@@ -246,10 +246,12 @@ export class MapPanelModal extends Modal {
         // repaint, and the map is rendered the moment the stage changes.
         if (!this.stages.onView) return;
         const group = this.currentGroup;
-        // Showing the answer: nothing is masked, and the group being written is
-        // painted green, so the words that will be hidden are still obvious.
-        const maskGroups = this.showAnswers ? new Set<number>() : new Set([group]);
         const root = parseOutline(this.text);
+        // Every group is masked in the editor, so the whole map reads as it
+        // will be asked; the current group keeps the blue accent and the
+        // others are neutral, exactly like the cloze preview. Showing the
+        // answer unmasks everything and paints the current group green.
+        const maskGroups = this.showAnswers ? new Set<number>() : new Set(outlineGroups(root));
         // Name the node the group asks about, rather than relying on "the first
         // mask the renderer happens to meet": c2 must centre on c2's node.
         const question = findQuestionNode(root, group);
@@ -261,6 +263,7 @@ export class MapPanelModal extends Modal {
         this.recenter = false;
         void renderMindmap(this.previewEl, root, {
             maskGroups,
+            askedGroup: group,
             highlightGroups: this.showAnswers ? new Set([group]) : undefined,
             maskSubtree: this.plugin.settings.mapMaskSubtree,
             focusNodeId: question?.id,
