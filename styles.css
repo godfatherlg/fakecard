@@ -1590,6 +1590,9 @@ body.theme-dark .fakecard-image-mask-label {
 
 .fakecard-browse-table {
   width: 100%;
+  /* Below this the columns are unusable: let the list scroll sideways
+     instead of squeezing every cell into a one-character column. */
+  min-width: 640px;
   border-collapse: collapse;
 }
 
@@ -1599,6 +1602,20 @@ body.theme-dark .fakecard-image-mask-label {
   padding: 6px 8px;
   border-bottom: 1px solid var(--background-modifier-border);
   font-size: 0.9em;
+  min-width: 56px;
+  white-space: nowrap;
+}
+
+.fakecard-browse-table th:first-child,
+.fakecard-browse-table td:first-child {
+  min-width: 34px;
+}
+
+/* The front is the one column allowed to wrap: it is prose, not a label. */
+.fakecard-browse-table td.fakecard-browse-front {
+  min-width: 220px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* Sortable header: reads as a label, behaves like a button. */

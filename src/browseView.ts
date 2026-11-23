@@ -652,6 +652,7 @@ export class BrowseView extends ItemView {
         // Front only - but a card found by a word that lives in its
         // answer would look like a wrong hit, so say where it matched.
         const frontCell = row.createEl('td');
+        frontCell.addClass('fakecard-browse-front');
         frontCell.createDiv({ text: card.front.slice(0, 60) });
         const hint = this.matchHint(card);
         if (hint) frontCell.createDiv({ cls: 'fakecard-match-hint', text: hint });
