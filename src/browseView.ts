@@ -239,9 +239,10 @@ export class BrowseView extends ItemView {
         await this.reload();
     }
 
-    private applyFilter(): void {
-        // A new result set starts from the first page again.
-        this.rowLimit = ROW_CHUNK;
+    private applyFilter(resetRows = false): void {
+        // Only a new query starts from the first page; a reload after a bulk
+        // action keeps the pages the user had already opened.
+        if (resetRows) this.rowLimit = ROW_CHUNK;
         const context: SearchContext = {
             ratedAgo: this.ratedAgo,
             orphanIds: this.orphanIds,
@@ -352,7 +353,7 @@ export class BrowseView extends ItemView {
         this.searchHadFocus = true;
         this.suggestIndex = 0;
         this.suggestionsHidden = false;
-        this.applyFilter();
+        this.applyFilter(true);
     }
 
     /** Append a term from the picker menu, keeping the existing query. */
@@ -363,7 +364,7 @@ export class BrowseView extends ItemView {
         this.searchHadFocus = true;
         this.suggestIndex = 0;
         this.suggestionsHidden = false;
-        this.applyFilter();
+        this.applyFilter(true);
     }
 
     /**
@@ -457,7 +458,7 @@ export class BrowseView extends ItemView {
         const deckSelect = bar.createEl('select', { cls: 'dropdown' });
         deckSelect.addEventListener('change', () => {
             this.deckFilter = deckSelect.value;
-            this.applyFilter();
+            this.applyFilter(true);
         });
 
         const searchWrap = bar.createDiv({ cls: 'fakecard-search-wrap' });
@@ -483,7 +484,7 @@ export class BrowseView extends ItemView {
             if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
             this.filterTimer = window.setTimeout(() => {
                 this.filterTimer = null;
-                this.applyFilter();
+                this.applyFilter(true);
             }, 100);
         });
         search.addEventListener('focus', () => {
@@ -549,7 +550,7 @@ export class BrowseView extends ItemView {
             });
             chip.addEventListener('click', () => {
                 this.query = preset;
-                this.applyFilter();
+                this.applyFilter(true);
             });
         }
     }

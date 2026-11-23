@@ -85,8 +85,13 @@ export class ReviewStore {
         }
     }
 
-    /** Move an unreadable day file aside so a fresh one can be written. */
-    private async quarantine(file: TFile): Promise<void> {
+    /**
+     * Move an unreadable day file aside so a fresh one can be written.
+     *
+     * Returns false when it could not be moved: the caller must then leave the
+     * file alone rather than write over data it could not read.
+     */
+    private async quarantine(file: TFile): Promise<boolean> {
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         const target = file.path.replace(/\.json$/i, `.corrupt-${stamp}.json`);
         try {
@@ -95,11 +100,13 @@ export class ReviewStore {
                 name: file.name,
                 kept: target.split('/').pop() ?? target,
             }));
+            return true;
         } catch (error) {
             console.error('fakecard: could not move the review file aside', file.path, error);
             new Notice(ttf('{name} could not be read and could not be moved aside; it was left untouched.', {
                 name: file.name,
             }));
+            return false;
         }
     }
 
@@ -109,14 +116,20 @@ export class ReviewStore {
         const path = this.dayPath(day);
         const file = this.app.vault.getAbstractFileByPath(path);
         let logs: ReviewLog[] = [];
+        let movedAside = false;
         if (file instanceof TFile) {
             const read = await this.readDay(file);
-            if (read.corrupt) await this.quarantine(file);
-            else logs = read.logs;
+            if (read.corrupt) {
+                movedAside = await this.quarantine(file);
+                // Could not move it: do not write over a file we cannot read.
+                if (!movedAside) return;
+            } else {
+                logs = read.logs;
+            }
         }
         logs.push(log);
         const json = JSON.stringify(logs, null, 2);
-        if (file instanceof TFile) await this.app.vault.modify(file, json);
+        if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
         else await this.app.vault.create(path, json);
     }
 
@@ -144,10 +157,15 @@ export class ReviewStore {
             const path = this.dayPath(day);
             const file = this.app.vault.getAbstractFileByPath(path);
             let existing: ReviewLog[] = [];
+            let movedAside = false;
             if (file instanceof TFile) {
                 const read = await this.readDay(file);
-                if (read.corrupt) await this.quarantine(file);
-                else existing = read.logs;
+                if (read.corrupt) {
+                    movedAside = await this.quarantine(file);
+                    if (!movedAside) continue;
+                } else {
+                    existing = read.logs;
+                }
             }
 
             const seen = new Set(existing.map((log) => `${log.cardId}|${log.at}`));
@@ -165,7 +183,7 @@ export class ReviewStore {
             // Keep the file chronological; the readers rely on it.
             existing.sort((a, b) => a.at.localeCompare(b.at));
             const json = JSON.stringify(existing, null, 2);
-            if (file instanceof TFile) await this.app.vault.modify(file, json);
+            if (file instanceof TFile && !movedAside) await this.app.vault.modify(file, json);
             else await this.app.vault.create(path, json);
         }
         return added;

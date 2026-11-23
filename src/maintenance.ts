@@ -83,9 +83,15 @@ export async function exportCards(plugin: FakeCardPlugin): Promise<void> {
     new Notice(ttf('Exported {count} card(s) to {path}', { count: cards.length, path }));
 }
 
-/** One CSV field: quotes doubled, wrapped when it contains a comma or line break. */
+/**
+ * One CSV field: quotes doubled, wrapped when it contains a comma or line
+ * break, and prefixed with an apostrophe when a spreadsheet would read it as a
+ * formula. Card text is user content; `=HYPERLINK(...)` in a front field must
+ * not become a live cell when the file is opened.
+ */
 function csvField(value: string): string {
-    return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+    const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+    return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /**
