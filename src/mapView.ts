@@ -453,19 +453,21 @@ export async function renderMindmap(
         // panel around it scrolls instead - otherwise the bottom of the dialog
         // (deck, tags, the save button) could never be reached from the map.
         const rect = host.getBoundingClientRect();
-        const canPanY = event.deltaY > 0
-            ? ty + maxY * scale > rect.height + 1
-            : ty < -1;
-        const canPanX = event.deltaX > 0
-            ? tx + maxX * scale > rect.width + 1
-            : tx < -1;
+        const shift = event.shiftKey;
+        const panX = shift ? event.deltaY : event.deltaX;
+        const panY = shift ? 0 : event.deltaY;
+        const canPanY = panY !== 0
+            && (panY > 0
+                ? ty + maxY * scale > rect.height + 1
+                : ty < -1);
+        const canPanX = panX !== 0
+            && (panX > 0
+                ? tx + maxX * scale > rect.width + 1
+                : tx < -1);
         if (!canPanX && !canPanY) return;
         event.preventDefault();
-        if (event.shiftKey) tx -= event.deltaY;
-        else {
-            if (canPanY) ty -= event.deltaY;
-            if (canPanX) tx -= event.deltaX;
-        }
+        if (canPanY) ty -= panY;
+        if (canPanX) tx -= panX;
         apply();
     }, { passive: false });
 
