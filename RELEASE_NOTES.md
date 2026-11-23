@@ -1,75 +1,75 @@
-# 1.0.46
+# 1.0.47
 
 ## 中文
 
-### 大库不再一次性渲染
+### 浏览页
 
-- 浏览页一次只建 300 行，底部「再显示」继续加载；屏外的行跳过布局和绘制
-- 搜索输入合并为 100ms 一次，输入时不再每敲一个字重建整张表
-- 批量操作后刷新会保持当前页数，只有改搜索词或牌组筛选才回到第一页
-- 状态栏改用只算数字的计数，不再在每次评分后排一遍整条队列
+- 表格设置**最小宽度 640px**：窗口变窄时不再把每一列挤成「一个字一行」，而是让列表横向滚动
+- 正面列保留 220px 并正常换行；类型、牌组、复习、到期等标签列单行显示
+- 批量操作后的刷新保持当前页数，只有改搜索词或牌组筛选才回到第一页
 
-### 新增
+### 界面与搜索
 
-- **CSV 导出**：命令 `Export all cards (CSV)`，含正反面、挖空原文、牌组、标签、到期、间隔、复习次数、来源；以 `= + - @` 开头的内容会加前导 `'`，防止表格软件当公式执行
-- **埋藏**：浏览页预览里 `Bury / Unbury`，批量栏也可埋藏所选；只隐藏到今天结束，不改 FSRS 排期；`is:due` 搜索会排除已埋藏的卡，Due 列显示「已埋藏」
+- 状态栏标签改为中文：**到期 / 新卡 / 学习中**
+- 阅读视图卡片角标的 `aria-label` 也走中文
+- 新增 `is:buried` 搜索词：正向筛选已埋藏的卡，`-is:buried` 反向排除
+- 清理旧的 `fakecards-*` 类名，统一为 `fakecard-*`，重复的 `paused` 文案合并
 
-### 修复
+### 导图面板
 
-- **复习日志隔离**：坏掉的当天日志改名为 `.corrupt-*` 后会**真正新建**当天文件；之前会把新记录写回备份，当天文件反而丢失。隔离失败时不再覆盖原文件
-- **评分保存失败**：恢复卡片并停留在当前卡，不会在没保存成功时翻页或写日志
-- **撤销**：按卡片 id 定位，切换牌组或重新载入后也能正确回到那张卡；重新载入会清空旧撤销栈
-- **窗口监听**：挖空/导图/图片面板和注释框在打开时记住所属窗口，关闭时从同一个 document 移除监听器
-- **评审规范**：官方 `eslint-plugin-obsidianmd` 从 23 条问题降到 **0**（`activeDocument`、`instanceOf`、样式类化等）
+- **修复首开偏右、右侧被裁切**：居中逻辑以前把「挖空」这个行内标签当成定位基准，它没有自己的位置，于是整张图被平移了半个面板。现在会向上找到挖空所在的节点再居中
+- 忽略上一轮渲染的延迟定位：重绘已经替换节点后，旧计时器不会再覆盖新视口
+- 节点尚未完成 Markdown 渲染时先等待，不再用「宽度为 0」的测量结果定位
+- 切换 c1 / c2 / c3 会居中该组真正提问的节点；打开已有卡时按卡片的 `mapGroup` 选中并居中（例如 c2 卡默认打开 c2）
+- 首次绘制先隐藏，定位完成后一次显示，不再闪
 
 ### 工程
 
-- 新增 `npm run lint`、`npm run check:i18n`、`npm test` 和 `npm run check`
-- i18n 校验会拦住「代码里有、中文表里没有」的文案（这次就抓到一条）
-- vitest 覆盖 cloze / outline / answerTime / childStreak / search，共 15 个用例
-- GitHub Actions：push / PR 跑 build + lint + i18n + test
+- 每日复习上限抽成纯函数 `dailyReviewLimit()`，队列与状态栏共用，新增 4 个单测
+- 测试总数 20，覆盖 cloze / outline / answerTime / childStreak / search / 每日上限
+- 官方评审 lint 保持 0
 
 ### 请测试
 
-- 浏览页有几百张卡时输入搜索，是否仍流畅；「再显示」是否继续加载
-- 批量暂停/埋藏后，是否停在原来的页数而不是跳回顶部
-- 复习时评一张卡，状态栏数字是否立即变化
-- 浏览页选一张卡 → `Bury`，`is:due` 是否不再包含它，Due 列是否显示「已埋藏」，明天是否自动回来
-- 命令面板执行 `Export all cards (CSV)`，用 Excel 打开是否列对齐
+- 把浏览页拖窄：表格是否横向滚动，正面文字是否不再一字一行
+- 搜索 `is:buried`：是否只显示埋藏卡；`is:due` 是否排除它们
+- 打开一张有 c1/c2 的导图卡：是否按卡片分组打开，且该组节点居中、不再偏右
+- 在面板里切换 c1 / c2 / c3：视口是否跳到各自节点
+- 打开导图时是否还有闪动
 
 ## English
 
-### Large libraries render in pages
+### Browse
 
-- Browse builds 300 rows at a time with a "show more" button; off-screen rows skip layout and paint
-- Search input is coalesced to one pass per 100ms instead of rebuilding the table per keystroke
-- Bulk actions keep the current page; only changing the query or deck filter resets to the first page
-- The status bar uses a count-only path instead of rebuilding the queue after every rating
+- The table keeps a **640px minimum width**: a narrow pane scrolls sideways instead of squeezing every column into a one-character line
+- The front column keeps 220px and wraps normally; type, deck, reviews and due stay on one line
+- A reload after a bulk action keeps the current page; only changing the query or deck filter goes back to the first page
 
-### New
+### UI and search
 
-- **CSV export** (`Export all cards (CSV)`): front/back, raw cloze text, deck, tags, due, interval, reviews, source. Cells starting with `= + - @` get a leading `'` so spreadsheets do not run them as formulas
-- **Bury**: `Bury / Unbury` in the browse preview and the bulk bar. It hides a card until the end of the day without touching FSRS; `is:due` excludes buried cards and the Due column says "Buried"
+- Status-bar labels are translated: **Due / New / Learning** in English, 到期 / 新卡 / 学习中 in Chinese
+- The note badge's `aria-label` is translated too
+- New `is:buried` search term, with `-is:buried` as its negation
+- The old `fakecards-*` class family is renamed to `fakecard-*`, and the duplicate `paused` string is gone
 
-### Fixed
+### Mind map panel
 
-- **Review log quarantine**: after a corrupt day file is renamed to `.corrupt-*`, a new day file is really created. Before, the new entry was written back into the renamed backup and the day file was lost. If the file cannot be moved, it is left untouched
-- **Failed rating save**: the card is restored and the view stays on it, instead of advancing and logging a review the disk never received
-- **Undo**: finds the card by id, so a deck switch or reload still returns to the right card; reload clears the old stack
-- **Window listeners**: the cloze/map/image panels and the note field capture their document and remove listeners from the same one
-- **Review lint**: the official `eslint-plugin-obsidianmd` set goes from 23 findings to **0**
+- **Fixed the first open being shifted right and clipped**: centring used the inline mask span as its reference; that span has no position of its own, so the map was translated by half a pane. It now walks up to the node that holds the mask
+- A settle from a render that has already been replaced can no longer overwrite the new view
+- If Markdown has not measured the node yet, centring waits instead of using a zero width
+- Switching c1 / c2 / c3 centres the node that group actually asks about; opening a card follows its `mapGroup` (a c2 card opens on c2)
+- The first paint is hidden until placed, so the map no longer flashes
 
 ### Engineering
 
-- `npm run lint`, `npm run check:i18n`, `npm test` and `npm run check`
-- The i18n check fails when a `tt('...')` key is missing from the Chinese table (it caught one)
-- 15 vitest cases across cloze / outline / answerTime / childStreak / search
-- GitHub Actions runs build + lint + i18n + test on push and pull requests
+- The daily review limit is a pure `dailyReviewLimit()` shared by the queue and the status bar, with 4 new tests
+- 20 tests across cloze / outline / answerTime / childStreak / search / daily limit
+- The official review lint stays at 0
 
 ### Please test
 
-- Type in a large browse library: does it stay smooth, and does "show more" keep loading
-- Bulk pause/bury: does the page stay where it was instead of jumping to the top
-- Rate a card: do the status-bar numbers change immediately
-- Bury a card: is it gone from `is:due`, does the Due column say "Buried", and does it return tomorrow
-- Run `Export all cards (CSV)` and open it in a spreadsheet
+- Narrow the browse pane: does the table scroll sideways, and does the front stop wrapping per character
+- Search `is:buried`: only buried cards; `is:due` excludes them
+- Open a map with c1/c2: does it open on the card's group, centred, without the right side clipped
+- Switch c1 / c2 / c3: does the view move to the right node
+- Does opening a map still flash
