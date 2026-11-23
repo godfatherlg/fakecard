@@ -5,6 +5,22 @@ import type { OutlineNode } from './outline';
 import { splitNodeText } from './outline';
 
 /**
+ * Blank characters for a mask, one per hidden character.
+ *
+ * A CJK character is one em wide and so is the ideographic space; a Latin
+ * character is narrower, and so is a no-break space. Using the matching blank
+ * keeps the hole the same width as the words behind it without changing the
+ * line box the way an inline-block does.
+ */
+function maskedSpaces(text: string): string {
+    const cjk = /[\u2e80-\u9fff\uac00-\ud7af\uff00-\uffef]/;
+    const blank = Array.from(text)
+        .map((char) => (cjk.test(char) ? '\u3000' : '\u00A0'))
+        .join('');
+    return blank || '\u00A0';
+}
+
+/**
  * A mind map drawn from an outline.
  *
  * Right-growing tree: depth runs left to right, each level starts after the
@@ -118,13 +134,13 @@ export async function renderMindmap(
                     span.dataset.to = String(piece.to);
                     if (piece.masked) {
                         // The answer must not be readable through the mask, and
-                        // the hole must not be wider than the words it hides:
-                        // `[___]` is five characters, so masking a two-character
-                        // word reflowed the whole node onto new lines.
+                        // the hole must occupy the same kind of line box as the
+                        // words it replaces. A fixed `[___]` reflowed the node,
+                        // and an inline-block of a set height made the line
+                        // taller (blank space above and below); plain spaces
+                        // keep the exact metrics of the surrounding text.
                         span.addClass('fakecard-map-hole');
-                        span.setCssStyles({
-                            width: `${Math.max(1, piece.text.length)}ch`,
-                        });
+                        span.setText(maskedSpaces(piece.text));
                         firstMasked ??= span;
                         continue;
                     }
