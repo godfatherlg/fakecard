@@ -1,7 +1,8 @@
 import { App, Modal, Notice, Setting, setTooltip } from 'obsidian';
 
 import type { CardRecord } from './card';
-import { clozeGroups, parseCloze, unwrapSelection, wrapSelection } from './cloze';
+import { clozeGroups, holeHint, parseCloze, unwrapSelection, withHoleHint, wrapSelection } from './cloze';
+import { closeHintEditor, openHintEditor } from './hintEditor';
 import { plainOf, wrapRangePlainText } from './inlineMd';
 import { parseTags } from './ui';
 import { tt, ttf } from './i18n';
@@ -257,6 +258,7 @@ export class MapPanelModal extends Modal {
                 this.activeNode = node;
                 this.activeEl = el;
             },
+            onMaskClick: (node, hole) => this.editHoleHint(node, hole),
             onNodeEdit: (node, text) => this.applyNodeText(node, text),
         });
     }
@@ -529,6 +531,35 @@ export class MapPanelModal extends Modal {
         this.floatEl = null;
     }
 
+    /**
+     * Write the note that shows inside a mask.
+     *
+     * Clicking the mask is the shortest path from "this hole needs a reminder"
+     * to the note that will be visible while it is hidden; the note is the
+     * third part of the Anki token, so review shows it in the mask itself.
+     */
+    private editHoleHint(node: OutlineNode, hole: HTMLElement): void {
+        if (node.endLine !== node.line) {
+            new Notice(tt('Multi-line nodes cannot be masked as a whole yet.'));
+            return;
+        }
+        const from = Number(hole.dataset.from ?? '-1');
+        const to = Number(hole.dataset.to ?? '-1');
+        if (from < 0 || to <= from) return;
+        const lines = this.text.replace(/\r\n?/g, '\n').split('\n');
+        const line = lines[node.line] ?? '';
+        const marker = /^[\s]*(?:[-*+] |\d+[.)] |> ?|#{1,6} )/.exec(line)?.[0] ?? '';
+        const raw = line.slice(marker.length);
+        const token = raw.slice(from, to);
+        openHintEditor(hole, holeHint(token) ?? '', (hint) => {
+            const next = withHoleHint(token, hint);
+            if (next === token) return;
+            lines[node.line] = `${marker}${raw.slice(0, from)}${next}${raw.slice(to)}`;
+            this.setText(lines.join('\n'), 0);
+            this.finishMasking();
+        });
+    }
+
     /** Drop one hole, keeping the words it hid. */
     private unwrapHole(hole: HTMLElement): void {
         const node = this.activeNode;
@@ -547,6 +578,7 @@ export class MapPanelModal extends Modal {
     }
 
     onClose(): void {
+        closeHintEditor();
         if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
         document.removeEventListener('mouseup', this.onSelectionUp);
         this.hideFloat();

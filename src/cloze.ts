@@ -114,6 +114,20 @@ export function renderClozeHtml(
     });
 }
 
+/** The note written after the second `::` of a hole token, if any. */
+export function holeHint(token: string): string | undefined {
+    const match = /^\{\{c\d+::[\s\S]*?(?:::(.*?))?\}\}$/.exec(token);
+    return match?.[1]?.trim() || undefined;
+}
+
+/** The same hole token with its note replaced; an empty note removes it. */
+export function withHoleHint(token: string, hint: string): string {
+    const match = /^\{\{c(\d+)::([\s\S]*?)(?:::(.*?))?\}\}$/.exec(token);
+    if (!match) return token;
+    const [, group, answer] = match;
+    return hint ? `{{c${group}::${answer}::${hint}}}` : `{{c${group}::${answer}}}`;
+}
+
 /**
  * Wrap the selection in {{cN::...}}. The whole current selection becomes one
  * hole; if it already is a token, the token is re-grouped instead.

@@ -1,7 +1,8 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type { CardRecord } from './card';
 import type FakeCardPlugin from '../main';
-import { clozeGroups, renderClozeHtml, unwrapSelection, wrapBlockLines, wrapSelection } from './cloze';
+import { clozeGroups, holeHint, renderClozeHtml, unwrapSelection, withHoleHint, wrapBlockLines, wrapSelection } from './cloze';
+import { closeHintEditor, openHintEditor } from './hintEditor';
 import { FieldPreview } from './fieldPreview';
 import { HistoryStack } from './history';
 import { tt, ttf } from './i18n';
@@ -65,15 +66,22 @@ export class ClozePanelModal extends Modal {
         this.textarea = editStage.createEl('textarea', { cls: 'fakecard-cloze-editor fakecard-autosize' });
         this.textarea.value = this.text;
         this.textarea.rows = 3;
-        // Nothing is hidden in the preview: every hole is marked where it is, so
-        // the editor shows what is asked and what the answer is, not just braces.
+        // The current group is hidden, so the preview shows the card as it will
+        // be asked; the other groups stay visible so the whole text is readable.
+        // A mask can be clicked to write the note it shows while hidden.
         this.preview = new FieldPreview(
             this.app,
             previewStage,
             this.sourcePath,
-            (text) => renderClozeHtml(text, new Set<number>()),
+            (text) => {
+                const group = this.currentGroup();
+                return renderClozeHtml(text, new Set([group]), group);
+            },
         );
         this.preview.show(this.text);
+        // A plain click on a mask opens its note; a drag across one is a
+        // selection (handled by the mouseup path above) and is left alone.
+        previewStage.addEventListener('click', this.onHoleClick);
         this.history = new HistoryStack(this.text);
         this.textarea.addEventListener('input', () => {
             this.text = this.textarea.value;
@@ -104,6 +112,9 @@ export class ClozePanelModal extends Modal {
 
         this.groupSelect = toolbar.createEl('select', { cls: 'dropdown' });
         this.rebuildGroupOptions();
+        // The preview hides the selected group, so switching it changes what
+        // is masked - and therefore which note belongs to the hole on screen.
+        this.groupSelect.addEventListener('change', () => this.preview.show(this.text));
 
         // The same box, two stages: editing, then the rendered card.
         const modeButton = toolbar.createEl('button', { cls: 'mod-cta', text: tt('Done'), attr: { type: 'button' } });
@@ -363,6 +374,7 @@ export class ClozePanelModal extends Modal {
     }
 
     onClose(): void {
+        closeHintEditor();
         if (this.selectionHandler) document.removeEventListener('mouseup', this.selectionHandler);
         this.hideFloat();
         this.preview?.dispose();
@@ -398,9 +410,34 @@ export class ClozePanelModal extends Modal {
     }
 
     private currentGroup(): number {
-        const parsed = Number.parseInt(this.groupSelect.value, 10);
+        // Called once while the preview is built, before the select exists.
+        const parsed = Number.parseInt(this.groupSelect?.value ?? '1', 10);
         return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     }
+
+    /** Clicking a mask writes the note it will show while hidden. */
+    private onHoleClick = (event: MouseEvent): void => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const hole = target.closest<HTMLElement>('.fakecard-cloze-mask');
+        if (!hole) return;
+        // A drag selection also ends in a click; only a plain click annotates.
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) return;
+
+        const from = Number(hole.dataset.from ?? '-1');
+        const to = Number(hole.dataset.to ?? '-1');
+        if (from < 0 || to <= from) return;
+        const token = this.text.slice(from, to);
+        openHintEditor(hole, holeHint(token) ?? '', (hint) => {
+            const next = withHoleHint(token, hint);
+            if (next === token) return;
+            this.text = this.text.slice(0, from) + next + this.text.slice(to);
+            this.textarea.value = this.text;
+            this.preview.show(this.text);
+            this.history.push(this.text);
+        });
+    };
 
     private wrapSelection(): void {
         const from = this.textarea.selectionStart;

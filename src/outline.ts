@@ -148,6 +148,8 @@ export interface TextPiece {
     masked: boolean;
     /** The hole's group, when this piece is a hole. */
     group?: number;
+    /** The hole's note, shown while it is masked. */
+    hint?: string;
     /** Offsets in the node's raw text, so a selection can be mapped back. */
     from: number;
     to: number;
@@ -167,7 +169,14 @@ export function splitNodeText(text: string, maskGroups: ReadonlySet<number>): Te
             pieces.push({ text: text.slice(at, hole.from), masked: false, from: at, to: hole.from });
         }
         const masked = maskGroups.has(hole.group);
-        pieces.push({ text: hole.text, masked, group: hole.group, from: hole.from, to: hole.to });
+        pieces.push({
+            text: hole.text,
+            masked,
+            group: hole.group,
+            hint: hole.hint,
+            from: hole.from,
+            to: hole.to,
+        });
         at = hole.to;
     }
     if (at < text.length) pieces.push({ text: text.slice(at), masked: false, from: at, to: text.length });

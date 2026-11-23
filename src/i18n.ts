@@ -607,6 +607,7 @@ const UI_ZH: Record<string, string> = {
     'matched in the answer: {text}': '命中在答案：{text}',
     'Hide answer': '收起答案',
     'Show the masked text in the preview': '在预览里显示被挖空的内容',
+    'Note shown while hidden (optional)': '遮罩上显示的注释（可留空）',
     // Search box: the picker menu and the completion hints.
     'Insert a search filter': '插入搜索条件',
     'Any text': '任意文字',

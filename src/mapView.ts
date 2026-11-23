@@ -42,6 +42,8 @@ export interface MapRenderOptions {
     onNodeClick?: (node: OutlineNode) => void;
     /** Called when a node is pressed, so the panel knows where a selection is. */
     onNodeFocus?: (node: OutlineNode, el: HTMLElement) => void;
+    /** Click on a mask: the panel opens its note editor. */
+    onMaskClick?: (node: OutlineNode, hole: HTMLElement) => void;
     /** Double-click: the node's text is being edited, raw, in place. */
     onNodeEdit?: (node: OutlineNode, text: string) => void;
     /**
@@ -138,11 +140,25 @@ export async function renderMindmap(
                         // taller (blank space above and below); plain spaces
                         // keep the exact metrics of the surrounding text.
                         span.addClass('fakecard-map-hole');
-                        const width = maskedWidth(piece.text);
-                        span.setCssStyles({
-                            paddingLeft: `${width / 2}em`,
-                            paddingRight: `${width / 2}em`,
-                        });
+                        if (piece.hint) {
+                            // The note written for this hole is shown inside it,
+                            // exactly like a cloze hint.
+                            span.addClass('has-hint');
+                            span.setText(`[${piece.hint}]`);
+                        } else {
+                            const width = maskedWidth(piece.text);
+                            span.setCssStyles({
+                                paddingLeft: `${width / 2}em`,
+                                paddingRight: `${width / 2}em`,
+                            });
+                        }
+                        if (options.onMaskClick) {
+                            span.addClass('is-editable');
+                            span.addEventListener('click', (event) => {
+                                event.stopPropagation();
+                                options.onMaskClick?.(node, span);
+                            });
+                        }
                         firstMasked ??= span;
                         continue;
                     }
