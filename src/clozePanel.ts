@@ -57,7 +57,7 @@ export class ClozePanelModal extends Modal {
 
         contentEl.createEl('p', {
             cls: 'fakecard-help',
-            text: tt('Anki cloze format: {{c1::answer}} hides "answer" in group 1. Append ::note to show a note while hidden, e.g. {{c1::answer::dose}}. Select text and press "Wrap" to create a hole; use "New group" to create c2, c3 ...'),
+            text: tt('Anki cloze format: {{c1::answer}} hides "answer" in group 1. Append ::note to show a note while hidden, e.g. {{c1::answer::dose}}. Select text and press "Wrap" to create a mask; use "New group" to create c2, c3 ...'),
         });
 
         // One area, two stages: the source while typing, the rendered card once
@@ -509,7 +509,7 @@ export class ClozePanelModal extends Modal {
             return;
         }
         if (clozeGroups(text).length === 0) {
-            new Notice(tt('No hole found - wrap some text in {{c1::...}} first.'));
+            new Notice(tt('No mask found - wrap some text in {{c1::...}} first.'));
             return;
         }
 

@@ -102,7 +102,7 @@ export class MapPanelModal extends Modal {
 
         const wrapButton = toolbar.createEl('button', { text: tt('Wrap selection'), attr: { type: 'button' } });
         wrapButton.addEventListener('click', () => this.wrapSelectionInHole());
-        setTooltip(wrapButton, tt('Wrap the selection in a hole for the chosen group'));
+        setTooltip(wrapButton, tt('Wrap the selection in a mask for the chosen group'));
 
         toolbar.createEl('button', { text: tt('Mask whole node'), attr: { type: 'button' } }).addEventListener('click', () => {
             // With a node selected in the map, this masks that node; the text

@@ -274,7 +274,7 @@ export class TempEditor {
                 const { from, to, value } = read(target);
                 const holes = parseCloze(value).filter((hole) => hole.to > from && hole.from < to);
                 if (holes.length === 0) {
-                    new Notice(tt('No cloze hole at the cursor.'));
+                    new Notice(tt('No cloze mask at the cursor.'));
                     return;
                 }
                 target.transaction({

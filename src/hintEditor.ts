@@ -38,7 +38,7 @@ export function openHintEditor(
         const remove = document.createElement('button');
         remove.className = 'fakecard-hint-remove';
         remove.type = 'button';
-        remove.textContent = tt('Remove hole');
+        remove.textContent = tt('Remove mask');
         remove.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
