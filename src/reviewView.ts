@@ -400,9 +400,12 @@ export class ReviewView extends ItemView {
         }
 
         // Recording belongs to the answer: it is shown only once the answer is
-        // on screen, and the clip is written to the card immediately.
+        // on screen, and the clip is written to the card immediately. It sits
+        // in the fixed row above the rating buttons, not inside the scrolling
+        // body, so a long answer cannot push it out of sight.
+        let recordHost: HTMLElement | null = null;
         if (this.plugin.settings.audioEnabled) {
-            const recordHost = body.createDiv({ cls: 'fakecard-review-record' });
+            recordHost = container.createDiv({ cls: 'fakecard-review-record' });
             this.audioRecorder = renderAudioRecorderButton(this.plugin, recordHost, card, {
                 compact: true,
                 onChange: () => this.refreshCurrentCard(),
@@ -410,7 +413,9 @@ export class ReviewView extends ItemView {
         }
 
         // A one-line suggestion between the card and the buttons: noticeable,
-        // but it never blocks a key or a click.
+        // but it never blocks a key or a click. The record button rides on the
+        // right of that same row, and gets a row of its own when no suggestion
+        // is due.
         renderRatingNudge(container, card, {
             settings: this.plugin.settings,
             revealed: this.revealed,
@@ -418,7 +423,7 @@ export class ReviewView extends ItemView {
             clockHidden: this.clocks.hidden,
             breakdown: this.clocks.budgetFor(card),
             rate: (rating, mixed) => { void this.rate(rating, mixed); },
-        });
+        }, recordHost ?? undefined);
 
         // Rating buttons: one cell each, with the shortcut under the label.
         const ratings = container.createDiv({ cls: 'fakecard-review-ratings' });

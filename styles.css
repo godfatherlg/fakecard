@@ -373,12 +373,13 @@
 }
 
 /* The answer-side record button: available without opening an edit panel,
-   but out of the reading path until the answer is actually shown. */
+   but out of the reading path until the answer is actually shown. It lives in
+   the fixed nudge row, so a long scrolling answer cannot hide it. */
 .fakecard-review-record {
   display: flex;
   flex: 0 0 auto;
-  justify-content: flex-end;
-  margin-top: -6px;
+  align-items: center;
+  margin-left: auto;
 }
 
 /* The card is a reading surface, not an editor: the text can be selected and
@@ -608,6 +609,26 @@
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   text-align: center;
+}
+
+/* The suggestion stays centred; the record button takes the right end of the
+   same line. When there is no suggestion, the row only holds the record. */
+.fakecard-nudge-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fakecard-nudge.has-record {
+  flex-wrap: nowrap;
+}
+
+.fakecard-nudge.is-record-only {
+  justify-content: flex-end;
 }
 
 .fakecard-nudge-button {
