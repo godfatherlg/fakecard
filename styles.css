@@ -2192,14 +2192,17 @@ body.theme-dark .fakecard-image-mask-label {
 
 /* A revealed hole in a mind map is the answer: same green a cloze card uses. */
 .fakecard-map-answer {
+  /* The same green a revealed cloze hole uses, down to the padding: an answer
+     should look like an answer wherever it appears. */
   border-radius: 3px;
-  padding: 0 2px;
+  padding: 0 4px;
   background: color-mix(in srgb, var(--color-green) 22%, transparent);
+  color: var(--text-normal);
 }
 
 .fakecard-map-node.is-whole-answer {
   border-color: color-mix(in srgb, var(--color-green) 45%, transparent);
-  background: color-mix(in srgb, var(--color-green) 14%, transparent);
+  background: color-mix(in srgb, var(--color-green) 22%, transparent);
 }
 
 
