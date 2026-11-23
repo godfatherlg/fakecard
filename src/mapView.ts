@@ -5,20 +5,17 @@ import type { OutlineNode } from './outline';
 import { splitNodeText } from './outline';
 
 /**
- * Blank text for a mask, one width's worth per hidden character.
+ * Width of a mask, in ems, for the words it hides.
  *
- * No-break spaces, not ideographic ones: an ideographic space is a break
- * opportunity, so a narrow node could split the hole over two lines. Two
- * no-break spaces are about one em, the width of a CJK character; one is about
- * half an em, the width of a Latin one. The hole stays a plain text run - no
- * inline block, so the line box is exactly the text's own.
+ * A CJK character is about one em wide, a Latin one about half. The hole is an
+ * empty inline box widened by padding: it has no text to break, no fixed
+ * height to raise the line, and it moves to the next line as one piece.
  */
-function maskedText(text: string): string {
+function maskedWidth(text: string): number {
     const cjk = /[\u2e80-\u9fff\uac00-\ud7af\uff00-\uffef]/;
-    const blank = Array.from(text)
-        .map((char) => (cjk.test(char) ? '\u00A0\u00A0' : '\u00A0'))
-        .join('');
-    return blank || '\u00A0';
+    const width = Array.from(text)
+        .reduce((sum, char) => sum + (cjk.test(char) ? 1 : 0.5), 0);
+    return Math.max(0.5, width);
 }
 
 /**
@@ -141,7 +138,11 @@ export async function renderMindmap(
                         // taller (blank space above and below); plain spaces
                         // keep the exact metrics of the surrounding text.
                         span.addClass('fakecard-map-hole');
-                        span.setText(maskedText(piece.text));
+                        const width = maskedWidth(piece.text);
+                        span.setCssStyles({
+                            paddingLeft: `${width / 2}em`,
+                            paddingRight: `${width / 2}em`,
+                        });
                         firstMasked ??= span;
                         continue;
                     }
