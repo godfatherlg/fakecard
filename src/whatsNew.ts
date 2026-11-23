@@ -12,7 +12,7 @@ import { isChinese, t } from './i18n';
  * Update WHATS_NEW_VERSION and WHATS_NEW together when cutting a release; the
  * text mirrors RELEASE_NOTES.md.
  */
-export const WHATS_NEW_VERSION = '1.0.54';
+export const WHATS_NEW_VERSION = '1.0.55';
 
 /**
  * English and Chinese side by side in one entry, so a translation cannot be
@@ -25,12 +25,16 @@ interface WhatsNewEntry {
 
 const WHATS_NEW: WhatsNewEntry[] = [
     {
-        en: 'An image-occlusion set now saves all or nothing: a failed write rolls back that attempt and keeps the panel open, instead of reporting "Saved" while the groups that failed are lost - and re-saving after a partial failure no longer duplicates the groups that landed.',
-        zh: '图片挖空卡改为整套保存：写入失败时会回滚这次已写的卡片并保留面板，不再提示「已保存」却丢掉失败的组，重试也不会重复创建已经保存的组。',
+        en: 'Optional audio recordings, off by default: an existing card\'s edit panel can record several clips, saved under fakecard/media with a time-stamped file name. The label can be renamed without touching the file, and review shows a player strip above the card that never starts by itself.',
+        zh: '新增可选录音（默认关闭）：已有卡片的编辑面板可以录制多段录音，按时间戳保存在 fakecard/media。显示名可以改，但不会动文件名；复习时卡片上方显示播放条，不会自动播放。',
     },
     {
-        en: 'The review toolbar now wraps in a narrow pane, so the clock and its restore button stay clear of the icon buttons instead of being covered by them.',
-        zh: '复习栏在窄面板下会自动换行，计时器和「重新打开」按钮不再被右侧图标行盖住。',
+        en: 'Optional learning steps, off by default: new cards and lapses can follow Anki-style minute steps such as 1m 10m and 10m. Again returns to the first step, Good moves one step on, Hard repeats the current step and Easy graduates; after the last step FSRS still picks the interval.',
+        zh: '新增可选学习步骤（默认关闭）：新卡和遗忘后的卡可以按 1m 10m、10m 这样的 Anki 式分钟步骤走。Again 回到第一步，Good 前进一步，Hard 重复当前步，Easy 直接毕业；最后一步之后的间隔仍由 FSRS 决定。',
+    },
+    {
+        en: 'Both switches are off by default; with them off, scheduling and the edit panels behave exactly as in 1.0.54. The settings entries explain each option in both languages.',
+        zh: '两项开关默认关闭；关闭时排程和编辑面板与 1.0.54 完全一致。设置项里有中英文说明。',
     },
 ];
 
